@@ -232,7 +232,7 @@ client.on('interactionCreate', async interaction => {
         const gamesEmbed = new EmbedBuilder()
             .setColor('#9b59b6')
             .setTitle('🎮 قائمة الألعاب المتاحة')
-            .setDescription('اختر اللعبة التي تريد تشغيلها من القائمة المنسدلة بالأسفل:');
+            .setDescription('اختر اللعبة التي تريد تشغيلها من القائمة بالأسفل:');
 
         const response = await interaction.reply({ embeds: [gamesEmbed], components: [row], fetchReply: true });
 
