@@ -277,7 +277,7 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
         .setLabel('بدء اللعبة 🚀')
         .setStyle(ButtonStyle.Primary);
 
-    const row = new ActionRowBuilder().addComponents(joinButton, startButton);
+    const row = new ActionRowBuilder().addComponents(joinButton,leaveButton, startButton);
 
     const embed = new EmbedBuilder()
         .setColor('#3498db')
