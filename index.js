@@ -342,7 +342,7 @@ async function startDetectiveGame(selectInteraction, initialInteraction) {
 
     const joinButton = new ButtonBuilder()
         .setCustomId('det_join')
-        .setLabel('انضمام للعبة ✋')
+        .setLabel('انضمام للعبة 🎮')
         .setStyle(ButtonStyle.Success);
 
     const startButton = new ButtonBuilder()
