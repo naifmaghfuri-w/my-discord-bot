@@ -424,7 +424,7 @@ async function startDetectiveGame(selectInteraction, initialInteraction) {
             }
 
             if (players.size < 5) {
-                return i.reply({ content: 'الحد الأدنى للبدء هو 5 لاعبين!', ephemeral: true });
+                return i.reply({ content: ' الحد الأدنى للبدء هو 5 لاعبين!', ephemeral: true });
             }
 
             lobbyCollector.stop('started');
