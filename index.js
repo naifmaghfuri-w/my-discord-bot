@@ -266,6 +266,12 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
         .setLabel('انضمام للعبة 🎮')
         .setStyle(ButtonStyle.Success);
 
+     const leaveButton = new ButtonBuilder()
+           .setCustomId('det_leave')
+           .setLabel('خروج 🚪')
+           .setStyle(ButtonStyle.Danger); // زر أحمر للخروج
+
+    
     const startButton = new ButtonBuilder()
         .setCustomId('start_game')
         .setLabel('بدء اللعبة 🚀')
@@ -290,12 +296,6 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
             await i.update({ embeds: [embed] });
         }
 
-           const leaveButton = new ButtonBuilder()
-           .setCustomId('det_leave')
-           .setLabel('خروج 🚪')
-           .setStyle(ButtonStyle.Danger); // زر أحمر للخروج
-
-        
         if (i.customId === 'start_game') {
             if (i.user.id !== selectInteraction.user.id) {
                 return i.reply({ content: 'صاحب الأمر فقط هو من يمكنه بدء اللعبة!', ephemeral: true });
