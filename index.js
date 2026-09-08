@@ -217,7 +217,7 @@ client.on('interactionCreate', async interaction => {
             .addOptions(
                 new StringSelectMenuOptionBuilder()
                     .setLabel('برا السالفة')
-                    .setDescription('لعبة الذكاء والتمويه لمعرفة من هو الشخص الذي برا السالفة')
+                    .setDescription('لعبة معرفة من هو الشخص الذي برا السالفة')
                     .setValue('out_of_loop')
                     .setEmoji('🕵️‍♂️'),
                 new StringSelectMenuOptionBuilder()
@@ -290,6 +290,12 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
             await i.update({ embeds: [embed] });
         }
 
+           const leaveButton = new ButtonBuilder()
+           .setCustomId('det_leave')
+           .setLabel('خروج 🚪')
+           .setStyle(ButtonStyle.Danger); // زر أحمر للخروج
+
+        
         if (i.customId === 'start_game') {
             if (i.user.id !== selectInteraction.user.id) {
                 return i.reply({ content: 'صاحب الأمر فقط هو من يمكنه بدء اللعبة!', ephemeral: true });
