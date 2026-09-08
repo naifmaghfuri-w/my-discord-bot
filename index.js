@@ -255,7 +255,7 @@ client.on('interactionCreate', async interaction => {
 });
 
 // ==========================================
-// 5. منطق اللعبة الأولى: برا السالفة
+// 5. منطق اللعبة الأولى: برا السالفة (معدل)
 // ==========================================
 async function startOutOfLoopGame(selectInteraction, initialInteraction) {
     const players = new Set();
@@ -266,18 +266,17 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
         .setLabel('انضمام للعبة 🎮')
         .setStyle(ButtonStyle.Success);
 
-     const leaveButton = new ButtonBuilder()
-           .setCustomId('det_leave')
-           .setLabel('خروج 🚪')
-           .setStyle(ButtonStyle.Danger); // زر أحمر للخروج
+    const leaveButton = new ButtonBuilder()
+        .setCustomId('leave_game')
+        .setLabel('خروج 🚪')
+        .setStyle(ButtonStyle.Danger);
 
-    
     const startButton = new ButtonBuilder()
         .setCustomId('start_game')
         .setLabel('بدء اللعبة 🚀')
         .setStyle(ButtonStyle.Primary);
 
-    const row = new ActionRowBuilder().addComponents(joinButton,leaveButton, startButton);
+    const row = new ActionRowBuilder().addComponents(joinButton, leaveButton, startButton);
 
     const embed = new EmbedBuilder()
         .setColor('#3498db')
@@ -289,26 +288,34 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
     const btnCollector = initialInteraction.channel.createMessageComponentCollector({ componentType: ComponentType.Button, time: 120000 });
 
     btnCollector.on('collect', async i => {
+        // 1. زر الانضمام
         if (i.customId === 'join_game') {
+            if (players.has(i.user.id)) {
+                return i.reply({ content: 'أنت منضم بالفعل للعبة!', ephemeral: true });
+            }
             players.add(i.user.id);
             const updatedList = Array.from(players).map(id => `<@${id}>`).join('\n');
-            embed.setDescription(`اللاعبون المنضمون حالياً:\n${updatedList}\n\n**يلزم 3 لاعبين على الأقل!**`);
+            embed.setDescription(`اللاعبون المنضمون حالياً:\n${updatedList}\n\n**يلزم 3 لاعبين على الأقل لبدء اللعبة!**`);
             await i.update({ embeds: [embed] });
         }
-         if (i.customId === 'det_leave') {
-        if (!players.has(i.user.id)) {
-            return i.reply({ content: 'أنت لست منضماً في اللعبة لتخرج منها!', ephemeral: true });
-        }
         
-        // إزالة اللاعب من القائمة
-        players.delete(i.user.id);
-        
-        const updatedList = players.size > 0 
-            ? Array.from(players.values()).map(u => `<@${u.id}>`).join('\n')
-            : 'لا يوجد لاعبين منضمين حالياً.';
+        // 2. زر الخروج
+        if (i.customId === 'leave_game') {
+            if (!players.has(i.user.id)) {
+                return i.reply({ content: 'أنت لست منضماً في اللعبة لتخرج منها!', ephemeral: true });
+            }
             
-        embed.setDescription(`**اللاعبون المنضمون حالياً:**\n${updatedList}\n\n⚠️ **يلزم 7 لاعبين على الأقل لبدء اللعبة!**`);
-        await i.update({ embeds: [embed] });
+            players.delete(i.user.id);
+            
+            const updatedList = players.size > 0 
+                ? Array.from(players).map(id => `<@${id}>`).join('\n')
+                : 'لا يوجد لاعبين منضمين حالياً.';
+                
+            embed.setDescription(`اللاعبون المنضمون حالياً:\n${updatedList}\n\n**يلزم 3 لاعبين على الأقل لبدء اللعبة!**`);
+            await i.update({ embeds: [embed] });
+        }
+
+        // 3. زر البدء
         if (i.customId === 'start_game') {
             if (i.user.id !== selectInteraction.user.id) {
                 return i.reply({ content: 'صاحب الأمر فقط هو من يمكنه بدء اللعبة!', ephemeral: true });
@@ -351,7 +358,6 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
         }
     });
 }
-
 // ==========================================
 // 6. منطق اللعبة الثانية: المحقق والمجرم
 // ==========================================
