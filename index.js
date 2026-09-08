@@ -115,7 +115,7 @@ const commands = [
 
 client.once('ready', async () => {
     console.log(`🚀 تم تسجيل الدخول باسم: ${client.user.tag}`);
-    const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
+    const rest = new REST({ version: '10' }).setToken("MTU0NDk2ODYwNzcxNTI5OTQwOA.GDJZME.1F_bc6xWmerD8K6a7UhMhZqCZFjF8D2XqaAmVI");
     try {
         await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
         console.log('✅ تم تسجيل جميع الأوامر المائلة والإدارية بنجاح!');
