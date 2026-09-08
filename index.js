@@ -221,7 +221,7 @@ client.on('interactionCreate', async interaction => {
                     .setValue('out_of_loop')
                     .setEmoji('🕵️‍♂️'),
                 new StringSelectMenuOptionBuilder()
-                    .setLabel('المحقق والمجرم')
+                    .setLabel('المحققين')
                     .setDescription('لعبة التحقيق واستجواب المشاركين لكشف الجاني')
                     .setValue('detective_game')
                     .setEmoji('🔍')
