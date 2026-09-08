@@ -385,7 +385,7 @@ async function startDetectiveGame(selectInteraction, initialInteraction) {
     const embed = new EmbedBuilder()
         .setColor('#2c3e50')
         .setTitle('🕵️‍♂️ لعبة المحقق والمجرم')
-        .setDescription(`**اللاعبون المنضمون حالياً:**\n<@${selectInteraction.user.id}>\n\n⚠️ **يلزم 7 لاعبين على الأقل لبدء اللعبة!**`);
+        .setDescription(`**اللاعبون المنضمون حالياً:**\n<@${selectInteraction.user.id}>\n\n⚠️ **يلزم 5 لاعبين على الأقل لبدء اللعبة!**`);
 
     await selectInteraction.update({ embeds: [embed], components: [row] });
 
@@ -398,7 +398,7 @@ async function startDetectiveGame(selectInteraction, initialInteraction) {
             }
             players.set(i.user.id, i.user);
             const updatedList = Array.from(players.values()).map(u => `<@${u.id}>`).join('\n');
-            embed.setDescription(`**اللاعبون المنضمون حالياً:**\n${updatedList}\n\n⚠️ **يلزم 7 لاعبين على الأقل لبدء اللعبة!**`);
+            embed.setDescription(`**اللاعبون المنضمون حالياً:**\n${updatedList}\n\n⚠️ **يلزم 5 لاعبين على الأقل لبدء اللعبة!**`);
             await i.update({ embeds: [embed] });
         }
 
@@ -414,7 +414,7 @@ async function startDetectiveGame(selectInteraction, initialInteraction) {
             ? Array.from(players.values()).map(u => `<@${u.id}>`).join('\n')
             : 'لا يوجد لاعبين منضمين حالياً.';
             
-        embed.setDescription(`**اللاعبون المنضمون حالياً:**\n${updatedList}\n\n⚠️ **يلزم 7 لاعبين على الأقل لبدء اللعبة!**`);
+        embed.setDescription(`**اللاعبون المنضمون حالياً:**\n${updatedList}\n\n⚠️ **يلزم 5 لاعبين على الأقل لبدء اللعبة!**`);
         await i.update({ embeds: [embed] });
     }
 
@@ -423,8 +423,8 @@ async function startDetectiveGame(selectInteraction, initialInteraction) {
                 return i.reply({ content: 'صاحب الأمر فقط هو من يمكنه بدء اللعبة!', ephemeral: true });
             }
 
-            if (players.size < 7) {
-                return i.reply({ content: 'الحد الأدنى للبدء هو 7 لاعبين (مجرم + طبيب + مخبر + 3 محققين + مواطن)!', ephemeral: true });
+            if (players.size < 5) {
+                return i.reply({ content: 'الحد الأدنى للبدء هو 5 لاعبين!', ephemeral: true });
             }
 
             lobbyCollector.stop('started');
