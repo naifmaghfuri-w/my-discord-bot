@@ -384,7 +384,7 @@ async function startDetectiveGame(selectInteraction, initialInteraction) {
 
     const embed = new EmbedBuilder()
         .setColor('#2c3e50')
-        .setTitle('🕵️‍♂️ لعبة المحقق والمجرم')
+        .setTitle('🕵️‍♂️ لعبة المحققين')
         .setDescription(`**اللاعبون المنضمون حالياً:**\n<@${selectInteraction.user.id}>\n\n⚠️ **يلزم 5 لاعبين على الأقل لبدء اللعبة!**`);
 
     await selectInteraction.update({ embeds: [embed], components: [row] });
