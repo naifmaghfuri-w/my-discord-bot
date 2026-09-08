@@ -345,12 +345,17 @@ async function startDetectiveGame(selectInteraction, initialInteraction) {
         .setLabel('انضمام للعبة 🎮')
         .setStyle(ButtonStyle.Success);
 
+    const leaveButton = new ButtonBuilder()
+    .setCustomId('det_leave')
+    .setLabel('خروج 🚪')
+    .setStyle(ButtonStyle.Danger); // زر أحمر للخروج
+
     const startButton = new ButtonBuilder()
         .setCustomId('det_start')
         .setLabel('بدء اللعبة 🚀')
         .setStyle(ButtonStyle.Primary);
 
-    const row = new ActionRowBuilder().addComponents(joinButton, startButton);
+    const row = new ActionRowBuilder().addComponents(joinButton,leaveButton, startButton);
 
     const embed = new EmbedBuilder()
         .setColor('#2c3e50')
@@ -371,6 +376,22 @@ async function startDetectiveGame(selectInteraction, initialInteraction) {
             embed.setDescription(`**اللاعبون المنضمون حالياً:**\n${updatedList}\n\n⚠️ **يلزم 7 لاعبين على الأقل لبدء اللعبة!**`);
             await i.update({ embeds: [embed] });
         }
+
+        if (i.customId === 'det_leave') {
+        if (!players.has(i.user.id)) {
+            return i.reply({ content: 'أنت لست منضماً في اللعبة لتخرج منها!', ephemeral: true });
+        }
+        
+        // إزالة اللاعب من القائمة
+        players.delete(i.user.id);
+        
+        const updatedList = players.size > 0 
+            ? Array.from(players.values()).map(u => `<@${u.id}>`).join('\n')
+            : 'لا يوجد لاعبين منضمين حالياً.';
+            
+        embed.setDescription(`**اللاعبون المنضمون حالياً:**\n${updatedList}\n\n⚠️ **يلزم 7 لاعبين على الأقل لبدء اللعبة!**`);
+        await i.update({ embeds: [embed] });
+    }
 
         if (i.customId === 'det_start') {
             if (i.user.id !== selectInteraction.user.id) {
