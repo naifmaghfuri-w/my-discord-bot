@@ -165,7 +165,7 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
                 return i.reply({ content: 'صاحب الأمر فقط هو من يمكنه بدء اللعبة!', ephemeral: true });
             }
 
-            if (players.size < 3) {
+            if (players.size < 2) {
                 return i.reply({ content: 'العدد غير كافي! يجب أن ينضم 3 لاعبين على الأقل.', ephemeral: true });
             }
 
