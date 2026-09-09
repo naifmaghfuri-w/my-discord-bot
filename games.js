@@ -184,7 +184,7 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
                 .setTitle('🚀 بدأت لعبة برا السالفة!')
                 .setDescription(`المجال العام: **${chosenCategory}**\n\n` +
                     `تم إرسال الدور والكلمة السرية لكل لاعب بشكل سرّي خاص به!\n` +
-                    `⏱️ **أمامكم 3 دقائق للنقاش والتلميح!**\n` +
+                   `⏱️ **أمامكم دقيقة ونصف للنقاش والتلميح!**\n` +
                     `💡 إذا كان الشخص الذي **برا السالفة** يعرف الكلمة، فيمكنه كتابتها مباشرة في الشات ليفوز!`);
 
             await i.update({ embeds: [gameStartEmbed], components: [] });
@@ -208,7 +208,7 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
             let gameEnded = false;
             const msgCollector = initialInteraction.channel.createMessageCollector({
                 filter: m => m.author.id === imposterId,
-                time: 180000 // 3 دقائق
+                time: 90000 // دقيقة ونصف
             });
 
             msgCollector.on('collect', async m => {
