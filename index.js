@@ -1,5 +1,5 @@
 // index.js
-const { gamesCommands, handleGamesCommand } = require('./games/games');
+const { gamesCommands, handleGamesCommand } = require('./games');
 
 const { 
     Client, 
