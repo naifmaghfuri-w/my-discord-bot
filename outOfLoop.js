@@ -28,14 +28,14 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
     // أزرار الانضمام والخروج
     const joinButton = new ButtonBuilder()
         .setCustomId('join_game')
-        .setLabel('انضمام للعبة')
+        .setLabel('Join')
         .setEmoji('1547214733122478110')
-        .setStyle(ButtonStyle.Success);
+        .setStyle(ButtonStyle.Secondary);
 
     const leaveButton = new ButtonBuilder()
         .setCustomId('leave_game')
-        .setLabel('خروج 🚪')
-        .setStyle(ButtonStyle.Danger);
+        .setLabel('Leave')
+        .setStyle(ButtonStyle.Secondary);
 
     const buttonRow = new ActionRowBuilder().addComponents(joinButton, leaveButton);
 
