@@ -1,7 +1,6 @@
 // index.js
 const { gamesCommands, handleGamesCommand } = require('./games');
-const labCommand = require('./lab'); // استدعاء مباشر لملف lab.js من المجلد الرئيسي
-const { colorCommandData, sendColorMenu, handleColorSelect } = require('./commands/colorMenu');
+const labCommand = require('./lab');
 
 const { 
     Client, 
@@ -9,12 +8,126 @@ const {
     REST, 
     Routes, 
     SlashCommandBuilder, 
-    PermissionFlagsBits 
+    PermissionFlagsBits,
+    EmbedBuilder,
+    ActionRowBuilder,
+    StringSelectMenuBuilder,
+    StringSelectMenuOptionBuilder,
+    MessageFlags
 } = require('discord.js');
 const express = require('express');
 
 // ==========================================
-// 1. سيرفر Express لإبقاء البوت حياً على Render
+// 🎨 إعدادات نظام الألوان للسيرفرات المتعددة
+// ==========================================
+const COLOR_ROLES = {
+    // 🏢 السيرفر الأول (استبدل الرقم بـ ID السيرفر الأول)
+    '1398466078346317914': { 
+        'red': 'ID_رتبة_الأحمر_سيرفر_1',
+        'blue': 'ID_رتبة_الأزرق_سيرفر_1',
+        'green': 'ID_رتبة_الأخضر_سيرفر_1',
+        'yellow': 'ID_رتبة_الأصفر_سيرفر_1',
+        'purple': 'ID_رتبة_البنفسجي_سيرفر_1',
+        'grey': 'ID_رتبة_الرمادي_سيرفر_1',
+        'black': 'ID_رتبة_الأسود_سيرفر_1'
+    },
+    // 🏢 السيرفر الثاني (استبدل الرقم بـ ID السيرفر الثاني)
+    '1519745057505153186': { 
+        'red': 'ID_رتبة_الأحمر_سيرفر_2',
+        'blue': 'ID_رتبة_الأزرق_سيرفر_2',
+        'green': 'ID_رتبة_الأخضر_سيرفر_2',
+        'yellow': 'ID_رتبة_الأصفر_سيرفر_2',
+        'purple': 'ID_رتبة_البنفسجي_سيرفر_2',
+        'grey': 'ID_رتبة_الرمادي_سيرفر_2',
+        'black': 'ID_رتبة_الأسود_سيرفر_2'
+    }
+};
+
+const colorCommandData = new SlashCommandBuilder()
+    .setName('colors')
+    .setDescription('إرسال قائمة اختيار لون الاسم (للإدارة)')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator.toString());
+
+async function sendColorMenu(target) {
+    const embed = new EmbedBuilder()
+        .setColor('#2b2d31')
+        .setTitle('🎨 قائمة تخصيص لون الاسم')
+        .setDescription('اختر اللون الذي تفضله من القائمة أدناه لتغيير لون اسمك في السيرفر!\n\n*(يمكنك إزالة اللون بالضغط على إزالة اللون)*');
+
+    const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId('select_name_color')
+        .setPlaceholder('🎨 اضغط هنا لاختيار لون اسمك...')
+        .addOptions([
+            new StringSelectMenuOptionBuilder().setLabel('أحمر 🔴').setValue('red'),
+            new StringSelectMenuOptionBuilder().setLabel('أزرق 🔵').setValue('blue'),
+            new StringSelectMenuOptionBuilder().setLabel('أخضر 🟢').setValue('green'),
+            new StringSelectMenuOptionBuilder().setLabel('أصفر 🟡').setValue('yellow'),
+            new StringSelectMenuOptionBuilder().setLabel('بنفسجي 🟣').setValue('purple'),
+            new StringSelectMenuOptionBuilder().setLabel('رمادي 🩶').setValue('grey'),
+            new StringSelectMenuOptionBuilder().setLabel('أسود 🖤').setValue('black'),
+            new StringSelectMenuOptionBuilder().setLabel('إزالة اللون الحالي ⚪').setValue('remove_color')
+        ]);
+
+    const row = new ActionRowBuilder().addComponents(selectMenu);
+
+    if (target.send) {
+        await target.send({ embeds: [embed], components: [row] });
+    } else if (target.reply) {
+        await target.reply({ embeds: [embed], components: [row] });
+    }
+}
+
+async function handleColorSelect(interaction) {
+    if (!interaction.isStringSelectMenu() || interaction.customId !== 'select_name_color') return;
+
+    const guildId = interaction.guildId;
+    const serverColors = COLOR_ROLES[guildId];
+
+    if (!serverColors) {
+        return interaction.reply({ 
+            content: '⚠️ هذا السيرفر غير مسجل في إعدادات الألوان للبوت!', 
+            flags: MessageFlags.Ephemeral 
+        });
+    }
+
+    const selectedValue = interaction.values[0];
+    const member = interaction.member;
+    const allColorRoleIds = Object.values(serverColors);
+
+    try {
+        await member.roles.remove(allColorRoleIds.filter(id => id && !id.startsWith('ID_')));
+
+        if (selectedValue === 'remove_color') {
+            return interaction.reply({ 
+                content: '✅ تم إزالة لون الاسم وتعيين اللون الافتراضي بنجاح.', 
+                flags: MessageFlags.Ephemeral 
+            });
+        }
+
+        const targetRoleId = serverColors[selectedValue];
+        if (targetRoleId && !targetRoleId.startsWith('ID_')) {
+            await member.roles.add(targetRoleId);
+            return interaction.reply({ 
+                content: '🎉 تم تغيير لون اسمك بنجاح!', 
+                flags: MessageFlags.Ephemeral 
+            });
+        } else {
+            return interaction.reply({ 
+                content: '⚠️ لم يتم وضع ID الرتبة الخاص بهذا اللون في الكود بعد!', 
+                flags: MessageFlags.Ephemeral 
+            });
+        }
+    } catch (error) {
+        console.error('حدث خطأ أثناء تغيير رتبة اللون:', error);
+        return interaction.reply({ 
+            content: '❌ حدث خطأ، تأكد من أن رتبة البوت أعلى من رتب الألوان في إعدادات السيرفر.', 
+            flags: MessageFlags.Ephemeral 
+        });
+    }
+}
+
+// ==========================================
+// 1. سيرفر Express لإبقاء البوت حياً
 // ==========================================
 const app = express();
 app.get('/', (req, res) => res.send('Bot is Alive!'));
@@ -27,18 +140,18 @@ const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent, // التلقي المباشر للرسائل النصية
+        GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildMembers
     ]
 });
 
 // ==========================================
-// 3. تجميع وتسجيل الأوامر المائلة (Slash Commands)
+// 3. تسجيل الأوامر
 // ==========================================
 const commands = [
     ...(gamesCommands || []),
-    labCommand.data, // إضافة أمر /lab المأخوذ من lab.js
-    colorCommandData, // إضافة أمر /colors الخاص بالألوان
+    labCommand.data,
+    colorCommandData,
     new SlashCommandBuilder()
         .setName('ban')
         .setDescription('حظر عضو من السيرفر')
@@ -76,7 +189,7 @@ const commands = [
         )
 ];
 
-client.once('ready', async () => {
+client.once('clientReady', async () => {
     console.log(`🚀 تم تسجيل الدخول باسم: ${client.user.tag}`);
     const token = process.env.TOKEN || process.env.DISCORD_TOKEN;
     const rest = new REST({ version: '10' }).setToken(token);
@@ -89,14 +202,13 @@ client.once('ready', async () => {
 });
 
 // ==========================================
-// 4. معالجة الرسائل العادية (بدون /)
+// 4. معالجة الرسائل
 // ==========================================
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
 
     const content = message.content.trim().toLowerCase();
     
-    // تشغيل لعبة المختبر عند كتابة "lab" أو "the lab" أو "مختبر"
     if (content === 'lab' || content === 'the lab' || content === 'مختبر') {
         try {
             await labCommand.execute(message);
@@ -105,7 +217,6 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // أمر نصي عادي لإرسال قائمة الألوان !colors
     if (content === '!colors' && message.member.permissions.has(PermissionFlagsBits.Administrator)) {
         await sendColorMenu(message.channel);
         await message.delete().catch(() => {});
@@ -113,16 +224,14 @@ client.on('messageCreate', async message => {
 });
 
 // ==========================================
-// 5. معالجة التفاعلات (Slash Commands & Menus)
+// 5. معالجة التفاعلات
 // ==========================================
 client.on('interactionCreate', async interaction => {
-    // معالجة اختيار الألوان من القائمة
     if (interaction.isStringSelectMenu() && interaction.customId === 'select_name_color') {
         await handleColorSelect(interaction);
         return;
     }
 
-    // أمر /lab
     if (interaction.isChatInputCommand() && interaction.commandName === 'lab') {
         try {
             await labCommand.execute(interaction);
@@ -132,7 +241,6 @@ client.on('interactionCreate', async interaction => {
         return;
     }
 
-    // أمر /colors المائل
     if (interaction.isChatInputCommand() && interaction.commandName === 'colors') {
         await sendColorMenu(interaction);
         return;
@@ -140,12 +248,10 @@ client.on('interactionCreate', async interaction => {
 
     if (!interaction.isChatInputCommand()) return;
 
-    // أمر /العاب
     if (interaction.commandName === 'العاب') {
         await handleGamesCommand(interaction);
     }
 
-    // أمر /clear
     if (interaction.commandName === 'clear') {
         const allowedRoleIds = ['1434264100556247040'];
         const hasRole = interaction.member.roles.cache.some(role => allowedRoleIds.includes(role.id));
@@ -153,7 +259,7 @@ client.on('interactionCreate', async interaction => {
         if (!hasRole) {
             return interaction.reply({ 
                 content: 'عذراً، لا تملك الرتبة المحددة لاستخدام هذا الأمر.', 
-                ephemeral: true 
+                flags: MessageFlags.Ephemeral 
             });
         }
 
@@ -170,54 +276,51 @@ client.on('interactionCreate', async interaction => {
         messagesToDelete = messagesToDelete.slice(0, amount);
 
         if (messagesToDelete.length === 0) {
-            return interaction.reply({ content: 'لم يتم العثور على رسائل لحذفها.', ephemeral: true });
+            return interaction.reply({ content: 'لم يتم العثور على رسائل لحذفها.', flags: MessageFlags.Ephemeral });
         }
 
         await interaction.channel.bulkDelete(messagesToDelete, true)
             .then(deleted => {
-                interaction.reply({ content: `تم حذف ${deleted.size} رسالة بنجاح.`, ephemeral: true });
+                interaction.reply({ content: `تم حذف ${deleted.size} رسالة بنجاح.`, flags: MessageFlags.Ephemeral });
             })
             .catch(err => {
                 console.error(err);
-                interaction.reply({ content: 'حدث خطأ أثناء الحذف (قد تكون الرسائل أقدم من 14 يوماً).', ephemeral: true });
+                interaction.reply({ content: 'حدث خطأ أثناء الحذف (قد تكون الرسائل أقدم من 14 يوماً).', flags: MessageFlags.Ephemeral });
             });
     }
 
-    // أمر /ban
     if (interaction.commandName === 'ban') {
         const user = interaction.options.getUser('العضو');
         const reason = interaction.options.getString('السبب') || 'لم يتم تحديد سبب';
         const member = await interaction.guild.members.fetch(user.id).catch(() => null);
 
-        if (!member) return interaction.reply({ content: '❌ العضو غير موجود بالسيرفر.', ephemeral: true });
-        if (!member.bannable) return interaction.reply({ content: '❌ لا أملك صلاحيات لحظر هذا العضو!', ephemeral: true });
+        if (!member) return interaction.reply({ content: '❌ العضو غير موجود بالسيرفر.', flags: MessageFlags.Ephemeral });
+        if (!member.bannable) return interaction.reply({ content: '❌ لا أملك صلاحيات لحظر هذا العضو!', flags: MessageFlags.Ephemeral });
 
         await member.ban({ reason });
         await interaction.reply({ content: `🔨 تم حظر ${user.tag} بنجاح!\n**السبب:** ${reason}` });
     }
 
-    // أمر /kick
     if (interaction.commandName === 'kick') {
         const user = interaction.options.getUser('العضو');
         const reason = interaction.options.getString('السبب') || 'لم يتم تحديد سبب';
         const member = await interaction.guild.members.fetch(user.id).catch(() => null);
 
-        if (!member) return interaction.reply({ content: '❌ العضو غير موجود بالسيرفر.', ephemeral: true });
-        if (!member.kickable) return interaction.reply({ content: '❌ لا أملك صلاحيات لطرد هذا العضو!', ephemeral: true });
+        if (!member) return interaction.reply({ content: '❌ العضو غير موجود بالسيرفر.', flags: MessageFlags.Ephemeral });
+        if (!member.kickable) return interaction.reply({ content: '❌ لا أملك صلاحيات لطرد هذا العضو!', flags: MessageFlags.Ephemeral });
 
         await member.kick(reason);
         await interaction.reply({ content: `👞 تم طرد ${user.tag} بنجاح!\n**السبب:** ${reason}` });
     }
 
-    // أمر /timeout
     if (interaction.commandName === 'timeout') {
         const user = interaction.options.getUser('العضو');
         const minutes = interaction.options.getInteger('الدقائق');
         const reason = interaction.options.getString('السبب') || 'لم يتم تحديد سبب';
         const member = await interaction.guild.members.fetch(user.id).catch(() => null);
 
-        if (!member) return interaction.reply({ content: '❌ العضو غير موجود بالسيرفر.', ephemeral: true });
-        if (!member.moderatable) return interaction.reply({ content: '❌ لا أملك صلاحيات لإعطاء تايم أوت لهذا العضو!', ephemeral: true });
+        if (!member) return interaction.reply({ content: '❌ العضو غير موجود بالسيرفر.', flags: MessageFlags.Ephemeral });
+        if (!member.moderatable) return interaction.reply({ content: '❌ لا أملك صلاحيات لإعطاء تايم أوت لهذا العضو!', flags: MessageFlags.Ephemeral });
 
         const durationMs = minutes * 60 * 1000;
         await member.timeout(durationMs, reason);
