@@ -156,7 +156,7 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
                 ? Array.from(players.keys()).map(id => `<@${id}>`).join('\n')
                 : 'لا يوجد لاعبين منضمين حالياً.';
                 
-            embed.setDescription(`اللاعبون المنضمون حالياً:\n${updatedList}\n\n**يلزم 3 لاعبين على الأقل لبدء اللعبة!**`);
+            embed.setDescription(`اللاعبون المنضمون حالياً:\n${updatedList}\n\n`);
             await i.update({ embeds: [embed] });
         }
 
@@ -184,7 +184,7 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
                 .setTitle('🚀 بدأت لعبة برا السالفة!')
                 .setDescription(`المجال العام: **${chosenCategory}**\n\n` +
                     `تم إرسال الدور والكلمة السرية لكل لاعب بشكل سرّي خاص به!\n` +
-                    `⏱️ **أمامكم 40 ثانية للنقاش والتلميح!**\n` +
+                    `⏱️ **أمامكم 90 ثانية للنقاش والتلميح!**\n` +
                     `💡 إذا كان الشخص الذي **برا السالفة** يعرف الكلمة، فيمكنه كتابتها مباشرة في الشات ليفوز!`);
 
             await i.update({ embeds: [gameStartEmbed], components: [] });
@@ -208,7 +208,7 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
             let gameEnded = false;
             const msgCollector = initialInteraction.channel.createMessageCollector({
                 filter: m => m.author.id === imposterId,
-                time: 40000 // 40 ثانية
+                time: 90000 // 90 ثانية
             });
 
             msgCollector.on('collect', async m => {
@@ -224,7 +224,7 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
             });
 
             // انتظار انتهاء الـ 3 دقائق للنقاش إذا لم يتم تخمين الكلمة
-            await new Promise(resolve => setTimeout(resolve, 40000));
+            await new Promise(resolve => setTimeout(resolve, 90000));
 
             if (gameEnded) return;
 
@@ -244,7 +244,7 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
             const voteEmbed = new EmbedBuilder()
                 .setColor('#e67e22')
                 .setTitle('🗳️ انتهى الوقت! حان وقت التصويت')
-                .setDescription(`صوّتوا الآن لمعرفة من هو الشخص الذي **برا السالفة**! (أمامكم 15 ثانية)`);
+                .setDescription(`صوّتوا الآن لمعرفة من هو الشخص الذي **برا السالفة**! (أمامكم 40 ثانية)`);
 
             const voteMsg = await initialInteraction.channel.send({ embeds: [voteEmbed], components: [voteRow] });
 
@@ -254,7 +254,7 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
 
             const voteCollector = voteMsg.createMessageComponentCollector({
                 componentType: ComponentType.StringSelect,
-                time: 15000
+                time: 40000
             });
 
             voteCollector.on('collect', async vInt => {
