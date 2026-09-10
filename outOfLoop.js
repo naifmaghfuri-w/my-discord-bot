@@ -28,7 +28,8 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
     // أزرار الانضمام والخروج
     const joinButton = new ButtonBuilder()
         .setCustomId('join_game')
-        .setLabel('انضمام للعبة 🎮')
+        .setLabel('انضمام للعبة')
+        .setEmoji('1547214733122478110')
         .setStyle(ButtonStyle.Success);
 
     const leaveButton = new ButtonBuilder()
@@ -41,7 +42,7 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
     // قائمة خيارات التصنيف
     const categorySelect = new StringSelectMenuBuilder()
         .setCustomId('select_category')
-        .setPlaceholder('🎯 اختر التصنيف المطلوب (ألعاب / مسلسلات / دول ...)')
+        .setPlaceholder(' اختر التصنيف)')
         .addOptions([
             new StringSelectMenuOptionBuilder()
                 .setLabel('🎮 ألعاب فيديو')
@@ -58,7 +59,7 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
             new StringSelectMenuOptionBuilder()
                 .setLabel('🍕 أطعمة ومأكولات')
                 .setValue('أطعمة ومأكولات')
-                .setDescription('كبسة، شاورما، بيتزا، وغيرها')
+                .setDescription('شاورما، بيتزا، وغيرها')
         ]);
 
     const categoryRow = new ActionRowBuilder().addComponents(categorySelect);
@@ -76,7 +77,7 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
             .setTitle('🕵️‍♂️ برا السالفة - v1.1')
             .setDescription(
                 `**طريقة اللعب:**\n` +
-                `1- انضم للعبة واشترك مع بقية اللاعبين.\n` +
+                `1- انضم للعبة مع بقية اللاعبين.\n` +
                 `2- سيحصل الجميع على **الكلمة السرية** باستثناء لاعب واحد سيكون **"برا السالفة"**.\n` +
                 `3- يتناقش الجميع بالتلميح والأسئلة، وعلى الشخص الذي برا السالفة التمويه وتخمين الكلمة.\n` +
                 `4- بعد انتهاء وقت النقاش يتم التصويت لكشف الشخص المطلوب!\n\n` +
