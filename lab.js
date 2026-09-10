@@ -69,7 +69,7 @@ function getPlayerData(userId) {
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('lab')
-        .setDescription('فتح واجهة مختبر الكيمياء The Lab v1.0'),
+        .setDescription('The Lab v1.0'),
 
     async execute(interactionOrMessage) {
         const user = interactionOrMessage.user || interactionOrMessage.author;
