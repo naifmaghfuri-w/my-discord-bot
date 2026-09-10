@@ -1,5 +1,6 @@
 // index.js
 const { gamesCommands, handleGamesCommand } = require('./games');
+const labCommand = require('./lab'); // استدعاء مباشر لملف lab.js من المجلد الرئيسي
 
 const { 
     Client, 
@@ -25,7 +26,7 @@ const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.MessageContent, // التلقي المباشر للرسائل النصية
         GatewayIntentBits.GuildMembers
     ]
 });
@@ -35,6 +36,7 @@ const client = new Client({
 // ==========================================
 const commands = [
     ...(gamesCommands || []),
+    labCommand.data, // إضافة أمر /lab المأخوذ من lab.js
     new SlashCommandBuilder()
         .setName('ban')
         .setDescription('حظر عضو من السيرفر')
@@ -85,9 +87,37 @@ client.once('ready', async () => {
 });
 
 // ==========================================
-// 4. معالجة التفاعلات
+// 4. معالجة الرسائل العادية (بدون /)
+// ==========================================
+client.on('messageCreate', async message => {
+    if (message.author.bot) return;
+
+    const content = message.content.trim().toLowerCase();
+    
+    // تشغيل لعبة المختبر عند كتابة "lab" أو "the lab" أو "مختبر"
+    if (content === 'lab' || content === 'the lab' || content === 'مختبر') {
+        try {
+            await labCommand.execute(message);
+        } catch (error) {
+            console.error('❌ خطأ أثناء تشغيل أمر lab النصي:', error);
+        }
+    }
+});
+
+// ==========================================
+// 5. معالجة التفاعلات (Slash Commands)
 // ==========================================
 client.on('interactionCreate', async interaction => {
+    // أمر /lab
+    if (interaction.isChatInputCommand() && interaction.commandName === 'lab') {
+        try {
+            await labCommand.execute(interaction);
+        } catch (error) {
+            console.error('❌ خطأ أثناء تشغيل /lab:', error);
+        }
+        return;
+    }
+
     if (!interaction.isChatInputCommand()) return;
 
     // أمر /العاب
@@ -174,7 +204,6 @@ client.on('interactionCreate', async interaction => {
         await interaction.reply({ content: `🔇 تم إعطاء تايم أوت لـ ${user.tag} لمدة **${minutes}** دقيقة.\n**السبب:** ${reason}` });
     }
 });
-
 // ==========================================
 // 5. تشغيل البوت
 // ==========================================
