@@ -1,6 +1,7 @@
 // index.js
 const { gamesCommands, handleGamesCommand } = require('./games');
 const labCommand = require('./lab'); // استدعاء مباشر لملف lab.js من المجلد الرئيسي
+const { colorCommandData, sendColorMenu, handleColorSelect } = require('./commands/colorMenu');
 
 const { 
     Client, 
@@ -37,6 +38,7 @@ const client = new Client({
 const commands = [
     ...(gamesCommands || []),
     labCommand.data, // إضافة أمر /lab المأخوذ من lab.js
+    colorCommandData, // إضافة أمر /colors الخاص بالألوان
     new SlashCommandBuilder()
         .setName('ban')
         .setDescription('حظر عضو من السيرفر')
@@ -76,7 +78,7 @@ const commands = [
 
 client.once('ready', async () => {
     console.log(`🚀 تم تسجيل الدخول باسم: ${client.user.tag}`);
-    const token = process.env.TOKEN || "MTU0NDk2ODYwNzcxNTI5OTQwOA.GDJZME.1F_bc6xWmerD8K6a7UhMhZqCZFjF8D2XqaAmVI";
+    const token = process.env.TOKEN || process.env.DISCORD_TOKEN;
     const rest = new REST({ version: '10' }).setToken(token);
     try {
         await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
@@ -102,12 +104,24 @@ client.on('messageCreate', async message => {
             console.error('❌ خطأ أثناء تشغيل أمر lab النصي:', error);
         }
     }
+
+    // أمر نصي عادي لإرسال قائمة الألوان !colors
+    if (content === '!colors' && message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        await sendColorMenu(message.channel);
+        await message.delete().catch(() => {});
+    }
 });
 
 // ==========================================
-// 5. معالجة التفاعلات (Slash Commands)
+// 5. معالجة التفاعلات (Slash Commands & Menus)
 // ==========================================
 client.on('interactionCreate', async interaction => {
+    // معالجة اختيار الألوان من القائمة
+    if (interaction.isStringSelectMenu() && interaction.customId === 'select_name_color') {
+        await handleColorSelect(interaction);
+        return;
+    }
+
     // أمر /lab
     if (interaction.isChatInputCommand() && interaction.commandName === 'lab') {
         try {
@@ -115,6 +129,12 @@ client.on('interactionCreate', async interaction => {
         } catch (error) {
             console.error('❌ خطأ أثناء تشغيل /lab:', error);
         }
+        return;
+    }
+
+    // أمر /colors المائل
+    if (interaction.isChatInputCommand() && interaction.commandName === 'colors') {
+        await sendColorMenu(interaction);
         return;
     }
 
@@ -204,6 +224,7 @@ client.on('interactionCreate', async interaction => {
         await interaction.reply({ content: `🔇 تم إعطاء تايم أوت لـ ${user.tag} لمدة **${minutes}** دقيقة.\n**السبب:** ${reason}` });
     }
 });
+
 // ==========================================
 // 5. تشغيل البوت
 // ==========================================
