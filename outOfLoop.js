@@ -128,7 +128,7 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
     });
 
     collector.on('end', async () => {
-        if (players.size < 3) {
+        if (players.size < 2) {
             return initialInteraction.channel.send({
                 embeds: [
                     new EmbedBuilder()
