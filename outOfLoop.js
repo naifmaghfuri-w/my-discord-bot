@@ -9,11 +9,23 @@ const {
     MessageFlags 
 } = require('discord.js');
 
+// نظام ذاكرة بسيط لحفظ نقاط XP في السيرفر
+const userXP = new Map();
+
+function addXP(userId, amount) {
+    const current = userXP.get(userId) || 0;
+    const updated = Math.max(0, current + amount);
+    userXP.set(userId, updated);
+    return updated;
+}
+
+// إضافة تصنيف الملابس والإكسسوارات (الإضافة رقم 1)
 const topicsOutOfLoop = {
     "أطعمة ومأكولات": ["كبسة", "بيتزا", "شاورما", "سوشي", "برجر", "فلافل", "ورق عنب", "مضغوط"],
     "ألعاب فيديو": ["ماينكرافت", "ببجي", "كول اوف ديوتي", "فيفا", "فورتنايت", "قنشين امباكت", "روكيت ليق"],
     "أنمي ومسلسلات": ["ون بيس", "هجوم العمالقة", "ناروتو", "قاتل الشياطين", "دراجون بول", "بليتش"],
-    "دول وعواصم": ["السعودية", "الإمارات", "مصر", "اليابان", "تركيا", "باريس", "لندن"]
+    "دول وعواصم": ["السعودية", "الإمارات", "مصر", "اليابان", "تركيا", "باريس", "لندن"],
+    "ملابس وإكسسوارات": ["فستان", "كاب", "شنطة", "نظارة", "حذاء", "قميص", "ساعة"]
 };
 
 async function startOutOfLoopGame(selectInteraction, initialInteraction) {
@@ -25,7 +37,6 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
     const startTimeUnix = Math.floor((Date.now() + lobbyDurationMs) / 1000);
     const maxPlayers = 20;
 
-    // أزرار الانضمام والخروج
     const joinButton = new ButtonBuilder()
         .setCustomId('join_game')
         .setLabel('Join')
@@ -39,10 +50,9 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
 
     const buttonRow = new ActionRowBuilder().addComponents(joinButton, leaveButton);
 
-    // قائمة خيارات التصنيف
     const categorySelect = new StringSelectMenuBuilder()
         .setCustomId('select_category')
-        .setPlaceholder(' اختر التصنيف)')
+        .setPlaceholder('اختر التصنيف')
         .addOptions([
             new StringSelectMenuOptionBuilder()
                 .setLabel('🎮 ألعاب فيديو')
@@ -59,27 +69,30 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
             new StringSelectMenuOptionBuilder()
                 .setLabel('🍕 أطعمة ومأكولات')
                 .setValue('أطعمة ومأكولات')
-                .setDescription('شاورما، بيتزا، وغيرها')
+                .setDescription('شاورما، بيتزا، وغيرها'),
+            new StringSelectMenuOptionBuilder()
+                .setLabel('👔 ملابس وإكسسوارات')
+                .setValue('ملابس وإكسسوارات')
+                .setDescription('فستان، كاب، شنطة، وغيرها')
         ]);
 
     const categoryRow = new ActionRowBuilder().addComponents(categorySelect);
 
-    // دالة بناء الواجهة الجديدة المحدثة
     const buildLobbyEmbed = () => {
         const playerListFormatted = players.size > 0 
-            ? Array.from(players.keys()).map((id, index) => `${index + 1}- <@${id}>`).join('\n')
+            ? Array.from(players.keys()).map((id, index) => `${index + 1}- <@${id}> (XP: ${userXP.get(id) || 0})`).join('\n')
             : 'لا يوجد لاعبين مشاركين باللعبة';
 
         const categoryStatus = selectedCategory ? `**${selectedCategory}**` : 'عشوائي 🎲';
 
         return new EmbedBuilder()
             .setColor('#f39c12')
-            .setTitle('🕵️‍♂️ برا السالفة - v1.1')
+            .setTitle('🕵️‍♂️ برا السالفة - v1.2')
             .setDescription(
                 `**طريقة اللعب:**\n` +
                 `1- انضم للعبة مع بقية اللاعبين.\n` +
                 `2- سيحصل الجميع على **الكلمة السرية** باستثناء لاعب واحد سيكون **"برا السالفة"**.\n` +
-                `3- يتناقش الجميع بالتلميح والأسئلة، وعلى الشخص الذي برا السالفة التمويه وتخمين الكلمة.\n` +
+                `3- سيوجه البوت أسئلة تلقائية بين اللاعبين كل 15 ثانية.\n` +
                 `4- بعد انتهاء وقت النقاش يتم التصويت لكشف الشخص المطلوب!\n\n` +
                 `📌 **التصنيف المختار:** ${categoryStatus}\n\n` +
                 `**أرقام اللاعبين: (${players.size}/${maxPlayers})**\n` +
@@ -149,12 +162,11 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
 
         const gameStartEmbed = new EmbedBuilder()
             .setColor('#2ecc71')
-            .setTitle('🚀 بدأت لعبة برا السالفة!')
+            .setTitle('🚀 بدأت لعبة برا السالفة v1.2!')
             .setDescription(
                 `التصنيف المختار: **${chosenCategory}**\n\n` +
                 `تم إرسال الكلمة السرية والدور لكل لاعب سرّاً!\n` +
-                `⏱️ **أمامكم 90 ثانية للنقاش والتلميح!**\n` +
-                `💡 إذا كان الشخص الذي **برا السالفة** يعرف الكلمة، فيمكنه كتابتها مباشرة في الشات ليفوز!`
+                `⏱️ **سيبدأ البوت بتوجيه الأسئلة تلقائياً كل 15 ثانية!**`
             );
 
         await initialInteraction.channel.send({ embeds: [gameStartEmbed] });
@@ -162,7 +174,7 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
         for (const [pId, pInteraction] of players.entries()) {
             if (pId === imposterId) {
                 await pInteraction.followUp({
-                    content: `🤫 **أنت برا السالفة!**\nالتصنيف هو: **${chosenCategory}**\nحاول تخمين الكلمة من إجاباتهم واكتبها في الشات لكي تفوز!`,
+                    content: `🤫 **أنت برا السالفة!**\nالتصنيف هو: **${chosenCategory}**\nحاول تخمين الكلمة من إجاباتهم واعرف السالفة!`,
                     flags: MessageFlags.Ephemeral
                 }).catch(() => {});
             } else {
@@ -173,27 +185,32 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
             }
         }
 
-        let gameEnded = false;
-        const msgCollector = initialInteraction.channel.createMessageCollector({
-            filter: m => m.author.id === imposterId,
-            time: 90000
-        });
-
-        msgCollector.on('collect', async m => {
-            if (m.content.trim().toLowerCase() === secretWord.toLowerCase()) {
-                gameEnded = true;
-                msgCollector.stop('guessed');
-                const winEmbed = new EmbedBuilder()
-                    .setColor('#f1c40f')
-                    .setTitle('🎉 فاز الشخص الذي برا السالفة!')
-                    .setDescription(`نجح <@${imposterId}> في تخمين الكلمة الصحيحة وهي: **${secretWord}**!`);
-                await initialInteraction.channel.send({ embeds: [winEmbed] });
+        // الإضافة رقم 2: نظام الأسئلة التلقائية كل 15 ثانية
+        let questionRounds = 0;
+        const totalQuestionRounds = 4; 
+        
+        const questionInterval = setInterval(async () => {
+            if (questionRounds >= totalQuestionRounds) {
+                clearInterval(questionInterval);
+                return;
             }
-        });
+            
+            questionRounds++;
+            const p1 = playerArray[Math.floor(Math.random() * playerArray.length)];
+            let p2 = playerArray[Math.floor(Math.random() * playerArray.length)];
+            while (p1 === p2) {
+                p2 = playerArray[Math.floor(Math.random() * playerArray.length)];
+            }
 
-        await new Promise(resolve => setTimeout(resolve, 90000));
+            const askEmbed = new EmbedBuilder()
+                .setColor('#3498db')
+                .setTitle(`📢 دور الأسئلة التلقائي [${questionRounds}/${totalQuestionRounds}]`)
+                .setDescription(`👉 <@${p1}> قم بتوجيه سؤال إلى <@${p2}> يتعلق بالسالفة!\n⏳ معك **15 ثانية** قبل الانتقال للدور التالي.`);
 
-        if (gameEnded) return;
+            await initialInteraction.channel.send({ embeds: [askEmbed] });
+        }, 15000);
+
+        await new Promise(resolve => setTimeout(resolve, (totalQuestionRounds * 15000) + 2000));
 
         // التصويت
         const voteSelect = new StringSelectMenuBuilder()
@@ -210,35 +227,35 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
 
         const voteEmbed = new EmbedBuilder()
             .setColor('#e67e22')
-            .setTitle('🗳️ انتهى الوقت! حان وقت التصويت')
-            .setDescription(`صوّتوا الآن لمعرفة من هو الشخص الذي **برا السالفة**! (أمامكم 40 ثانية)`);
+            .setTitle('🗳️ انتهى وقت الأسئلة! حان وقت التصويت')
+            .setDescription(`صوّتوا الآن لمعرفة من هو الشخص الذي **برا السالفة**! (أمامكم 30 ثانية)`);
 
         const voteMsg = await initialInteraction.channel.send({ embeds: [voteEmbed], components: [voteRow] });
 
         const votes = {};
         playerArray.forEach(id => votes[id] = 0);
-        const votedUsers = new Set();
+        const playerVotes = new Map();
 
         const voteCollector = voteMsg.createMessageComponentCollector({
             componentType: ComponentType.StringSelect,
-            time: 40000
+            time: 30000
         });
 
         voteCollector.on('collect', async vInt => {
             if (!players.has(vInt.user.id)) {
                 return vInt.reply({ content: 'أنت لست ضمن المشاركين في هذه اللعبة!', flags: MessageFlags.Ephemeral });
             }
-            if (votedUsers.has(vInt.user.id)) {
+            if (playerVotes.has(vInt.user.id)) {
                 return vInt.reply({ content: 'لقد قمت بالتصويت بالفعل!', flags: MessageFlags.Ephemeral });
             }
 
-            votedUsers.add(vInt.user.id);
             const selected = vInt.values[0];
+            playerVotes.set(vInt.user.id, selected);
             votes[selected] = (votes[selected] || 0) + 1;
 
             await vInt.reply({ content: 'تم تسجيل تصويتك بنجاح!', flags: MessageFlags.Ephemeral });
 
-            if (votedUsers.size >= playerArray.length) {
+            if (playerVotes.size >= playerArray.length) {
                 voteCollector.stop();
             }
         });
@@ -261,22 +278,118 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
                 }
             }
 
-            const resultEmbed = new EmbedBuilder().setTitle('📊 نتيجة لعبة برا السالفة');
+            const xpChanges = [];
 
-            if (isTie || !mostVoted) {
-                resultEmbed.setColor('#e74c3c')
-                    .setDescription(`⚖️ **تعادل التصويت!**\nفاز الشخص الذي برا السالفة (<@${imposterId}>) لأنه لم يتم الاتفاق عليه!\nالكلمة كانت: **${secretWord}**.`);
-            } else if (mostVoted === imposterId) {
-                resultEmbed.setColor('#2ecc71')
-                    .setDescription(`🎉 **مبروك! كشفتوه!**\nالشخص الذي برا السالفة كان بالفعل: <@${imposterId}>\nالكلمة كانت: **${secretWord}**.`);
+            // إذا كُشف الشخص الذي برا السالفة: الإضافة رقم 4 (Last Chance Guess)
+            if (!isTie && mostVoted === imposterId) {
+                const guessButton = new ButtonBuilder()
+                    .setCustomId('last_chance_guess')
+                    .setLabel('تخمين الكلمة (10 ثوانٍ)')
+                    .setStyle(ButtonStyle.Danger);
+
+                const guessRow = new ActionRowBuilder().addComponents(guessButton);
+
+                const lastChanceEmbed = new EmbedBuilder()
+                    .setColor('#e74c3c')
+                    .setTitle('🚨 تم كشفك! فرصة التخمين الأخيرة')
+                    .setDescription(`<@${imposterId}> لقد كشفك الجميع! لديك **10 ثوانٍ** للضغط على الزر وتخمين الكلمة لاستعادة الفوز!`);
+
+                const lastChanceMsg = await initialInteraction.channel.send({ 
+                    content: `<@${imposterId}>`,
+                    embeds: [lastChanceEmbed], 
+                    components: [guessRow] 
+                });
+
+                let guessedSuccessfully = false;
+
+                const guessCollector = lastChanceMsg.createMessageComponentCollector({
+                    componentType: ComponentType.Button,
+                    time: 10000
+                });
+
+                guessCollector.on('collect', async gInt => {
+                    if (gInt.user.id !== imposterId) {
+                        return gInt.reply({ content: 'هذا الخيار للشخص الذي برا السالفة فقط!', flags: MessageFlags.Ephemeral });
+                    }
+
+                    await gInt.reply({
+                        content: `الكلمة كانت ضمن تصنيف **${chosenCategory}**. اكتب تخمينك الآن في القناة العامة مباشرة!`,
+                        flags: MessageFlags.Ephemeral
+                    });
+
+                    const chatCollector = initialInteraction.channel.createMessageCollector({
+                        filter: m => m.author.id === imposterId,
+                        time: 10000
+                    });
+
+                    chatCollector.on('collect', async m => {
+                        if (m.content.trim().toLowerCase() === secretWord.toLowerCase()) {
+                            guessedSuccessfully = true;
+                            chatCollector.stop();
+                            guessCollector.stop();
+                        }
+                    });
+                });
+
+                await new Promise(resolve => setTimeout(resolve, 11000));
+
+                if (guessedSuccessfully) {
+                    const newXP = addXP(imposterId, 50);
+                    xpChanges.push(`🎉 <@${imposterId}> (برا السالفة): +50 XP (المجموع: ${newXP}) [سرق الفوز بالفرصة الأخيرة!]`);
+
+                    for (const [voterId, targetId] of playerVotes.entries()) {
+                        const current = addXP(voterId, -10);
+                        xpChanges.push(`❌ <@${voterId}>: -10 XP (المجموع: ${current})`);
+                    }
+
+                    return sendSummaryEmbed(initialInteraction, true, imposterId, secretWord, xpChanges, "سرق الشخص الذي برا السالفة الفوز بتخمين الكلمة في اللحظة الأخيرة!");
+                } else {
+                    const newXP = addXP(imposterId, -10);
+                    xpChanges.push(`❌ <@${imposterId}> (برا السالفة): -10 XP (المجموع: ${newXP})`);
+
+                    for (const [voterId, targetId] of playerVotes.entries()) {
+                        if (targetId === imposterId) {
+                            const current = addXP(voterId, 30);
+                            xpChanges.push(`✅ <@${voterId}>: +30 XP (المجموع: ${current})`);
+                        } else {
+                            const current = addXP(voterId, -10);
+                            xpChanges.push(`❌ <@${voterId}>: -10 XP (المجموع: ${current})`);
+                        }
+                    }
+
+                    return sendSummaryEmbed(initialInteraction, false, imposterId, secretWord, xpChanges, "نجح الجميع في كشف الشخص الذي برا السالفة وفشل في التخمين!");
+                }
             } else {
-                resultEmbed.setColor('#e74c3c')
-                    .setDescription(`\nصوّتم بالخطأ ضد <@${mostVoted}>.\nالشخص الحقيقي الذي كان برا السالفة هو: <@${imposterId}>\nالكلمة كانت: **${secretWord}**.`);
-            }
+                // في حال التعادل أو التصويت الخاطئ
+                const newXP = addXP(imposterId, 50);
+                xpChanges.push(`🎉 <@${imposterId}> (برا السالفة): +50 XP (المجموع: ${newXP}) [فاز بسبب التمويه]`);
 
-            await initialInteraction.channel.send({ embeds: [resultEmbed] });
+                for (const [voterId, targetId] of playerVotes.entries()) {
+                    const current = addXP(voterId, -10);
+                    xpChanges.push(`❌ <@${voterId}>: -10 XP (المجموع: ${current})`);
+                }
+
+                return sendSummaryEmbed(initialInteraction, true, imposterId, secretWord, xpChanges, "لم يتم الاتفاق على الشخص المطلوب وفاز برا السالفة!");
+            }
         });
     });
+}
+
+// الإضافة رقم 5: ملخص نهاية الجولة (Round Summary Embed)
+async function sendSummaryEmbed(interaction, imposterWon, imposterId, secretWord, xpChanges, details) {
+    const summaryEmbed = new EmbedBuilder()
+        .setColor(imposterWon ? '#f1c40f' : '#2ecc71')
+        .setTitle('📊 ملخص نتائج الجولة - v1.2')
+        .setDescription(
+            `🎭 **الشخص الذي كان برا السالفة:** <@${imposterId}>\n` +
+            `🔑 **الكلمة السرية:** **${secretWord}**\n` +
+            `📝 **نتيجة الجولة:** ${details}\n\n` +
+            `🏆 **تحديثات النقاط (Risk & Reward):**\n` +
+            `${xpChanges.join('\n')}`
+        )
+        .setFooter({ text: 'برا السالفة v1.2 • نظام النقاط والتلفيل التفاعلي' });
+
+    await interaction.channel.send({ embeds: [summaryEmbed] });
 }
 
 module.exports = { startOutOfLoopGame };
