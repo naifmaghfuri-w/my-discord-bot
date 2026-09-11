@@ -19,7 +19,6 @@ function addXP(userId, amount) {
     return updated;
 }
 
-// إضافة تصنيف الملابس والإكسسوارات (الإضافة رقم 1)
 const topicsOutOfLoop = {
     "أطعمة ومأكولات": ["كبسة", "بيتزا", "شاورما", "سوشي", "برجر", "فلافل", "ورق عنب", "مضغوط"],
     "ألعاب فيديو": ["ماينكرافت", "ببجي", "كول اوف ديوتي", "فيفا", "فورتنايت", "قنشين امباكت", "روكيت ليق"],
@@ -84,17 +83,17 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
             ? Array.from(players.keys()).map((id, index) => `${index + 1}- <@${id}> (XP: ${userXP.get(id) || 0})`).join('\n')
             : 'لا يوجد لاعبين مشاركين باللعبة';
 
-        const categoryStatus = selectedCategory ? `**${selectedCategory}**` : 'عشوائي ';
+        const categoryStatus = selectedCategory ? `**${selectedCategory}**` : 'عشوائي 🎲';
 
         return new EmbedBuilder()
             .setColor('#f39c12')
-            .setTitle(' برا السالفة - v1.2')
+            .setTitle('🕵️‍♂️ برا السالفة - v1.2')
             .setDescription(
                 `**طريقة اللعب:**\n` +
                 `1- انضم للعب مع بقية اللاعبين.\n` +
                 `2- سيحصل الجميع على **الكلمة السرية** باستثناء لاعب واحد سيكون **"برا السالفة"**.\n` +
-                `3- سيوجه البوت أسئلة تلقائية بين اللاعبين كل 60 ثانية.\n` +
-                `4- بعد انتهاء وقت النقاش يتم التصويت لكشف الشخص المطلوب!\n\n` +
+                `3- يتناوب الجميع على توجيه الأسئلة بمهلة دقيقة واحدة لكل دور (أو التخطي فور الإجابة).\n` +
+                `4- بعد انتهاء الأدوار يتم التصويت لكشف الشخص المطلوب!\n\n` +
                 `📌 **التصنيف المختار:** ${categoryStatus}\n\n` +
                 `**أرقام اللاعبين: (${players.size}/${maxPlayers})**\n` +
                 `${playerListFormatted}\n\n` +
@@ -142,7 +141,7 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
     });
 
     collector.on('end', async () => {
-        if (players.size < 2) {
+        if (players.size < 3) {
             return initialInteraction.channel.send({
                 embeds: [
                     new EmbedBuilder()
@@ -163,11 +162,11 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
 
         const gameStartEmbed = new EmbedBuilder()
             .setColor('#2ecc71')
-            .setTitle('🚀 بدأت لعبة برا السالفة v1.2!')
+            .setTitle(' بدأت لعبة برا السالفة!')
             .setDescription(
                 `التصنيف المختار: **${chosenCategory}**\n\n` +
                 `تم إرسال الكلمة السرية والدور لكل لاعب سرّاً!\n` +
-                `⏱️ **سيبدأ البوت بتوجيه الأسئلة تلقائياً كل 60 ثانية!**`
+                `⏱️ **سيبدأ الآن دور الأسئلة بين اللاعبين بالترتيب!**`
             );
 
         await initialInteraction.channel.send({ embeds: [gameStartEmbed] });
@@ -186,34 +185,50 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
             }
         }
 
-        // الإضافة رقم 2: نظام الأسئلة التلقائية كل 60 ثانية
-        let questionRounds = 0;
-        const totalQuestionRounds = 4; 
+        // --- تعديل الوقت إلى 60 ثانية (دقيقة كاملة) للدور ---
+        const turnDurationMs = 60000; 
         
-        const questionInterval = setInterval(async () => {
-            if (questionRounds >= totalQuestionRounds) {
-                clearInterval(questionInterval);
-                return;
-            }
-            
-            questionRounds++;
-            const p1 = playerArray[Math.floor(Math.random() * playerArray.length)];
-            let p2 = playerArray[Math.floor(Math.random() * playerArray.length)];
-            while (p1 === p2) {
-                p2 = playerArray[Math.floor(Math.random() * playerArray.length)];
-            }
+        for (let i = 0; i < playerArray.length; i++) {
+            const p1 = playerArray[i]; // السائل
+            const p2 = playerArray[(i + 1) % playerArray.length]; // الموجه له السؤال
+
+            const skipButton = new ButtonBuilder()
+                .setCustomId(`skip_turn_${i}`)
+                .setLabel('التالي / تم السؤال والتنفيذ ⏭️')
+                .setStyle(ButtonStyle.Primary);
+
+            const row = new ActionRowBuilder().addComponents(skipButton);
 
             const askEmbed = new EmbedBuilder()
                 .setColor('#3498db')
-                .setTitle(`📢 دور الأسئلة التلقائي [${questionRounds}/${totalQuestionRounds}]`)
-                .setDescription(`👉 <@${p1}> قم بتوجيه سؤال إلى <@${p2}> يتعلق بالسالفة!\n⏳ معك **60 ثانية** قبل الانتقال للدور التالي.`);
+                .setTitle(`📢 دور الأسئلة [${i + 1}/${playerArray.length}]`)
+                .setDescription(`👉 <@${p1}> قم بتوجيه سؤال إلى <@${p2}> يتعلق بالسالفة!\n⏳ معك **دقيقة واحدة (60 ثانية)** للإجابة، أضغط على الزر للتخطي فور الانتهاء.`);
 
-            await initialInteraction.channel.send({ embeds: [askEmbed] });
-        }, 60000);
+            const roundMsg = await initialInteraction.channel.send({ embeds: [askEmbed], components: [row] });
 
-        await new Promise(resolve => setTimeout(resolve, (totalQuestionRounds * 15000) + 2000));
+            await new Promise(resolve => {
+                const turnCollector = roundMsg.createMessageComponentCollector({
+                    componentType: ComponentType.Button,
+                    time: turnDurationMs
+                });
 
-        // التصويت
+                turnCollector.on('collect', async bInt => {
+                    if (bInt.user.id !== p1 && bInt.user.id !== p2) {
+                        return bInt.reply({ content: 'فقط اللاعب المشارك في هذا الدور يمكنه تخطي الوقت!', flags: MessageFlags.Ephemeral });
+                    }
+                    await bInt.reply({ content: 'تم تخطي باقي الوقت والانتقال للدور التالي!', flags: MessageFlags.Ephemeral });
+                    turnCollector.stop('skipped');
+                });
+
+                turnCollector.on('end', async () => {
+                    skipButton.setDisabled(true);
+                    await roundMsg.edit({ components: [new ActionRowBuilder().addComponents(skipButton)] }).catch(() => {});
+                    resolve();
+                });
+            });
+        }
+
+        // --- مرحلة التصويت ---
         const voteSelect = new StringSelectMenuBuilder()
             .setCustomId('vote_imposter')
             .setPlaceholder('صوّت على من تعتقد أنه برا السالفة 🕵️‍♂️')
@@ -281,7 +296,6 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
 
             const xpChanges = [];
 
-            // إذا كُشف الشخص الذي برا السالفة: الإضافة رقم 4 (Last Chance Guess)
             if (!isTie && mostVoted === imposterId) {
                 const guessButton = new ButtonBuilder()
                     .setCustomId('last_chance_guess')
@@ -361,7 +375,6 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
                     return sendSummaryEmbed(initialInteraction, false, imposterId, secretWord, xpChanges, "نجح الجميع في كشف الشخص الذي برا السالفة وفشل في التخمين!");
                 }
             } else {
-                // في حال التعادل أو التصويت الخاطئ
                 const newXP = addXP(imposterId, 50);
                 xpChanges.push(`🎉 <@${imposterId}> (برا السالفة): +50 XP (المجموع: ${newXP}) [فاز بسبب التمويه]`);
 
@@ -376,16 +389,15 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
     });
 }
 
-// الإضافة رقم 5: ملخص نهاية الجولة (Round Summary Embed)
 async function sendSummaryEmbed(interaction, imposterWon, imposterId, secretWord, xpChanges, details) {
     const summaryEmbed = new EmbedBuilder()
         .setColor(imposterWon ? '#f1c40f' : '#2ecc71')
-        .setTitle(' ملخص نتائج الجولة ')
+        .setTitle(' ملخص نتائج الجولة')
         .setDescription(
             ` **الشخص الذي كان برا السالفة:** <@${imposterId}>\n` +
             ` **الكلمة السرية:** **${secretWord}**\n` +
             ` **نتيجة الجولة:** ${details}\n\n` +
-            ` **(Risk & Reward):**\n` +
+            ` **نقاط الـ XP:**\n` +
             `${xpChanges.join('\n')}`
         )
         .setFooter({ text: 'برا السالفة v1.2 •' });
