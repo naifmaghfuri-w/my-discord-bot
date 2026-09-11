@@ -46,6 +46,7 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
     const leaveButton = new ButtonBuilder()
         .setCustomId('leave_game')
         .setLabel('Leave')
+        .setEmoji('1547653716725731438')
         .setStyle(ButtonStyle.Secondary);
 
     const buttonRow = new ActionRowBuilder().addComponents(joinButton, leaveButton);
@@ -83,16 +84,16 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
             ? Array.from(players.keys()).map((id, index) => `${index + 1}- <@${id}> (XP: ${userXP.get(id) || 0})`).join('\n')
             : 'لا يوجد لاعبين مشاركين باللعبة';
 
-        const categoryStatus = selectedCategory ? `**${selectedCategory}**` : 'عشوائي 🎲';
+        const categoryStatus = selectedCategory ? `**${selectedCategory}**` : 'عشوائي ';
 
         return new EmbedBuilder()
             .setColor('#f39c12')
-            .setTitle('🕵️‍♂️ برا السالفة - v1.2')
+            .setTitle(' برا السالفة - v1.2')
             .setDescription(
                 `**طريقة اللعب:**\n` +
-                `1- انضم للعبة مع بقية اللاعبين.\n` +
+                `1- انضم للعب مع بقية اللاعبين.\n` +
                 `2- سيحصل الجميع على **الكلمة السرية** باستثناء لاعب واحد سيكون **"برا السالفة"**.\n` +
-                `3- سيوجه البوت أسئلة تلقائية بين اللاعبين كل 15 ثانية.\n` +
+                `3- سيوجه البوت أسئلة تلقائية بين اللاعبين كل 60 ثانية.\n` +
                 `4- بعد انتهاء وقت النقاش يتم التصويت لكشف الشخص المطلوب!\n\n` +
                 `📌 **التصنيف المختار:** ${categoryStatus}\n\n` +
                 `**أرقام اللاعبين: (${players.size}/${maxPlayers})**\n` +
@@ -166,7 +167,7 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
             .setDescription(
                 `التصنيف المختار: **${chosenCategory}**\n\n` +
                 `تم إرسال الكلمة السرية والدور لكل لاعب سرّاً!\n` +
-                `⏱️ **سيبدأ البوت بتوجيه الأسئلة تلقائياً كل 15 ثانية!**`
+                `⏱️ **سيبدأ البوت بتوجيه الأسئلة تلقائياً كل 60 ثانية!**`
             );
 
         await initialInteraction.channel.send({ embeds: [gameStartEmbed] });
@@ -185,7 +186,7 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
             }
         }
 
-        // الإضافة رقم 2: نظام الأسئلة التلقائية كل 15 ثانية
+        // الإضافة رقم 2: نظام الأسئلة التلقائية كل 60 ثانية
         let questionRounds = 0;
         const totalQuestionRounds = 4; 
         
@@ -205,10 +206,10 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
             const askEmbed = new EmbedBuilder()
                 .setColor('#3498db')
                 .setTitle(`📢 دور الأسئلة التلقائي [${questionRounds}/${totalQuestionRounds}]`)
-                .setDescription(`👉 <@${p1}> قم بتوجيه سؤال إلى <@${p2}> يتعلق بالسالفة!\n⏳ معك **15 ثانية** قبل الانتقال للدور التالي.`);
+                .setDescription(`👉 <@${p1}> قم بتوجيه سؤال إلى <@${p2}> يتعلق بالسالفة!\n⏳ معك **60 ثانية** قبل الانتقال للدور التالي.`);
 
             await initialInteraction.channel.send({ embeds: [askEmbed] });
-        }, 15000);
+        }, 60000);
 
         await new Promise(resolve => setTimeout(resolve, (totalQuestionRounds * 15000) + 2000));
 
@@ -228,7 +229,7 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
         const voteEmbed = new EmbedBuilder()
             .setColor('#e67e22')
             .setTitle('🗳️ انتهى وقت الأسئلة! حان وقت التصويت')
-            .setDescription(`صوّتوا الآن لمعرفة من هو الشخص الذي **برا السالفة**! (أمامكم 30 ثانية)`);
+            .setDescription(`صوّتوا الآن لمعرفة من هو الشخص الذي **برا السالفة**! (أمامكم 60 ثانية)`);
 
         const voteMsg = await initialInteraction.channel.send({ embeds: [voteEmbed], components: [voteRow] });
 
@@ -238,7 +239,7 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
 
         const voteCollector = voteMsg.createMessageComponentCollector({
             componentType: ComponentType.StringSelect,
-            time: 30000
+            time: 60000
         });
 
         voteCollector.on('collect', async vInt => {
@@ -284,7 +285,7 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
             if (!isTie && mostVoted === imposterId) {
                 const guessButton = new ButtonBuilder()
                     .setCustomId('last_chance_guess')
-                    .setLabel('تخمين الكلمة (10 ثوانٍ)')
+                    .setLabel('تخمين الكلمة (40 ثانيه)')
                     .setStyle(ButtonStyle.Danger);
 
                 const guessRow = new ActionRowBuilder().addComponents(guessButton);
@@ -292,7 +293,7 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
                 const lastChanceEmbed = new EmbedBuilder()
                     .setColor('#e74c3c')
                     .setTitle('🚨 تم كشفك! فرصة التخمين الأخيرة')
-                    .setDescription(`<@${imposterId}> لقد كشفك الجميع! لديك **10 ثوانٍ** للضغط على الزر وتخمين الكلمة لاستعادة الفوز!`);
+                    .setDescription(`<@${imposterId}> لقد كشفك الجميع! لديك **40 ثانية** للضغط على الزر وتخمين الكلمة لاستعادة الفوز!`);
 
                 const lastChanceMsg = await initialInteraction.channel.send({ 
                     content: `<@${imposterId}>`,
@@ -304,7 +305,7 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
 
                 const guessCollector = lastChanceMsg.createMessageComponentCollector({
                     componentType: ComponentType.Button,
-                    time: 10000
+                    time: 40000
                 });
 
                 guessCollector.on('collect', async gInt => {
@@ -379,15 +380,15 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
 async function sendSummaryEmbed(interaction, imposterWon, imposterId, secretWord, xpChanges, details) {
     const summaryEmbed = new EmbedBuilder()
         .setColor(imposterWon ? '#f1c40f' : '#2ecc71')
-        .setTitle('📊 ملخص نتائج الجولة - v1.2')
+        .setTitle(' ملخص نتائج الجولة ')
         .setDescription(
-            `🎭 **الشخص الذي كان برا السالفة:** <@${imposterId}>\n` +
-            `🔑 **الكلمة السرية:** **${secretWord}**\n` +
-            `📝 **نتيجة الجولة:** ${details}\n\n` +
-            `🏆 **تحديثات النقاط (Risk & Reward):**\n` +
+            ` **الشخص الذي كان برا السالفة:** <@${imposterId}>\n` +
+            ` **الكلمة السرية:** **${secretWord}**\n` +
+            ` **نتيجة الجولة:** ${details}\n\n` +
+            ` **(Risk & Reward):**\n` +
             `${xpChanges.join('\n')}`
         )
-        .setFooter({ text: 'برا السالفة v1.2 • نظام النقاط والتلفيل التفاعلي' });
+        .setFooter({ text: 'برا السالفة v1.2 •' });
 
     await interaction.channel.send({ embeds: [summaryEmbed] });
 }
