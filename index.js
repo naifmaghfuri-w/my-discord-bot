@@ -209,9 +209,10 @@ client.on('messageCreate', async message => {
 
     const content = message.content.trim().toLowerCase();
     
+    // 1. تشغيل المختبر عند كتابة: مختبر أو lab أو the lab
     if (content === 'lab' || content === 'the lab' || content === 'مختبر') {
         try {
-            await labCommand.execute(message);
+            await labCommand.handleLabSession(message, message.author);
         } catch (error) {
             console.error('❌ خطأ أثناء تشغيل أمر lab النصي:', error);
         }
