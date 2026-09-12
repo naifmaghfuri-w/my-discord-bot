@@ -40,12 +40,14 @@ async function startDetectiveGame(selectInteraction, initialInteraction) {
 
     const joinButton = new ButtonBuilder()
         .setCustomId('det_join')
-        .setLabel('انضمام للعبة 🎮')
+        .setLabel('Join')
+        .setEmoji('1547214733122478110')
         .setStyle(ButtonStyle.Success);
 
     const leaveButton = new ButtonBuilder()
         .setCustomId('det_leave')
-        .setLabel('خروج 🚪')
+        .setLabel('Leave')
+        .setEmoji('1547653716725731438')
         .setStyle(ButtonStyle.Danger);
 
     const startButton = new ButtonBuilder()
@@ -57,7 +59,7 @@ async function startDetectiveGame(selectInteraction, initialInteraction) {
 
     const embed = new EmbedBuilder()
         .setColor('#2c3e50')
-        .setTitle('🕵️‍♂️ لعبة المحققين')
+        .setTitle('لعبة المحققين')
         .setDescription(`**اللاعبون المنضمون حالياً:**\n<@${selectInteraction.user.id}>\n\n⚠️ **يلزم 5 لاعبين على الأقل لبدء اللعبة!**`);
 
     await selectInteraction.update({ embeds: [embed], components: [row] });
@@ -95,7 +97,7 @@ async function startDetectiveGame(selectInteraction, initialInteraction) {
                 return i.reply({ content: 'صاحب الأمر فقط هو من يمكنه بدء اللعبة!', ephemeral: true });
             }
 
-            if (players.size < 5) {
+            if (players.size < 2) {
                 return i.reply({ content: 'الحد الأدنى للبدء هو 5 لاعبين!', ephemeral: true });
             }
 
