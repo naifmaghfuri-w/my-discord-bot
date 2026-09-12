@@ -89,7 +89,7 @@ function updatePlayerData(userId, data) {
 function buildMainMenu(user, player) {
     const rank = getRankTitle(player.level);
     const embed = new EmbedBuilder()
-        .setTitle('🧪 مختبر الكيمياء المتقدم | Ultimate Lab v2.5')
+        .setTitle('🧪 Lab v1.2')
         .setDescription(`مرحباً بك **${user.username}** 👋\nالرتبة العلمية: **${rank}**`)
         .setColor(0x2ecc71)
         .addFields(
@@ -382,7 +382,7 @@ async function handleLabSession(context, user) {
             updatePlayerData(user.id, player);
 
             setTimeout(() => {
-                channel.send(`🎉 <@${user.id}> **مختبر الكيمياء:** اكتمل التفاعل! اكتب **مختبر** لرؤية النتائج.`).catch(() => {});
+                channel.send(`🎉 <@${user.id}> ** اكتمل التفاعل! اكتب **مختبر** لرؤية النتائج.**`).catch(() => {});
             }, duration * 1000);
 
             return await i.update(buildMainMenu(user, player));
@@ -391,7 +391,7 @@ async function handleLabSession(context, user) {
 }
 
 module.exports = {
-    data: new SlashCommandBuilder().setName('lab').setDescription('مختبر الكيمياء التفاعلي المطور v2.5'),
+    data: new SlashCommandBuilder().setName('lab').setDescription('Lab v1.2'),
     async execute(interaction) {
         await handleLabSession(interaction, interaction.user);
     },
