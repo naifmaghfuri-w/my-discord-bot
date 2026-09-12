@@ -1,4 +1,4 @@
-// index.js
+require('dotenv').config();
 const { gamesCommands, handleGamesCommand } = require('./games');
 const labCommand = require('./lab');
 
@@ -16,6 +16,14 @@ const {
     MessageFlags
 } = require('discord.js');
 const express = require('express');
+const { OpenAI } = require('openai');
+
+// ==========================================
+// 🤖 إعداد الذكاء الاصطناعي (OpenAI)
+// ==========================================
+const openai = new OpenAI({ 
+    apiKey: process.env.OPENAI_API_KEY || 'ضع_مفتاح_OPENAI_هنا' 
+});
 
 // ==========================================
 // 🎨 إعدادات نظام الألوان للسيرفرات المتعددة
@@ -213,6 +221,7 @@ client.on('messageCreate', async message => {
     if (content === 'lab' || content === 'the lab' || content === 'مختبر') {
         try {
             await labCommand.handleLabSession(message, message.author);
+            return;
         } catch (error) {
             console.error('❌ خطأ أثناء تشغيل أمر lab النصي:', error);
         }
@@ -222,6 +231,7 @@ client.on('messageCreate', async message => {
     if (content === 'العاب' || content === 'ألعاب' || content === 'games') {
         try {
             await handleGamesCommand(message);
+            return;
         } catch (error) {
             console.error('❌ خطأ أثناء تشغيل أمر الألعاب النصي:', error);
         }
@@ -230,6 +240,49 @@ client.on('messageCreate', async message => {
     if (content === '!colors' && message.member.permissions.has(PermissionFlagsBits.Administrator)) {
         await sendColorMenu(message.channel);
         await message.delete().catch(() => {});
+        return;
+    }
+
+    // ==========================================
+    // 🤖 3. نظام الذكاء الاصطناعي (شخصية مارش)
+    // ==========================================
+    const isMentioned = message.mentions.has(client.user);
+    const isDots = content === '..' || content === '...';
+    const isCalledByName = content.includes('مارش') || content.includes('marsh');
+
+    if (isMentioned || isDots || isCalledByName) {
+        try {
+            await message.channel.sendTyping();
+
+            const userDisplayName = message.member?.displayName || message.author.username;
+
+            const response = await openai.chat.completions.create({
+                model: 'gpt-4o-mini',
+                messages: [
+                    { 
+                        role: 'system', 
+                        content: `أنتِ فتاة اسمك "مارش" تتحدثين في سيرفر ديسكورد كإنسان طبيعي بلهجة عامية لطيفة ومختصرة.
+
+قواعد التفاعل الذكي:
+1. **تحليل الجنس تلقائياً**: حليلي اسم العرض الخاص بالمستخدم (Display Name) والزخارف المرافقة له (مثل وجود اسم أنثوي "إيما / سارة"، أو ألقاب أنثوية مثل "إمبراطورة / Queen / 🖤").
+   - إذا كان الاسم يدل على أنثى: خاطبيها بصيغة المؤنث فوريًا (مثال: "هلا إيما، وش فيك ساكته؟ 🥹").
+   - إذا كان الاسم يدل على مذكر أو غير واضح: خاطبه بصيغة المذكر (مثال: "هلا أحمد، وش فيك ساكت؟ 👀").
+2. **شخصية العضو**: ابدأي الرد بمناداة الشخص باسمه الأساسي بأسلوب عفوي وطبيعي وبدون تكلف.
+3. **الإيموجيات**: استخدمي إيموجيات تعبيرية مناسبة للسياق جداً (مثل: 🥹, 🤍, 👀, 😭, 🤣).
+4. **الاختصار**: اجعلي الردود قصيرة جداً ومباشرة كأنك عضوة حقيقية تفاعلية داخل السيرفر.` 
+                    },
+                    { 
+                        role: 'user', 
+                        content: `اسم العرض (Display Name) للطرف الآخر: "${userDisplayName}". الرسالة التي كتبها: "${message.content}"` 
+                    }
+                ],
+            });
+
+            const reply = response.choices[0].message.content;
+            await message.reply(reply);
+        } catch (error) {
+            console.error('❌ خطأ في الاستجابة الذكية من OpenAI:', error);
+        }
     }
 });
 
