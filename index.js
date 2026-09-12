@@ -21,8 +21,8 @@ const { OpenAI } = require('openai');
 // ==========================================
 // 🤖 إعداد الذكاء الاصطناعي (OpenAI)
 // ==========================================
-const openai = new OpenAI({ 
-    apiKey: process.env.OPENAI_API_KEY || 'ضع_مفتاح_OPENAI_هنا' 
+const openai=new OpenAI({ 
+    apiKey: process.env.OPENAI_API_KEY 
 });
 
 // ==========================================
@@ -392,3 +392,7 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
+// ==========================================
+// 5. تشغيل البوت
+// ==========================================
+client.login(process.env.DISCORD_TOKEN);
