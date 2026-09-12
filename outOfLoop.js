@@ -20,7 +20,7 @@ function addXP(userId, amount) {
 }
 
 const topicsOutOfLoop = {
-    "أطعمة ومأكولات": ["كبسة", "بيتزا", "شاورما", "سوشي", "برجر", "فلافل", "ورق عنب", "مضغوط"],
+    "أطعمة ومأكولات": ["كبسة", "بيتزا", "شاورما", "سوشي", "برجر", "فلافل", "ورق عنب"],
     "ألعاب فيديو": ["ماينكرافت", "ببجي", "كول اوف ديوتي", "فيفا", "فورتنايت", "قنشين امباكت", "روكيت ليق"],
     "أنمي ومسلسلات": ["ون بيس", "هجوم العمالقة", "ناروتو", "قاتل الشياطين", "دراجون بول", "بليتش"],
     "دول وعواصم": ["السعودية", "الإمارات", "مصر", "اليابان", "تركيا", "باريس", "لندن"],
@@ -141,7 +141,7 @@ async function startOutOfLoopGame(selectInteraction, initialInteraction) {
     });
 
     collector.on('end', async () => {
-        if (players.size < 3) {
+        if (players.size < 2) {
             return initialInteraction.channel.send({
                 embeds: [
                     new EmbedBuilder()
