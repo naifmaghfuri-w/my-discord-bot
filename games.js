@@ -4,7 +4,8 @@ const {
     ActionRowBuilder, 
     StringSelectMenuBuilder, 
     StringSelectMenuOptionBuilder, 
-    ComponentType 
+    ComponentType,
+    MessageFlags
 } = require('discord.js');
 
 // استدعاء ملفات الألعاب المستقلة
@@ -34,14 +35,19 @@ async function handleGamesCommand(context) {
                 .setLabel('المحققين')
                 .setDescription('لعبة التحقيق واستجواب المشاركين لكشف الجاني')
                 .setValue('detective_game')
-                .setEmoji('🔍')
+                .setEmoji('🔍'),
+            new StringSelectMenuOptionBuilder()
+                .setLabel('HxH')
+                .setDescription('قريباً...')
+                .setValue('hxh_game')
+                .setEmoji('🎯')
         );
 
     const row = new ActionRowBuilder().addComponents(selectMenu);
 
     const gamesEmbed = new EmbedBuilder()
         .setColor('#9b59b6')
-        .setTitle('🎮 قائمة الألعاب المتاحة')
+        .setTitle(' قائمة الألعاب المتاحة')
         .setDescription('اختر اللعبة التي تريد تشغيلها من القائمة بالأسفل:');
 
     let response;
@@ -55,15 +61,25 @@ async function handleGamesCommand(context) {
 
     menuCollector.on('collect', async selectInteraction => {
         if (selectInteraction.user.id !== author.id) {
-            return selectInteraction.reply({ content: 'صاحب الأمر فقط هو من يمكنه اختيار اللعبة!', flags: 64 });
+            return selectInteraction.reply({ 
+                content: 'صاحب الأمر فقط هو من يمكنه اختيار اللعبة!', 
+                flags: MessageFlags.Ephemeral 
+            });
         }
 
-        if (selectInteraction.values[0] === 'out_of_loop') {
+        const selectedValue = selectInteraction.values[0];
+
+        if (selectedValue === 'out_of_loop') {
             menuCollector.stop();
             await startOutOfLoopGame(selectInteraction, context);
-        } else if (selectInteraction.values[0] === 'detective_game') {
+        } else if (selectedValue === 'detective_game') {
             menuCollector.stop();
             await startDetectiveGame(selectInteraction, context);
+        } else if (selectedValue === 'hxh_game') {
+            await selectInteraction.reply({ 
+                content: '⏳ ** قريباً!**  .', 
+                flags: MessageFlags.Ephemeral 
+            });
         }
     });
 }
