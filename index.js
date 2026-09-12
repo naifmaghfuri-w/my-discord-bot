@@ -392,8 +392,3 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
-// ==========================================
-// 5. تشغيل البوت
-// ==========================================
-const token = process.env.TOKEN || "MTU0NDk2ODYwNzcxNTI5OTQwOA.GpjGOM.JitSinFN661-N30N5WnlbkIRsxeHFwBg8SEQEI";
-client.login(token);
