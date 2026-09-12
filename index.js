@@ -16,13 +16,23 @@ const {
     MessageFlags
 } = require('discord.js');
 const express = require('express');
-const { OpenAI } = require('openai');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // ==========================================
-// 🤖 إعداد الذكاء الاصطناعي (OpenAI)
+// 🤖 إعداد الذكاء الاصطناعي (Google Gemini)
 // ==========================================
-const openai=new OpenAI({ 
-    apiKey: process.env.OPENAI_API_KEY 
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ 
+    model: 'gemini-1.5-flash',
+    systemInstruction: `أنتِ فتاة اسمك "مارش" تتحدثين في سيرفر ديسكورد كإنسان طبيعي بلهجة عامية لطيفة ومختصرة.
+
+قواعد التفاعل الذكي:
+1. **تحليل الجنس تلقائياً**: حليلي اسم العرض الخاص بالمستخدم (Display Name) والزخارف المرافقة له (مثل وجود اسم أنثوي "إيما / سارة"، أو ألقاب أنثوية مثل "إمبراطورة / Queen / 🖤").
+   - إذا كان الاسم يدل على أنثى: خاطبيها بصيغة المؤنث فوريًا (مثال: "هلا إيما، وش فيك ساكته؟ 🥹").
+   - إذا كان الاسم يدل على مذكر أو غير واضح: خاطبه بصيغة المذكر (مثال: "هلا أحمد، وش فيك ساكت؟ 👀").
+2. **شخصية العضو**: ابدأي الرد بمناداة الشخص باسمه الأساسي بأسلوب عفوي وطبيعي وبدون تكلف.
+3. **الإيموجيات**: استخدمي إيموجيات تعبيرية مناسبة للسياق جداً (مثل: 🥹, 🤍, 👀, 😭, 🤣).
+4. **الاختصار**: اجعلي الردود قصيرة جداً ومباشرة كأنك عضوة حقيقية تفاعلية داخل السيرفر.`
 });
 
 // ==========================================
@@ -244,7 +254,7 @@ client.on('messageCreate', async message => {
     }
 
     // ==========================================
-    // 🤖 3. نظام الذكاء الاصطناعي (شخصية مارش)
+    // 🤖 3. نظام الذكاء الاصطناعي (شخصية مارش بـ Gemini)
     // ==========================================
     const isMentioned = message.mentions.has(client.user);
     const isDots = content === '..' || content === '...';
@@ -255,33 +265,15 @@ client.on('messageCreate', async message => {
             await message.channel.sendTyping();
 
             const userDisplayName = message.member?.displayName || message.author.username;
+            const userPrompt = `اسم العرض (Display Name) للطرف الآخر: "${userDisplayName}". الرسالة التي كتبها: "${message.content}"`;
 
-            const response = await openai.chat.completions.create({
-                model: 'gpt-4o-mini',
-                messages: [
-                    { 
-                        role: 'system', 
-                        content: `أنتِ فتاة اسمك "مارش" تتحدثين في سيرفر ديسكورد كإنسان طبيعي بلهجة عامية لطيفة ومختصرة.
+            const result = await model.generateContent(userPrompt);
+            const response = await result.response;
+            const reply = response.text();
 
-قواعد التفاعل الذكي:
-1. **تحليل الجنس تلقائياً**: حليلي اسم العرض الخاص بالمستخدم (Display Name) والزخارف المرافقة له (مثل وجود اسم أنثوي "إيما / سارة"، أو ألقاب أنثوية مثل "إمبراطورة / Queen / 🖤").
-   - إذا كان الاسم يدل على أنثى: خاطبيها بصيغة المؤنث فوريًا (مثال: "هلا إيما، وش فيك ساكته؟ 🥹").
-   - إذا كان الاسم يدل على مذكر أو غير واضح: خاطبه بصيغة المذكر (مثال: "هلا أحمد، وش فيك ساكت؟ 👀").
-2. **شخصية العضو**: ابدأي الرد بمناداة الشخص باسمه الأساسي بأسلوب عفوي وطبيعي وبدون تكلف.
-3. **الإيموجيات**: استخدمي إيموجيات تعبيرية مناسبة للسياق جداً (مثل: 🥹, 🤍, 👀, 😭, 🤣).
-4. **الاختصار**: اجعلي الردود قصيرة جداً ومباشرة كأنك عضوة حقيقية تفاعلية داخل السيرفر.` 
-                    },
-                    { 
-                        role: 'user', 
-                        content: `اسم العرض (Display Name) للطرف الآخر: "${userDisplayName}". الرسالة التي كتبها: "${message.content}"` 
-                    }
-                ],
-            });
-
-            const reply = response.choices[0].message.content;
-            await message.reply(reply);
+            await message.reply(reply.slice(0, 2000));
         } catch (error) {
-            console.error('❌ خطأ في الاستجابة الذكية من OpenAI:', error);
+            console.error('❌ خطأ في الاستجابة الذكية من Gemini:', error);
         }
     }
 });
@@ -393,6 +385,6 @@ client.on('interactionCreate', async interaction => {
 });
 
 // ==========================================
-// 5. تشغيل البوت
+// 6. تشغيل البوت
 // ==========================================
 client.login(process.env.DISCORD_TOKEN);
