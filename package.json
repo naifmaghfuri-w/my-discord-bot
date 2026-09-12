@@ -8,7 +8,9 @@
   },
   "dependencies": {
     "discord.js": "^14.14.1",
-    "express": "^4.18.2"
+    "dotenv": "^17.4.2",
+    "express": "^4.18.2",
+    "openai": "^7.15.0"
   },
   "engines": {
     "node": ">=18.0.0"
