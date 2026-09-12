@@ -3,8 +3,7 @@ const {
     EmbedBuilder, 
     ActionRowBuilder, 
     ButtonBuilder, 
-    ButtonStyle, 
-    StringSelectMenuBuilder 
+    ButtonStyle 
 } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
@@ -21,8 +20,6 @@ const labData = {
         fe: { name: 'الحديد (Fe)', price: 35, buyable: true, state: '🪨 صلب' },
         o2: { name: 'الأكسجين (O2)', price: 25, buyable: true, state: '💨 غاز' },
         h2: { name: 'الهيدروجين (H2)', price: 25, buyable: true, state: '💨 غاز' },
-        
-        // ✨ العناصر الجديدة المضافة (شراء/تصنيع)
         so2: { name: 'ثاني أكسيد الكبريت (SO2)', price: 40, buyable: true, state: '💨 غاز' },
         cu: { name: 'النحاس (Cu)', price: 50, buyable: true, state: '🪨 صلب' },
         hno3: { name: 'حمض النيتريك (HNO3)', price: 75, buyable: true, state: '💧 سائل' },
@@ -34,8 +31,6 @@ const labData = {
         h2o_pure: { name: 'ماء نقي 💧 (Pure H2O)', price: 45, buyable: false, state: '💧 سائل', desc: 'ماء مقطر عالي النقاوة.' },
         fe2o3: { name: 'أكسيد الحديد (Fe2O3)', price: 90, buyable: false, state: '🪨 صلب', desc: 'مركب ناتج من أكسدة الحديد العالية.' },
         h2so4: { name: 'حمض الكبريتيك (H2SO4)', price: 150, buyable: false, state: '💧 سائل', desc: 'حمض شديد التآكل.' },
-        
-        // ✨ النواتج الجديدة المضافة
         cuno3_2: { name: 'نترات النحاس Cu(NO3)2', price: 180, buyable: false, state: '🪨 بلورات', desc: 'مركب كيميائي عالي القيمة مستخدم في الطلاء.' },
         n2: { name: 'غاز النيتروجين النقي (N2)', price: 210, buyable: false, state: '💨 غاز', desc: 'غاز خامل ممتاز للتطبيقات الصناعية.' }
     },
@@ -45,15 +40,13 @@ const labData = {
         still: { name: 'جهاز التقطير (Distillation)', reqLevel: 3 },
         combustion: { name: 'مفاعل الأكسدة', reqLevel: 4 },
         furnace: { name: 'الفرن الحراري (Furnace)', reqLevel: 5 },
-        
-        // ✨ الأجهزة الجديدة المضافة
         oxidation_tower: { name: 'برج الأكسدة الكيميائية', reqLevel: 6 },
         autoclave: { name: 'مفاعل الضغط العالي (Autoclave)', reqLevel: 7 },
         reflux_sys: { name: 'غرفة التكثيف والتبخير (Reflux)', reqLevel: 8 }
     },
     upgrades: {
-        speed: { name: '⚡ المسرع الكيميائي (سرعة x2)', price: 200, desc: 'يخفض زمن التفاعلات 50%' },
-        shield: { name: '🛡️ درع الحماية من الانفجار', price: 150, desc: 'يحميك من خسارة المواد عند الخطأ' }
+        speed: { id: 'up_speed', name: '⚡ المسرع الكيميائي (سرعة x2)', price: 200, desc: 'يخفض زمن التفاعلات 50%' },
+        shield: { id: 'up_shield', name: '🛡️ درع الحماية من الانفجار', price: 150, desc: 'يحميك من خسارة المواد عند الخطأ' }
     },
     reactions: [
         { id: 'r_nacl', name: '🧪 تخليق ملح الطعام (NaCl)', tool: 'beaker', reqLevel: 1, costAbility: 1, req: { na: 1, cl: 1 }, targetTemp: 25, targetPress: 1, timeSec: 10, yield: { nacl: 1 }, xp: 25 },
@@ -61,13 +54,14 @@ const labData = {
         { id: 'r_h2o', name: '💧 تنقية وتقطير الماء (H2O)', tool: 'still', reqLevel: 3, costAbility: 2, req: { h2o_imp: 1 }, targetTemp: 110, targetPress: 1, timeSec: 15, yield: { h2o_pure: 1 }, xp: 35 },
         { id: 'r_fe2o3', name: '🔥 أكسدة الحديد وتكوين أكسيد الحديد', tool: 'combustion', reqLevel: 4, costAbility: 3, req: { fe: 2, o2: 1 }, targetTemp: 500, targetPress: 2, timeSec: 18, yield: { fe2o3: 1 }, xp: 70 },
         { id: 'r_cao', name: '🔥 التفكك الحراري لحجر الجير', tool: 'furnace', reqLevel: 5, costAbility: 4, req: { caco3: 1 }, targetTemp: 900, targetPress: 1, timeSec: 20, yield: { cao: 1, co2: 1 }, xp: 60 },
-
-        // ✨ التفاعلات الجديدة المضافة
         { id: 'r_h2so4_prep', name: '💨 أكسدة الكبريت المتقدمة (H2SO4)', tool: 'oxidation_tower', reqLevel: 6, costAbility: 4, req: { so2: 1, o2: 1, h2o_pure: 1 }, targetTemp: 500, targetPress: 2, timeSec: 22, yield: { h2so4: 1 }, xp: 85 },
         { id: 'r_cuno3', name: '⚗️ تفاعل النحاس مع حمض النيتريك', tool: 'autoclave', reqLevel: 7, costAbility: 5, req: { cu: 1, hno3: 2 }, targetTemp: 110, targetPress: 3, timeSec: 25, yield: { cuno3_2: 1 }, xp: 100 },
         { id: 'r_nitrogen_prod', name: '💥 التفكك الانفجاري المحكوم لإنتاج النيتروجين', tool: 'reflux_sys', reqLevel: 8, costAbility: 5, req: { hno3: 2, fe: 1 }, targetTemp: 900, targetPress: 3, timeSec: 30, yield: { n2: 2 }, xp: 120 }
     ]
 };
+
+const TEMP_STEPS = [25, 110, 500, 900];
+const PRESS_STEPS = [1, 2, 3];
 
 function ensureDataFile() {
     if (!fs.existsSync(dataPath)) fs.writeFileSync(dataPath, JSON.stringify({}, null, 2));
@@ -103,9 +97,10 @@ function updatePlayerData(userId, data) {
     fs.writeFileSync(dataPath, JSON.stringify(db, null, 2));
 }
 
+// 🌐 1. القائمة الرئيسية
 function buildMainMenu(user, player) {
     const embed = new EmbedBuilder()
-        .setTitle(' Lab v1.3')
+        .setTitle('🧪 Lab v1.3')
         .setDescription(`مرحباً بك **${user.username}** 👋`)
         .setColor(0x2ecc71)
         .addFields(
@@ -117,49 +112,214 @@ function buildMainMenu(user, player) {
             { name: '🛡️ الحماية', value: player.upgrades.shield ? '`مفعل ✅`' : '`غير مفعل ❌`', inline: true }
         )
         .setThumbnail(user.displayAvatarURL())
-        .setFooter({ text: 'اختر تفاعلاً أو افتح شجرة القدرات للتطور' });
+        .setFooter({ text: 'اختر تفاعلاً من شاشات التنقل للتطور' });
 
     if (player.pendingQueue && player.pendingQueue.length > 0) {
         embed.addFields({ name: '⏳ تفاعلات جارية', value: `عدد التفاعلات قيد التنفيذ: **${player.pendingQueue.length}**` });
     }
 
-    const availableReactions = labData.reactions.filter(r => player.unlockedReactions.includes(r.id));
-    
-    let row1;
-    if (availableReactions.length > 0) {
-        const reactionOptions = availableReactions.map(r => {
-            const reqEquipment = labData.equipment[r.tool];
-            return {
-                label: r.name,
-                description: `الجهاز: ${reqEquipment.name}`,
-                value: r.id
-            };
-        });
-
-        const reactionSelect = new StringSelectMenuBuilder()
-            .setCustomId('select_reaction')
-            .setPlaceholder('⚗️ اختر تفاعلاً كيميائياً للمعايرة...')
-            .addOptions(reactionOptions);
-            
-        row1 = new ActionRowBuilder().addComponents(reactionSelect);
-    }
+    const row1 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('btn_open_reactions').setLabel('غرفة التفاعلات').setEmoji('⚗️').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('btn_open_levels').setLabel('القدرات والمستويات').setEmoji('📜').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('btn_open_shop').setLabel('المتجر').setEmoji('🛒').setStyle(ButtonStyle.Success)
+    );
 
     const row2 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('btn_open_inv').setLabel('المستودع').setEmoji('🎒').setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId('btn_open_shop').setLabel('المتجر').setEmoji('🛒').setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId('btn_open_levels').setLabel('القدرات والمستويات').setEmoji('📜').setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId('btn_open_quest').setLabel('المهام').setEmoji('📜').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('btn_open_inv').setLabel('المستودع').setEmoji('🎒').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('btn_open_quest').setLabel('المهام').setEmoji('📋').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('btn_sell_all').setLabel('بيع النواتج').setEmoji('💵').setStyle(ButtonStyle.Danger)
     );
 
-    return { embeds: [embed], components: row1 ? [row1, row2] : [row2] };
+    return { embeds: [embed], components: [row1, row2] };
 }
 
+// 📜 2. شاشة القدرات والمستويات (نظام أسهم)
+function buildLevelScreen(player, index) {
+    const reaction = labData.reactions[index];
+    const isUnlocked = player.unlockedReactions.includes(reaction.id);
+    const isLevelReached = player.level >= reaction.reqLevel;
+
+    const reqList = Object.entries(reaction.req)
+        .map(([id, qty]) => `• ${labData.items[id]?.name || id}: \`${qty}\``)
+        .join('\n');
+
+    const yieldList = Object.entries(reaction.yield)
+        .map(([id, qty]) => `• ${labData.items[id]?.name || id}: \`${qty}\``)
+        .join('\n');
+
+    let statusText = '🔒 مغلق (المستوى غير كافي)';
+    let btnStyle = ButtonStyle.Secondary;
+    let btnDisabled = true;
+    let btnLabel = '🔒 غير متاح للفتح';
+
+    if (isUnlocked) {
+        statusText = '✅ مفتوح وجاهز للاستخدام';
+        btnLabel = '✅ تم الفتح بالكامل';
+    } else if (isLevelReached) {
+        statusText = `🟡 متاح للفتح! (التكلفة: ${reaction.costAbility} ⚡)`;
+        btnStyle = ButtonStyle.Success;
+        btnDisabled = player.abilityPoints < reaction.costAbility;
+        btnLabel = `🔓 فتح التفاعل (${reaction.costAbility} ⚡)`;
+    }
+
+    const embed = new EmbedBuilder()
+        .setTitle(`📜 تفاعل: ${reaction.name}`)
+        .setDescription(`**الحالة:** ${statusText}\n\n**الجهاز المطلوب:** ${labData.equipment[reaction.tool]?.name}`)
+        .setColor(isUnlocked ? 0x2ecc71 : (isLevelReached ? 0xf1c40f : 0xe74c3c))
+        .addFields(
+            { name: '🎯 المستوى المطلوب', value: `\`Lv.${reaction.reqLevel}\``, inline: true },
+            { name: '⚡ تكلفة القدرة', value: `\`${reaction.costAbility} نقطة\``, inline: true },
+            { name: '⭐ خبرة التفاعل', value: `\`+${reaction.xp} XP\``, inline: true },
+            { name: '🧪 المواد المطلوبة', value: reqList || 'لا يوجد', inline: true },
+            { name: '✨ النواتج المتوقعة', value: yieldList || 'لا يوجد', inline: true }
+        )
+        .setFooter({ text: `نقاط القدرة لديك: ${player.abilityPoints} ⚡ | تفاعل ${index + 1} من ${labData.reactions.length}` });
+
+    const navRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('btn_lvl_prev').setLabel('⬅️ السابق').setStyle(ButtonStyle.Secondary).setDisabled(index === 0),
+        new ButtonBuilder().setCustomId(`btn_unlock_reaction_${reaction.id}`).setLabel(btnLabel).setStyle(btnStyle).setDisabled(btnDisabled),
+        new ButtonBuilder().setCustomId('btn_lvl_next').setLabel('التالي ➡️').setStyle(ButtonStyle.Secondary).setDisabled(index === labData.reactions.length - 1),
+        new ButtonBuilder().setCustomId('btn_back_main').setLabel('↩️ الرئيسية').setStyle(ButtonStyle.Danger)
+    );
+
+    return { embeds: [embed], components: [navRow] };
+}
+
+// 🛒 3. شاشة المتجر والترقيات (نظام أسهم)
+function buildShopScreen(player, index) {
+    const shopList = [
+        ...Object.entries(labData.items).filter(([_, item]) => item.buyable).map(([id, item]) => ({ type: 'item', id, ...item })),
+        ...Object.values(labData.upgrades).map(up => ({ type: 'upgrade', ...up }))
+    ];
+
+    const currentItem = shopList[index];
+    let buyBtnDisabled = false;
+    let buyBtnLabel = `🛒 شراء بـ ${currentItem.price} Valence`;
+
+    if (currentItem.type === 'upgrade') {
+        const isOwned = player.upgrades[currentItem.id.replace('up_', '')];
+        if (isOwned) {
+            buyBtnDisabled = true;
+            buyBtnLabel = '✅ تمتلك هذه الترقية';
+        } else if (player.coins < currentItem.price) {
+            buyBtnDisabled = true;
+            buyBtnLabel = `❌ الرصيد غير كافي (${currentItem.price} Valence)`;
+        }
+    } else {
+        if (player.coins < currentItem.price) {
+            buyBtnDisabled = true;
+            buyBtnLabel = `❌ الرصيد غير كافي (${currentItem.price} Valence)`;
+        }
+    }
+
+    const embed = new EmbedBuilder()
+        .setTitle(`🛒 المتجر: ${currentItem.name}`)
+        .setDescription(currentItem.desc || `عنصر كيميائي أولي يستعمل في التفاعلات المخبرية.\n**الحالة الفيزيائية:** ${currentItem.state || 'غير محدد'}`)
+        .setColor(0xf1c40f)
+        .addFields(
+            { name: '💵 السعر', value: `\`${currentItem.price} Valence 🪙\``, inline: true },
+            { name: '🎒 الكمية الحالية لديك', value: currentItem.type === 'item' ? `\`${player.inv[currentItem.id] || 0}\`` : (player.upgrades[currentItem.id.replace('up_', '')] ? '`مفعّل`' : '`غير مفعّل`'), inline: true }
+        )
+        .setFooter({ text: `رصيدك الحالي: ${player.coins} Valence 🪙 | عنصر ${index + 1} من ${shopList.length}` });
+
+    const navRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('btn_shop_prev').setLabel('⬅️ السابق').setStyle(ButtonStyle.Secondary).setDisabled(index === 0),
+        new ButtonBuilder().setCustomId(`btn_buy_shop_${currentItem.type}_${currentItem.id}`).setLabel(buyBtnLabel).setStyle(ButtonStyle.Success).setDisabled(buyBtnDisabled),
+        new ButtonBuilder().setCustomId('btn_shop_next').setLabel('التالي ➡️').setStyle(ButtonStyle.Secondary).setDisabled(index === shopList.length - 1),
+        new ButtonBuilder().setCustomId('btn_back_main').setLabel('↩️ الرئيسية').setStyle(ButtonStyle.Danger)
+    );
+
+    return { embeds: [embed], components: [navRow] };
+}
+
+// 🎛️ 4. شاشة معايرة التفاعل (أزرار التنقل والبدء)
+function buildCalibScreen(reaction, tempIndex, pressIndex) {
+    const currentTemp = TEMP_STEPS[tempIndex];
+    const currentPress = PRESS_STEPS[pressIndex];
+
+    const reqList = Object.entries(reaction.req)
+        .map(([id, qty]) => `• **${labData.items[id]?.name || id}**: \`${qty}\``)
+        .join('\n');
+
+    const embed = new EmbedBuilder()
+        .setTitle(`🎛️ معايرة التفاعل: ${reaction.name}`)
+        .setDescription(`**الجهاز المستخدم:** ${labData.equipment[reaction.tool]?.name}\nاضبط الحرارة والضغط بالأسهم ثم اضغط **بدء التفاعل**.`)
+        .setColor(0xe74c3c)
+        .addFields(
+            { name: '🔥 درجة الحرارة الحالية', value: `\`${currentTemp} °C\``, inline: true },
+            { name: '💨 الضغط الجوي الحالي', value: `\`${currentPress} atm\``, inline: true },
+            { name: '🧪 المواد المطلوبة', value: reqList, inline: false }
+        );
+
+    const tempRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('btn_temp_down').setLabel('🔥 حرارة ➖').setStyle(ButtonStyle.Primary).setDisabled(tempIndex === 0),
+        new ButtonBuilder().setCustomId('btn_temp_val').setLabel(`🔥 ${currentTemp} °C`).setStyle(ButtonStyle.Secondary).setDisabled(true),
+        new ButtonBuilder().setCustomId('btn_temp_up').setLabel('🔥 حرارة ➕').setStyle(ButtonStyle.Primary).setDisabled(tempIndex === TEMP_STEPS.length - 1)
+    );
+
+    const pressRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('btn_press_down').setLabel('💨 ضغط ➖').setStyle(ButtonStyle.Primary).setDisabled(pressIndex === 0),
+        new ButtonBuilder().setCustomId('btn_press_val').setLabel(`💨 ${currentPress} atm`).setStyle(ButtonStyle.Secondary).setDisabled(true),
+        new ButtonBuilder().setCustomId('btn_press_up').setLabel('💨 ضغط ➕').setStyle(ButtonStyle.Primary).setDisabled(pressIndex === PRESS_STEPS.length - 1)
+    );
+
+    const actionRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('btn_start_reaction').setLabel('🚀 بدء التفاعل').setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId('btn_open_reactions').setLabel('↩️ إلغاء').setStyle(ButtonStyle.Danger)
+    );
+
+    return { embeds: [embed], components: [tempRow, pressRow, actionRow] };
+}
+
+// ⚗️ 5. شاشة تصفح التفاعلات المتاحة (نظام أسهم)
+function buildReactionsScreen(player, index) {
+    const unlockedList = labData.reactions.filter(r => player.unlockedReactions.includes(r.id));
+
+    if (unlockedList.length === 0) {
+        const emptyEmbed = new EmbedBuilder()
+            .setTitle('⚗️ غرفة التفاعلات')
+            .setDescription('❌ لا تملك أي تفاعلات مفتوحة حالياً! افتح **شجرة القدرات والمستويات** لفتح تفاعلاتك الأولى.')
+            .setColor(0xe74c3c);
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('btn_open_levels').setLabel('فتح القدرات').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId('btn_back_main').setLabel('↩️ الرئيسية').setStyle(ButtonStyle.Secondary)
+        );
+        return { embeds: [emptyEmbed], components: [row] };
+    }
+
+    const reaction = unlockedList[index];
+    const reqList = Object.entries(reaction.req)
+        .map(([id, qty]) => `• ${labData.items[id]?.name || id}: \`${qty}\` (لديك: \`${player.inv[id] || 0}\`)`)
+        .join('\n');
+
+    const embed = new EmbedBuilder()
+        .setTitle(`⚗️ اختر تفاعلاً: ${reaction.name}`)
+        .setDescription(`**الجهاز:** ${labData.equipment[reaction.tool]?.name}\n**الوقت المطلوب:** \`${player.upgrades.speed ? Math.ceil(reaction.timeSec / 2) : reaction.timeSec} ثانية\``)
+        .setColor(0x3498db)
+        .addFields(
+            { name: '🧪 المواد المطلوبة للتفاعل', value: reqList },
+            { name: '⭐ خبرة التفاعل', value: `\`+${reaction.xp} XP\``, inline: true }
+        )
+        .setFooter({ text: `تفاعل ${index + 1} من ${unlockedList.length}` });
+
+    const navRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('btn_react_prev').setLabel('⬅️ السابق').setStyle(ButtonStyle.Secondary).setDisabled(index === 0),
+        new ButtonBuilder().setCustomId(`btn_select_calib_${reaction.id}`).setLabel('🎛️ بدء المعايرة').setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId('btn_react_next').setLabel('التالي ➡️').setStyle(ButtonStyle.Secondary).setDisabled(index === unlockedList.length - 1),
+        new ButtonBuilder().setCustomId('btn_back_main').setLabel('↩️ الرئيسية').setStyle(ButtonStyle.Danger)
+    );
+
+    return { embeds: [embed], components: [navRow] };
+}
+
+// 🧠 6. معالج الجلسة التفاعلي
 async function handleLabSession(context, user) {
     let player = getPlayerData(user.id);
     const channel = context.channel;
     const currentNow = Math.floor(Date.now() / 1000);
 
+    // معالجة التفاعلات المكتملة في الخلفية
     if (player.pendingQueue && player.pendingQueue.length > 0) {
         let updatedQueue = [];
         for (const task of player.pendingQueue) {
@@ -196,14 +356,18 @@ async function handleLabSession(context, user) {
         responseMsg = await context.reply(initialMenu);
     }
 
-    let selectedReactionId = null;
-    let currentTemp = 25;
-    let currentPress = 1;
+    // حالات التصفح المحلية للجلسة
+    let lvlIndex = 0;
+    let shopIndex = 0;
+    let reactIndex = 0;
+    let selectedReaction = null;
+    let tempIndex = 0;
+    let pressIndex = 0;
 
     const collector = responseMsg.createMessageComponentCollector({ time: 300000 });
 
     collector.on('collect', async i => {
-        if (i.user.id !== user.id) return i.reply({ content: '❌ اللوحة غير مخصصة لك!', ephemeral: true });
+        if (i.user.id !== user.id) return i.reply({ content: '❌ هذه اللوحة غير مخصصة لك!', ephemeral: true });
 
         player = getPlayerData(user.id);
 
@@ -215,6 +379,7 @@ async function handleLabSession(context, user) {
             return await i.update(buildMainMenu(user, player));
         }
 
+        // --- 🎒 المستودع ---
         if (i.customId === 'btn_open_inv') {
             const invList = Object.keys(player.inv).length > 0 
                 ? Object.entries(player.inv).map(([id, qty]) => `• **${labData.items[id]?.name || id}**: \`${qty}\``).join('\n')
@@ -228,63 +393,156 @@ async function handleLabSession(context, user) {
             return await i.update({ embeds: [invEmbed], components: [backBtnRow] });
         }
 
+        // --- 📜 القدرات والمستويات ---
         if (i.customId === 'btn_open_levels') {
-            let treeDesc = `نقاط القدرة المتوفرة لديـك: **${player.abilityPoints} ⚡**\n\n`;
-            const unlockOptions = [];
-
-            labData.reactions.forEach(r => {
-                const isUnlocked = player.unlockedReactions.includes(r.id);
-                const isLevelReached = player.level >= r.reqLevel;
-
-                if (isUnlocked) {
-                    treeDesc += `🟢 **[Lv.${r.reqLevel}] ${r.name}** - (مفتوح ✅)\n`;
-                } else if (isLevelReached) {
-                    treeDesc += `🟡 **[Lv.${r.reqLevel}] ${r.name}** - التكلفة: \`${r.costAbility} قدرة ⚡\` (متاح للفتح!)\n`;
-                    unlockOptions.push({
-                        label: `فتح: ${r.name}`,
-                        description: `طلب Lv.${r.reqLevel} | التكلفة: ${r.costAbility} قدرة`,
-                        value: `unlock_${r.id}`
-                    });
-                } else {
-                    treeDesc += `🔒 **[Lv.${r.reqLevel}] ${r.name}** - يتطلب مستوى \`Lv.${r.reqLevel}\` للفتح.\n`;
-                }
-            });
-
-            treeDesc += `\n⚙️ **المستويات [26 - 100]:** 🚀 _قريباً في التحديثات القادمة._`;
-
-            const levelsEmbed = new EmbedBuilder()
-                .setTitle('📜 شجرة التقنيات والمستويات (Level Unlocks)')
-                .setDescription(treeDesc)
-                .setColor(0x9b59b6);
-
-            const componentsArr = [];
-            if (unlockOptions.length > 0) {
-                const unlockSelect = new StringSelectMenuBuilder()
-                    .setCustomId('select_unlock_ability')
-                    .setPlaceholder('🟡 اختر تفاعلاً لفتحه واستخدامه...')
-                    .addOptions(unlockOptions);
-                componentsArr.push(new ActionRowBuilder().addComponents(unlockSelect));
-            }
-            componentsArr.push(backBtnRow);
-
-            return await i.update({ embeds: [levelsEmbed], components: componentsArr });
+            lvlIndex = 0;
+            return await i.update(buildLevelScreen(player, lvlIndex));
         }
-
-        if (i.isStringSelectMenu() && i.customId === 'select_unlock_ability') {
-            const reactionId = i.values[0].replace('unlock_', '');
-            const reaction = labData.reactions.find(r => r.id === reactionId);
+        if (i.customId === 'btn_lvl_prev') {
+            lvlIndex--;
+            return await i.update(buildLevelScreen(player, lvlIndex));
+        }
+        if (i.customId === 'btn_lvl_next') {
+            lvlIndex++;
+            return await i.update(buildLevelScreen(player, lvlIndex));
+        }
+        if (i.customId.startsWith('btn_unlock_reaction_')) {
+            const rId = i.customId.replace('btn_unlock_reaction_', '');
+            const reaction = labData.reactions.find(r => r.id === rId);
 
             if (player.abilityPoints >= reaction.costAbility) {
                 player.abilityPoints -= reaction.costAbility;
                 player.unlockedReactions.push(reaction.id);
                 updatePlayerData(user.id, player);
-                await i.reply({ content: `✅ **تم فتح (${reaction.name}) بنجاح! يمكنك استخدامه الآن.**`, ephemeral: true });
+                await i.reply({ content: `✅ **تم فتح (${reaction.name}) بنجاح!**`, ephemeral: true });
+                return await i.message.edit(buildLevelScreen(player, lvlIndex));
             } else {
-                await i.reply({ content: '❌ لا تملك نقاط **قدرة** كافية لفتح هذا التفاعل!', ephemeral: true });
+                return await i.reply({ content: '❌ لا تملك نقاط قدرة كافية!', ephemeral: true });
             }
+        }
+
+        // --- 🛒 المتجر والترقيات ---
+        if (i.customId === 'btn_open_shop') {
+            shopIndex = 0;
+            return await i.update(buildShopScreen(player, shopIndex));
+        }
+        if (i.customId === 'btn_shop_prev') {
+            shopIndex--;
+            return await i.update(buildShopScreen(player, shopIndex));
+        }
+        if (i.customId === 'btn_shop_next') {
+            shopIndex++;
+            return await i.update(buildShopScreen(player, shopIndex));
+        }
+        if (i.customId.startsWith('btn_buy_shop_')) {
+            const parts = i.customId.replace('btn_buy_shop_', '').split('_');
+            const type = parts[0];
+            const id = parts.slice(1).join('_');
+
+            if (type === 'upgrade') {
+                const upItem = labData.upgrades[id];
+                if (player.coins >= upItem.price) {
+                    player.coins -= upItem.price;
+                    player.upgrades[id] = true;
+                    updatePlayerData(user.id, player);
+                    await i.reply({ content: `🎉 **تم شراء الترقية (${upItem.name}) بنجاح!**`, ephemeral: true });
+                }
+            } else {
+                const item = labData.items[id];
+                if (player.coins >= item.price) {
+                    player.coins -= item.price;
+                    player.inv[id] = (player.inv[id] || 0) + 1;
+                    updatePlayerData(user.id, player);
+                    await i.reply({ content: `🛒 **تم شراء 1x (${item.name}) بنجاح!**`, ephemeral: true });
+                }
+            }
+            return await i.message.edit(buildShopScreen(player, shopIndex));
+        }
+
+        // --- ⚗️ غرفة التفاعلات والمعايرة ---
+        if (i.customId === 'btn_open_reactions') {
+            reactIndex = 0;
+            return await i.update(buildReactionsScreen(player, reactIndex));
+        }
+        if (i.customId === 'btn_react_prev') {
+            reactIndex--;
+            return await i.update(buildReactionsScreen(player, reactIndex));
+        }
+        if (i.customId === 'btn_react_next') {
+            reactIndex++;
+            return await i.update(buildReactionsScreen(player, reactIndex));
+        }
+        if (i.customId.startsWith('btn_select_calib_')) {
+            const rId = i.customId.replace('btn_select_calib_', '');
+            selectedReaction = labData.reactions.find(r => r.id === rId);
+            tempIndex = 0;
+            pressIndex = 0;
+            return await i.update(buildCalibScreen(selectedReaction, tempIndex, pressIndex));
+        }
+
+        // أزرار التحكم بالحرارة والضغط
+        if (i.customId === 'btn_temp_down') {
+            tempIndex--;
+            return await i.update(buildCalibScreen(selectedReaction, tempIndex, pressIndex));
+        }
+        if (i.customId === 'btn_temp_up') {
+            tempIndex++;
+            return await i.update(buildCalibScreen(selectedReaction, tempIndex, pressIndex));
+        }
+        if (i.customId === 'btn_press_down') {
+            pressIndex--;
+            return await i.update(buildCalibScreen(selectedReaction, tempIndex, pressIndex));
+        }
+        if (i.customId === 'btn_press_up') {
+            pressIndex++;
+            return await i.update(buildCalibScreen(selectedReaction, tempIndex, pressIndex));
+        }
+
+        // بدء التفاعل الكيميائي
+        if (i.customId === 'btn_start_reaction') {
+            const reaction = selectedReaction;
+
+            // التحقق من توفر المواد
+            for (const [mat, qty] of Object.entries(reaction.req)) {
+                if (!player.inv[mat] || player.inv[mat] < qty) {
+                    return await i.reply({ content: `❌ لا تملك المواد الكافية! تحتاج إلى (${labData.items[mat]?.name || mat} x${qty})`, ephemeral: true });
+                }
+            }
+
+            const currentTemp = TEMP_STEPS[tempIndex];
+            const currentPress = PRESS_STEPS[pressIndex];
+
+            // خصم المواد
+            for (const [mat, qty] of Object.entries(reaction.req)) {
+                player.inv[mat] -= qty;
+                if (player.inv[mat] <= 0) delete player.inv[mat];
+            }
+
+            // فحص صحة المعايرة
+            if (currentTemp !== reaction.targetTemp || currentPress !== reaction.targetPress) {
+                if (!player.upgrades.shield) {
+                    updatePlayerData(user.id, player);
+                    await i.reply({ content: '💥 **حدث انفجار مخبري بسبب ضبط درجات حرارة أو ضغط خاطئة! خسرت المواد.**', ephemeral: true });
+                } else {
+                    updatePlayerData(user.id, player);
+                    await i.reply({ content: '🛡️ **فشل التفاعل بسبب المعايرة الخاطئة، ولكن درع الحماية منع انفجار المواد!**', ephemeral: true });
+                }
+                return await i.message.edit(buildMainMenu(user, player));
+            }
+
+            let duration = player.upgrades.speed ? Math.ceil(reaction.timeSec / 2) : reaction.timeSec;
+            player.pendingQueue.push({ busyUntil: Math.floor(Date.now() / 1000) + duration, yield: reaction.yield, xp: reaction.xp });
+            updatePlayerData(user.id, player);
+
+            setTimeout(() => {
+                channel.send(`🎉 <@${user.id}> **اكتمل التفاعل الكيميائي (${reaction.name})! افتح المختبر لاستلام نتائجك.**`).catch(() => {});
+            }, duration * 1000);
+
+            await i.reply({ content: `🚀 **بدأ تفاعل (${reaction.name})! سينتهي بعد ${duration} ثانية.**`, ephemeral: true });
             return await i.message.edit(buildMainMenu(user, player));
         }
 
+        // --- 📋 المهام اليومية ---
         if (i.customId === 'btn_open_quest') {
             const q = player.quest;
             const itemNeeded = labData.items[q.item];
@@ -292,7 +550,7 @@ async function handleLabSession(context, user) {
             const questEmbed = new EmbedBuilder()
                 .setTitle('📜 المهام اليومية')
                 .addFields(
-                    { name: '🎯 المطلوب', value: `إنتاج **${q.count}x ${itemNeeded.name}**`, inline: true },
+                    { name: '🎯 المطلوب', value: `إنتاج **${q.count}x ${itemNeeded?.name || q.item}**`, inline: true },
                     { name: '📊 التقدم الحالي', value: `\`${q.progress} / ${q.count}\``, inline: true },
                     { name: '🎁 المكافأة', value: `\`+${q.rewardCoins} Valence\` | \`+${q.rewardXp} XP\``, inline: true }
                 )
@@ -318,42 +576,7 @@ async function handleLabSession(context, user) {
             }
         }
 
-        if (i.customId === 'btn_open_shop') {
-            const shopOptions = Object.entries(labData.items)
-                .filter(([_, item]) => item.buyable)
-                .map(([id, item]) => ({ label: item.name, description: `السعر: ${item.price} Valence`, value: `item_${id}` }));
-
-            if (!player.upgrades.speed) shopOptions.push({ label: labData.upgrades.speed.name, description: `السعر: ${labData.upgrades.speed.price} Valence`, value: 'up_speed' });
-            if (!player.upgrades.shield) shopOptions.push({ label: labData.upgrades.shield.name, description: `السعر: ${labData.upgrades.shield.price} Valence`, value: 'up_shield' });
-
-            const shopSelect = new StringSelectMenuBuilder().setCustomId('select_shop_all').setPlaceholder('🛒 اختر لشراء مادة أو ترقية...').addOptions(shopOptions);
-            const shopEmbed = new EmbedBuilder().setTitle('🛒 المتجر والترقيات').setDescription(`رصيدك الحالي: **${player.coins} Valence** 🪙`).setColor(0xf1c40f);
-
-            return await i.update({ embeds: [shopEmbed], components: [new ActionRowBuilder().addComponents(shopSelect), backBtnRow] });
-        }
-
-        if (i.isStringSelectMenu() && i.customId === 'select_shop_all') {
-            const val = i.values[0];
-            if (val.startsWith('item_')) {
-                const itemId = val.replace('item_', '');
-                const item = labData.items[itemId];
-                if (player.coins >= item.price) {
-                    player.coins -= item.price;
-                    player.inv[itemId] = (player.inv[itemId] || 0) + 1;
-                    updatePlayerData(user.id, player);
-                }
-            } else if (val.startsWith('up_')) {
-                const upKey = val.replace('up_', '');
-                const upItem = labData.upgrades[upKey];
-                if (player.coins >= upItem.price) {
-                    player.coins -= upItem.price;
-                    player.upgrades[upKey] = true;
-                    updatePlayerData(user.id, player);
-                }
-            }
-            return await i.update(buildMainMenu(user, player));
-        }
-
+        // --- 💵 بيع النواتج ---
         if (i.customId === 'btn_sell_all') {
             let totalEarned = 0;
             let soldList = [];
@@ -382,90 +605,6 @@ async function handleLabSession(context, user) {
             });
 
             return await i.message.edit(buildMainMenu(user, player));
-        }
-
-        if (i.isStringSelectMenu() && i.customId === 'select_reaction') {
-            selectedReactionId = i.values[0];
-            const reaction = labData.reactions.find(r => r.id === selectedReactionId);
-
-            const calibEmbed = new EmbedBuilder()
-                .setTitle(`🎛️ معايرة التفاعل: ${reaction.name}`)
-                .setDescription(`الجهاز المطلـوب: **${labData.equipment[reaction.tool].name}**\nاضبط المعايير ثم اضغط **بدء التفاعل**.`)
-                .setColor(0xe74c3c)
-                .addFields(
-                    { name: '🔥 الحرارة', value: `\`${currentTemp} °C\``, inline: true },
-                    { name: '💨 الضغط', value: `\`${currentPress} atm\``, inline: true }
-                );
-
-            const tempMenu = new StringSelectMenuBuilder().setCustomId('change_temp').setPlaceholder('🔥 اختر الحرارة...').addOptions([
-                { label: '25 °C', value: '25' }, { label: '110 °C', value: '110' }, { label: '500 °C', value: '500' }, { label: '900 °C', value: '900' }
-            ]);
-
-            const pressMenu = new StringSelectMenuBuilder().setCustomId('change_press').setPlaceholder('💨 اختر الضغط...').addOptions([
-                { label: '1 atm', value: '1' }, { label: '2 atm', value: '2' }, { label: '3 atm', value: '3' }
-            ]);
-
-            const startBtn = new ButtonBuilder().setCustomId('btn_start_reaction').setLabel('🚀 بدء التفاعل').setStyle(ButtonStyle.Success);
-
-            return await i.update({
-                embeds: [calibEmbed],
-                components: [
-                    new ActionRowBuilder().addComponents(tempMenu),
-                    new ActionRowBuilder().addComponents(pressMenu),
-                    new ActionRowBuilder().addComponents(startBtn, backBtnRow.components[0])
-                ]
-            });
-        }
-
-        if (i.isStringSelectMenu() && (i.customId === 'change_temp' || i.customId === 'change_press')) {
-            if (i.customId === 'change_temp') currentTemp = parseInt(i.values[0]);
-            if (i.customId === 'change_press') currentPress = parseInt(i.values[0]);
-
-            const reaction = labData.reactions.find(r => r.id === selectedReactionId);
-            const calibEmbed = new EmbedBuilder()
-                .setTitle(`🎛️ معايرة التفاعل: ${reaction.name}`)
-                .setColor(0xe74c3c)
-                .addFields(
-                    { name: '🔥 الحرارة', value: `\`${currentTemp} °C\``, inline: true },
-                    { name: '💨 الضغط', value: `\`${currentPress} atm\``, inline: true }
-                );
-
-            return await i.update({ embeds: [calibEmbed] });
-        }
-
-        if (i.customId === 'btn_start_reaction') {
-            const reaction = labData.reactions.find(r => r.id === selectedReactionId);
-            for (const [mat, qty] of Object.entries(reaction.req)) {
-                if (!player.inv[mat] || player.inv[mat] < qty) {
-                    return await i.reply({ content: '❌ لا تملك المواد الكافية!', ephemeral: true });
-                }
-            }
-
-            if (currentTemp !== reaction.targetTemp || currentPress !== reaction.targetPress) {
-                if (!player.upgrades.shield) {
-                    for (const [mat, qty] of Object.entries(reaction.req)) {
-                        player.inv[mat] -= qty;
-                        if (player.inv[mat] <= 0) delete player.inv[mat];
-                    }
-                }
-                updatePlayerData(user.id, player);
-                return await i.update(buildMainMenu(user, player));
-            }
-
-            for (const [mat, qty] of Object.entries(reaction.req)) {
-                player.inv[mat] -= qty;
-                if (player.inv[mat] <= 0) delete player.inv[mat];
-            }
-
-            let duration = player.upgrades.speed ? Math.ceil(reaction.timeSec / 2) : reaction.timeSec;
-            player.pendingQueue.push({ busyUntil: Math.floor(Date.now() / 1000) + duration, yield: reaction.yield, xp: reaction.xp });
-            updatePlayerData(user.id, player);
-
-            setTimeout(() => {
-                channel.send(`🎉 <@${user.id}> **اكتمل التفاعل الكيميائي! اكتب (مختبر) لرؤية واستلام النتائج.**`).catch(() => {});
-            }, duration * 1000);
-
-            return await i.update(buildMainMenu(user, player));
         }
     });
 }
