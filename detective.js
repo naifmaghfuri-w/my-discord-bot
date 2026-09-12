@@ -34,77 +34,99 @@ const NIGHT_EVENTS = [
     "🌧️ **أجواء عاصفة:** تعذر على البعض سماع الأصوات القريبة أثناء وقوع الجريمة."
 ];
 
+// مدة الانضمام بالثواني قبل بدء القضية تلقائياً
+const LOBBY_WAIT_TIME_SECONDS = 30;
+
 async function startDetectiveGame(selectInteraction, initialInteraction) {
     const players = new Map();
     players.set(selectInteraction.user.id, selectInteraction.user);
 
+    const startTime = Math.floor((Date.now() + LOBBY_WAIT_TIME_SECONDS * 1000) / 1000);
+
     const joinButton = new ButtonBuilder()
         .setCustomId('det_join')
-        .setLabel('Join')
-        .setEmoji('1547214733122478110')
+        .setLabel('انضمام للتحقيق 🕵️‍♂️')
         .setStyle(ButtonStyle.Success);
 
     const leaveButton = new ButtonBuilder()
         .setCustomId('det_leave')
-        .setLabel('Leave')
-        .setEmoji('1547653716725731438')
+        .setLabel('انسحاب 🚪')
         .setStyle(ButtonStyle.Danger);
 
-    const startButton = new ButtonBuilder()
-        .setCustomId('det_start')
-        .setLabel('بدء اللعبة 🚀')
-        .setStyle(ButtonStyle.Primary);
+    // تم حذف زر البدء وبقت أزرار الانضمام والانسحاب فقط
+    const row = new ActionRowBuilder().addComponents(joinButton, leaveButton);
 
-    const row = new ActionRowBuilder().addComponents(joinButton, leaveButton, startButton);
+    function buildLobbyEmbed() {
+        const playerList = Array.from(players.values());
+        const count = playerList.length;
 
-    const embed = new EmbedBuilder()
-        .setColor('#2c3e50')
-        .setTitle('لعبة المحققين')
-        .setDescription(`**اللاعبون المنضمون حالياً:**\n<@${selectInteraction.user.id}>\n\n⚠️ **يلزم 5 لاعبين على الأقل لبدء اللعبة!**`);
+        let playersText = count > 0 
+            ? playerList.map((u, index) => `**#${index + 1}** - <@${u.id}>`).join('\n')
+            : 'لا يوجد مشتبه بهم مشاركين حالياً.';
 
-    await selectInteraction.update({ embeds: [embed], components: [row] });
+        return new EmbedBuilder()
+            .setColor('#2c3e50')
+            .setTitle('🕵️‍♂️ القضية | لعبة المحققين')
+            .setDescription(
+                `**طريقة اللعب:**\n` +
+                `**1-** انضم لملف القضية كمشتبه به أو محقق.\n` +
+                `**2-** عند اكتمال الوقت ستوزع الأدوار السريّة ومواقع التواجد تلقائياً.\n` +
+                `**3-** استجوب المشاركين واكتشف التناقضات لمعرفة القاتل الحقيقي.\n` +
+                `**4-** صوّت ضد المشتبه به لإغلاق القضية والقبض عليه!\n\n` +
+                `📋 **أرقام المشتبه بهم (${count}/20):**\n${playersText}\n\n` +
+                `⏳ **ستبدأ القضية <t:${startTime}:R> (أقل عدد للبدء 2 لاعبين)**`
+            );
+    }
 
-    const lobbyCollector = initialInteraction.channel.createMessageComponentCollector({ componentType: ComponentType.Button, time: 120000 });
+    const mainMessage = await selectInteraction.update({ 
+        embeds: [buildLobbyEmbed()], 
+        components: [row],
+        fetchReply: true 
+    });
+
+    const lobbyCollector = initialInteraction.channel.createMessageComponentCollector({ 
+        componentType: ComponentType.Button, 
+        time: LOBBY_WAIT_TIME_SECONDS * 1000 
+    });
 
     lobbyCollector.on('collect', async i => {
         if (i.customId === 'det_join') {
             if (players.has(i.user.id)) {
-                return i.reply({ content: 'أنت منضم بالفعل!', ephemeral: true });
+                return i.reply({ content: 'أنت منضم بالفعل في هذه القضية!', ephemeral: true });
             }
+            if (players.size >= 20) {
+                return i.reply({ content: 'اكتمل العدد الأقصى للمشتبه بهم (20)!', ephemeral: true });
+            }
+
             players.set(i.user.id, i.user);
-            const updatedList = Array.from(players.values()).map(u => `<@${u.id}>`).join('\n');
-            embed.setDescription(`**اللاعبون المنضمون حالياً:**\n${updatedList}\n\n⚠️ **يلزم 5 لاعبين على الأقل لبدء اللعبة!**`);
-            await i.update({ embeds: [embed] });
+            await i.update({ embeds: [buildLobbyEmbed()] });
         }
 
         if (i.customId === 'det_leave') {
             if (!players.has(i.user.id)) {
-                return i.reply({ content: 'أنت لست منضماً في اللعبة لتخرج منها!', ephemeral: true });
+                return i.reply({ content: 'أنت لست مسجلاً في القائمة لتنسحب!', ephemeral: true });
             }
             
             players.delete(i.user.id);
-            
-            const updatedList = players.size > 0 
-                ? Array.from(players.values()).map(u => `<@${u.id}>`).join('\n')
-                : 'لا يوجد لاعبين منضمين حالياً.';
-                
-            embed.setDescription(`**اللاعبون المنضمون حالياً:**\n${updatedList}\n\n⚠️ **يلزم 5 لاعبين على الأقل لبدء اللعبة!**`);
-            await i.update({ embeds: [embed] });
+            await i.update({ embeds: [buildLobbyEmbed()] });
+        }
+    });
+
+    lobbyCollector.on('end', async () => {
+        // تعطيل الأزرار عند انتهاء الوقت
+        joinButton.setDisabled(true);
+        leaveButton.setDisabled(true);
+        
+        await mainMessage.edit({ components: [new ActionRowBuilder().addComponents(joinButton, leaveButton)] }).catch(() => {});
+
+        if (players.size < 2) {
+            return initialInteraction.channel.send({ 
+                content: '❌ **تم إلغاء القضية!** لم ينضم عدد كافٍ من المشتبه بهم (يلزم 2 على الأقل).' 
+            });
         }
 
-        if (i.customId === 'det_start') {
-            if (i.user.id !== selectInteraction.user.id) {
-                return i.reply({ content: 'صاحب الأمر فقط هو من يمكنه بدء اللعبة!', ephemeral: true });
-            }
-
-            if (players.size < 2) {
-                return i.reply({ content: 'الحد الأدنى للبدء هو 5 لاعبين!', ephemeral: true });
-            }
-
-            lobbyCollector.stop('started');
-
-            await runDetectiveRound(initialInteraction.channel, Array.from(players.values()));
-        }
+        // بدء اللعبة تلقائياً بعد انتهاء الوقت
+        await runDetectiveRound(initialInteraction.channel, Array.from(players.values()));
     });
 }
 
@@ -117,9 +139,9 @@ async function runDetectiveRound(channel, playerList) {
     const shuffled = [...playerList].sort(() => Math.random() - 0.5);
 
     const killer = shuffled.pop();
-    const doctor = shuffled.pop();
-    const informant = shuffled.pop();
-    const detectives = shuffled.splice(0, 3);
+    const doctor = shuffled.pop() || killer; // ضمان عدم حدوث الخطأ في عدد اللاعبين القليل
+    const informant = shuffled.pop() || killer;
+    const detectives = shuffled.splice(0, Math.min(3, shuffled.length));
     const citizens = shuffled;
 
     const rolesData = {};
@@ -127,18 +149,22 @@ async function runDetectiveRound(channel, playerList) {
 
     rolesData[killer.id] = { role: 'killer', spot: 'مكان الجريمة', extra: crimeScene };
 
-    const docSpot = locationInfo.innocent_spots[Math.floor(Math.random() * locationInfo.innocent_spots.length)];
-    rolesData[doctor.id] = { role: 'doctor', spot: docSpot };
-    playerSpots[doctor.id] = docSpot;
+    if (doctor.id !== killer.id) {
+        const docSpot = locationInfo.innocent_spots[Math.floor(Math.random() * locationInfo.innocent_spots.length)];
+        rolesData[doctor.id] = { role: 'doctor', spot: docSpot };
+        playerSpots[doctor.id] = docSpot;
+    }
 
-    const informantSpot = locationInfo.innocent_spots[Math.floor(Math.random() * locationInfo.innocent_spots.length)];
-    const hints = [
-        `المجرم يتواجد في المكان العام (${locationName}).`,
-        `المجرم ليس في نفس موقعك الحالي (${informantSpot}).`,
-        `الجريمة تم التخطيط لها في مكان مغلق.`
-    ];
-    rolesData[informant.id] = { role: 'informant', spot: informantSpot, extra: hints[Math.floor(Math.random() * hints.length)] };
-    playerSpots[informant.id] = informantSpot;
+    if (informant.id !== killer.id) {
+        const informantSpot = locationInfo.innocent_spots[Math.floor(Math.random() * locationInfo.innocent_spots.length)];
+        const hints = [
+            `المجرم يتواجد في المكان العام (${locationName}).`,
+            `المجرم ليس في نفس موقعك الحالي (${informantSpot}).`,
+            `الجريمة تم التخطيط لها في مكان مغلق.`
+        ];
+        rolesData[informant.id] = { role: 'informant', spot: informantSpot, extra: hints[Math.floor(Math.random() * hints.length)] };
+        playerSpots[informant.id] = informantSpot;
+    }
 
     detectives.forEach(det => {
         const spot = locationInfo.innocent_spots[Math.floor(Math.random() * locationInfo.innocent_spots.length)];
@@ -163,7 +189,7 @@ async function runDetectiveRound(channel, playerList) {
     const roleRow = new ActionRowBuilder().addComponents(roleBtn);
 
     const startMsg = await channel.send({
-        content: "🎭 بدأت الجولة! اضغطوا على الزر أدناه لمعرفة أدواركم \n⏳ *أمام الجميع 30 ثانية لمعرفة الأدوار.",
+        content: "🎭 **فتحت أوراق القضية!** اضغطوا على الزر أدناه لمعرفة أدواركم ومواقعكم.\n⏳ *أمام الجميع 30 ثانية لتفقّد أدوارهم.*",
         components: [roleRow]
     });
 
@@ -171,7 +197,7 @@ async function runDetectiveRound(channel, playerList) {
 
     roleCollector.on('collect', async interaction => {
         if (!rolesData[interaction.user.id]) {
-            return interaction.reply({ content: 'أنت لست ضمن المشاركين في هذه الجولة!', ephemeral: true });
+            return interaction.reply({ content: 'أنت لست ضمن المشاركين في هذه القضية!', ephemeral: true });
         }
 
         const data = rolesData[interaction.user.id];
@@ -199,7 +225,7 @@ async function runDetectiveRound(channel, playerList) {
 
                 const row = new ActionRowBuilder().addComponents(menu);
                 await interaction.reply({
-                    content: `🩺 **دورك:** الطبيب!\n📍 **موقعك:** ${data.spot}\n🛡️ **اختر من تريد حمايته:**`,
+                    content: `🩺 **دورك:** الطبيب الشرعي!\n📍 **موقعك:** ${data.spot}\n🛡️ **اختر من تريد حمايته:**`,
                     components: [row],
                     ephemeral: true
                 });
@@ -210,12 +236,12 @@ async function runDetectiveRound(channel, playerList) {
                 });
             } else if (role === 'detective') {
                 await interaction.reply({
-                    content: `🔎 **دورك:** محقق!\n📍 **موقعك:** ${data.spot}\n💡 *استجوب الجميع للوصول للجاني!*`,
+                    content: `🔎 **دورك:** محقق جنائي!\n📍 **موقعك:** ${data.spot}\n💡 *استجوب المشتبه بهم للوصول للجاني!*`,
                     ephemeral: true
                 });
             } else {
                 await interaction.reply({
-                    content: `👤 **دورك:** مواطن عادي\n📍 **موقعك:** ${data.spot}\n💡 *أثبت براءتك باختيار موقعك وساعد المحققين!*`,
+                    content: `👤 **دورك:** مشتبه به (مواطن عادي)\n📍 **موقعك:** ${data.spot}\n💡 *أثبت براءتك باختيار موقعك وساعد المحققين!*`,
                     ephemeral: true
                 });
             }
@@ -234,14 +260,14 @@ async function runDetectiveRound(channel, playerList) {
     await startMsg.edit({ components: [new ActionRowBuilder().addComponents(roleBtn)] }).catch(() => {});
 
     const targets = playerList.filter(p => p.id !== killer.id);
-    if (!selectedKillTarget) {
+    if (!selectedKillTarget && targets.length > 0) {
         selectedKillTarget = targets[Math.floor(Math.random() * targets.length)];
     }
 
     const currentEvent = NIGHT_EVENTS[Math.floor(Math.random() * NIGHT_EVENTS.length)];
     let activePlayers = [];
 
-    if (selectedProtectTarget && selectedKillTarget.id === selectedProtectTarget.id) {
+    if (selectedProtectTarget && selectedKillTarget && selectedKillTarget.id === selectedProtectTarget.id) {
         const embed = new EmbedBuilder()
             .setColor('#2ecc71')
             .setTitle('🛡️ نجاح عملية الإنقاذ!')
@@ -252,7 +278,7 @@ async function runDetectiveRound(channel, playerList) {
             );
         activePlayers = [...playerList];
         await channel.send({ embeds: [embed] });
-    } else {
+    } else if (selectedKillTarget) {
         const victimSpot = playerSpots[selectedKillTarget.id] || "مكان مجهول";
         const embed = new EmbedBuilder()
             .setColor('#e74c3c')
@@ -266,6 +292,8 @@ async function runDetectiveRound(channel, playerList) {
             );
         activePlayers = playerList.filter(p => p.id !== selectedKillTarget.id);
         await channel.send({ embeds: [embed] });
+    } else {
+        activePlayers = [...playerList];
     }
 
     await channel.send("⏳ **بدأ وقت التحقيق!** أمامكم **90 ثانية** لمناقشة الأماكن والتبريرات.");
