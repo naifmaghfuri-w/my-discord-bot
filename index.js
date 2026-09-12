@@ -21,7 +21,7 @@ const express = require('express');
 // 🎨 إعدادات نظام الألوان للسيرفرات المتعددة
 // ==========================================
 const COLOR_ROLES = {
-    // 🏢 السيرفر الأول (استبدل الرقم بـ ID السيرفر الأول)
+    // 🏢 السيرفر الأول
     '1398466078346317914': { 
         'red': 'ID_رتبة_الأحمر_سيرفر_1',
         'blue': 'ID_رتبة_الأزرق_سيرفر_1',
@@ -31,7 +31,7 @@ const COLOR_ROLES = {
         'grey': 'ID_رتبة_الرمادي_سيرفر_1',
         'black': 'ID_رتبة_الأسود_سيرفر_1'
     },
-    // 🏢 السيرفر الثاني (استبدل الرقم بـ ID السيرفر الثاني)
+    // 🏢 السيرفر الثاني
     '1519745057505153186': { 
         'red': 'ID_رتبة_الأحمر_سيرفر_2',
         'blue': 'ID_رتبة_الأزرق_سيرفر_2',
@@ -202,7 +202,7 @@ client.once('clientReady', async () => {
 });
 
 // ==========================================
-// 4. معالجة الرسائل
+// 4. معالجة الرسائل النصية الشات
 // ==========================================
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
@@ -218,6 +218,15 @@ client.on('messageCreate', async message => {
         }
     }
 
+    // 2. تشغيل الألعاب عند كتابة: العاب أو ألعاب أو games بالرسائل العادية
+    if (content === 'العاب' || content === 'ألعاب' || content === 'games') {
+        try {
+            await handleGamesCommand(message);
+        } catch (error) {
+            console.error('❌ خطأ أثناء تشغيل أمر الألعاب النصي:', error);
+        }
+    }
+
     if (content === '!colors' && message.member.permissions.has(PermissionFlagsBits.Administrator)) {
         await sendColorMenu(message.channel);
         await message.delete().catch(() => {});
@@ -225,7 +234,7 @@ client.on('messageCreate', async message => {
 });
 
 // ==========================================
-// 5. معالجة التفاعلات
+// 5. معالجة التفاعلات (أوامر السلاش)
 // ==========================================
 client.on('interactionCreate', async interaction => {
     if (interaction.isStringSelectMenu() && interaction.customId === 'select_name_color') {
@@ -249,7 +258,8 @@ client.on('interactionCreate', async interaction => {
 
     if (!interaction.isChatInputCommand()) return;
 
-    if (interaction.commandName === 'العاب') {
+    // استجابة أمر السلاش بالإنجليزية حصراً /games
+    if (interaction.commandName === 'games') {
         await handleGamesCommand(interaction);
     }
 
