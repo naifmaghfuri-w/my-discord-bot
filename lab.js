@@ -97,7 +97,7 @@ function updatePlayerData(userId, data) {
     fs.writeFileSync(dataPath, JSON.stringify(db, null, 2));
 }
 
-// 🌐 1. القائمة الرئيسية
+// 🌐 1. القائمة الرئيسية المبسطة
 function buildMainMenu(user, player) {
     const embed = new EmbedBuilder()
         .setTitle('🧪 Lab v1.3')
@@ -112,7 +112,7 @@ function buildMainMenu(user, player) {
             { name: '🛡️ الحماية', value: player.upgrades.shield ? '`مفعل ✅`' : '`غير مفعل ❌`', inline: true }
         )
         .setThumbnail(user.displayAvatarURL())
-        .setFooter({ text: 'اختر تفاعلاً من شاشات التنقل للتطور' });
+        .setFooter({ text: 'اختر إجراءً سريعاً أو فتح القائمة الإضافية' });
 
     if (player.pendingQueue && player.pendingQueue.length > 0) {
         embed.addFields({ name: '⏳ تفاعلات جارية', value: `عدد التفاعلات قيد التنفيذ: **${player.pendingQueue.length}**` });
@@ -120,20 +120,45 @@ function buildMainMenu(user, player) {
 
     const row1 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('btn_open_reactions').setLabel('غرفة التفاعلات').setEmoji('⚗️').setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId('btn_open_levels').setLabel('القدرات والمستويات').setEmoji('📜').setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId('btn_open_shop').setLabel('المتجر').setEmoji('🛒').setStyle(ButtonStyle.Success)
+        new ButtonBuilder().setCustomId('btn_open_shop').setLabel('المتجر').setEmoji('🛒').setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId('btn_sell_all').setLabel('بيع النواتج').setEmoji('💵').setStyle(ButtonStyle.Danger)
     );
 
     const row2 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('btn_open_inv').setLabel('المستودع').setEmoji('🎒').setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId('btn_open_quest').setLabel('المهام').setEmoji('📋').setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId('btn_sell_all').setLabel('بيع النواتج').setEmoji('💵').setStyle(ButtonStyle.Danger)
+        new ButtonBuilder().setCustomId('btn_open_more_menu').setLabel('القائمة الإضافية 📂').setStyle(ButtonStyle.Secondary)
     );
 
     return { embeds: [embed], components: [row1, row2] };
 }
 
-// 📜 2. شاشة القدرات والمستويات (نظام أسهم)
+// 📂 2. قائمة الفرعيات (More Menu)
+function buildMoreMenu(user, player) {
+    const embed = new EmbedBuilder()
+        .setTitle('📂 القائمة الإضافية - المختبر')
+        .setDescription('اختر القسم الذي تريد استعراضه من الخيارات التالية:')
+        .setColor(0x7289da)
+        .addFields(
+            { name: '📜 القدرات والمستويات', value: 'تصفح التفاعلات المتاحة وافتح تفاعلات جديدة بنقاط القدرة.', inline: false },
+            { name: '📋 المهام اليومية', value: 'استعرض أهدافك اليومية واستلم المكافآت عند الإنجاز.', inline: false },
+            { name: '🎒 المستودع', value: 'استعرض كافة المواد الأولية والمركبات المتوفرة لديك.', inline: false },
+            { name: '📘 الموسوعة الكيميائية', value: 'تصفح المركبات الكيميائية التي تم اكتشافها وتصنيعها.', inline: false }
+        );
+
+    const row1 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('btn_open_levels').setLabel('المستويات').setEmoji('📜').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('btn_open_quest').setLabel('المهام').setEmoji('📋').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('btn_open_inv').setLabel('المستودع').setEmoji('🎒').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('btn_open_codex').setLabel('الموسوعة').setEmoji('📘').setStyle(ButtonStyle.Primary)
+    );
+
+    const row2 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('btn_back_main').setLabel('↩️ الرجوع للرئيسية').setStyle(ButtonStyle.Danger)
+    );
+
+    return { embeds: [embed], components: [row1, row2] };
+}
+
+// 📜 3. شاشة القدرات والمستويات (نظام أسهم)
 function buildLevelScreen(player, index) {
     const reaction = labData.reactions[index];
     const isUnlocked = player.unlockedReactions.includes(reaction.id);
@@ -179,13 +204,13 @@ function buildLevelScreen(player, index) {
         new ButtonBuilder().setCustomId('btn_lvl_prev').setLabel('⬅️ السابق').setStyle(ButtonStyle.Secondary).setDisabled(index === 0),
         new ButtonBuilder().setCustomId(`btn_unlock_reaction_${reaction.id}`).setLabel(btnLabel).setStyle(btnStyle).setDisabled(btnDisabled),
         new ButtonBuilder().setCustomId('btn_lvl_next').setLabel('التالي ➡️').setStyle(ButtonStyle.Secondary).setDisabled(index === labData.reactions.length - 1),
-        new ButtonBuilder().setCustomId('btn_back_main').setLabel('↩️ الرئيسية').setStyle(ButtonStyle.Danger)
+        new ButtonBuilder().setCustomId('btn_open_more_menu').setLabel('↩️ قائمة الفرعيات').setStyle(ButtonStyle.Danger)
     );
 
     return { embeds: [embed], components: [navRow] };
 }
 
-// 🛒 3. شاشة المتجر والترقيات (نظام أسهم)
+// 🛒 4. شاشة المتجر والترقيات (نظام أسهم)
 function buildShopScreen(player, index) {
     const shopList = [
         ...Object.entries(labData.items).filter(([_, item]) => item.buyable).map(([id, item]) => ({ type: 'item', id, ...item })),
@@ -232,7 +257,7 @@ function buildShopScreen(player, index) {
     return { embeds: [embed], components: [navRow] };
 }
 
-// 🎛️ 4. شاشة معايرة التفاعل (أزرار التنقل والبدء)
+// 🎛️ 5. شاشة معايرة التفاعل
 function buildCalibScreen(reaction, tempIndex, pressIndex) {
     const currentTemp = TEMP_STEPS[tempIndex];
     const currentPress = PRESS_STEPS[pressIndex];
@@ -271,7 +296,7 @@ function buildCalibScreen(reaction, tempIndex, pressIndex) {
     return { embeds: [embed], components: [tempRow, pressRow, actionRow] };
 }
 
-// ⚗️ 5. شاشة تصفح التفاعلات المتاحة (نظام أسهم)
+// ⚗️ 6. شاشة تصفح التفاعلات المتاحة
 function buildReactionsScreen(player, index) {
     const unlockedList = labData.reactions.filter(r => player.unlockedReactions.includes(r.id));
 
@@ -313,7 +338,36 @@ function buildReactionsScreen(player, index) {
     return { embeds: [embed], components: [navRow] };
 }
 
-// 🧠 6. معالج الجلسة التفاعلي
+// 📘 7. شاشة الموسوعة الكيميائية (Codex)
+function buildCodexScreen(player) {
+    const discovered = player.codex || [];
+    let codexList = '';
+
+    const allProducts = ['nacl', 'cao', 'co2', 'h2o_pure', 'fe2o3', 'h2so4', 'cuno3_2', 'n2'];
+
+    allProducts.forEach(id => {
+        const item = labData.items[id];
+        if (discovered.includes(id)) {
+            codexList += `✅ **${item.name}** (${item.state})\n_${item.desc}_\n\n`;
+        } else {
+            codexList += `❓ **مركب مجهول** - (لم تقم بتصنيعه بعد)\n\n`;
+        }
+    });
+
+    const embed = new EmbedBuilder()
+        .setTitle('📘 الموسوعة الكيميائية (Codex)')
+        .setDescription(codexList)
+        .setColor(0x9b59b6)
+        .setFooter({ text: `تم اكتشاف ${discovered.length} من أصل 8 مركبات` });
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('btn_open_more_menu').setLabel('↩️ قائمة الفرعيات').setStyle(ButtonStyle.Danger)
+    );
+
+    return { embeds: [embed], components: [row] };
+}
+
+// 🧠 8. معالج الجلسة التفاعلي
 async function handleLabSession(context, user) {
     let player = getPlayerData(user.id);
     const channel = context.channel;
@@ -371,12 +425,17 @@ async function handleLabSession(context, user) {
 
         player = getPlayerData(user.id);
 
-        const backBtnRow = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('btn_back_main').setLabel('الرجوع للقائمة الرئيسية ↩️').setStyle(ButtonStyle.Secondary)
+        const backMoreBtnRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('btn_open_more_menu').setLabel('الرجوع للقائمة الإضافية ↩️').setStyle(ButtonStyle.Secondary)
         );
 
+        // --- 🏠 Navigation Control ---
         if (i.customId === 'btn_back_main') {
             return await i.update(buildMainMenu(user, player));
+        }
+
+        if (i.customId === 'btn_open_more_menu') {
+            return await i.update(buildMoreMenu(user, player));
         }
 
         // --- 🎒 المستودع ---
@@ -390,7 +449,12 @@ async function handleLabSession(context, user) {
                 .setDescription(invList)
                 .setColor(0x3498db);
 
-            return await i.update({ embeds: [invEmbed], components: [backBtnRow] });
+            return await i.update({ embeds: [invEmbed], components: [backMoreBtnRow] });
+        }
+
+        // --- 📘 الموسوعة الكيميائية ---
+        if (i.customId === 'btn_open_codex') {
+            return await i.update(buildCodexScreen(player));
         }
 
         // --- 📜 القدرات والمستويات ---
@@ -562,7 +626,7 @@ async function handleLabSession(context, user) {
                 .setStyle(ButtonStyle.Success)
                 .setDisabled(q.completed || q.progress < q.count);
 
-            const questRow = new ActionRowBuilder().addComponents(claimBtn, backBtnRow.components[0]);
+            const questRow = new ActionRowBuilder().addComponents(claimBtn, backMoreBtnRow.components[0]);
             return await i.update({ embeds: [questEmbed], components: [questRow] });
         }
 
