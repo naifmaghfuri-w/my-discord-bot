@@ -38,7 +38,7 @@ const LOBBY_WAIT_TIME_SECONDS = 30;
 
 async function startDetectiveGame(selectInteraction, initialInteraction) {
     const players = new Map();
-    const playerInteractions = new Map(); // لحفظ التفاعلات وإرسال الرسائل المخفية تلقائياً
+    const playerInteractions = new Map();
 
     players.set(selectInteraction.user.id, selectInteraction.user);
     playerInteractions.set(selectInteraction.user.id, selectInteraction);
@@ -71,7 +71,7 @@ async function startDetectiveGame(selectInteraction, initialInteraction) {
             .setDescription(
                 `**طريقة اللعب:**\n` +
                 `**1-** انضم للقضية.\n` +
-                `**2-** عند اكتمال الوقت ستصلك رسالة مخفية بـ(دورك وموقعك) تلقائياً.\n` +
+                `**2-** عند اكتمال الوقت ستصلك رسالة مخفية بـ(دورك وموقعك) تلقائياً لتراجعها طوال اللعبة.\n` +
                 `**3-** استجوب المشاركين لمعرفة القاتل الحقيقي.\n` +
                 `**4-** صوّت ضد المشتبه به لإغلاق القضية!\n\n` +
                 `📋 **اللاعبين (${count}/20):**\n${playersText}\n\n` +
@@ -185,7 +185,7 @@ async function runDetectiveRound(channel, playerList, playerInteractions) {
 
     await channel.send("🎭 **بدأت القضية!** يتم إرسال الأدوار والمواقع السرية للجميع الآن...");
 
-    // إرسال الأدوار تلقائياً للجميع بدون أزرار باستغلال تفاعلات الانضمام
+    // إرسال الأدوار تلقائياً عبر رسائل Ephemeral تبقى مع اللاعبين
     for (const player of playerList) {
         const data = rolesData[player.id];
         const interaction = playerInteractions.get(player.id);
@@ -234,7 +234,6 @@ async function runDetectiveRound(channel, playerList, playerInteractions) {
         }
     }
 
-    // استقبال اختيارات المجرم والطبيب من الرسائل المخفية
     const actionCollector = channel.createMessageComponentCollector({ componentType: ComponentType.StringSelect, time: 25000 });
 
     actionCollector.on('collect', async i => {
@@ -286,9 +285,9 @@ async function runDetectiveRound(channel, playerList, playerInteractions) {
         activePlayers = [...playerList];
     }
 
-    // --- فترة التحقيق وزر التخطي ---
+    // --- فترة التحقيق مع نصاب تخطي ديناميكي ---
     const skipVotes = new Set();
-    const SKIP_REQUIRED = 4;
+    const SKIP_REQUIRED = Math.ceil(activePlayers.length / 2);
 
     const skipButton = new ButtonBuilder()
         .setCustomId('skip_investigation')
@@ -309,7 +308,7 @@ async function runDetectiveRound(channel, playerList, playerInteractions) {
     skipCollector.on('collect', async i => {
         if (i.customId === 'skip_investigation') {
             if (!activePlayers.some(p => p.id === i.user.id)) {
-                return i.reply({ content: 'يمكن للأصلين الأحياء فقط التصويت بالتخطي!', ephemeral: true });
+                return i.reply({ content: 'يمكن للاعبين الأحياء فقط التصويت بالتخطي!', ephemeral: true });
             }
 
             if (skipVotes.has(i.user.id)) {
@@ -338,56 +337,104 @@ async function runDetectiveRound(channel, playerList, playerInteractions) {
     await investMsg.edit({ components: [new ActionRowBuilder().addComponents(skipButton)] }).catch(() => {});
 
     if (skipEarly) {
-        await channel.send("⏩ **تم اكتمل نصاب التخطي! الانتقال للتصويت فوراً.**");
+        await channel.send("⏩ **اكتمل نصاب التخطي! الانتقال للتصويت فوراً.**");
     }
 
-    // --- مرحلة التصويت ---
-    const voteMenu = new StringSelectMenuBuilder()
-        .setCustomId('vote_select')
-        .setPlaceholder('صوّت ضد المشتبه به 🗳️')
-        .addOptions(activePlayers.map(p => new StringSelectMenuOptionBuilder().setLabel(p.displayName || p.username).setValue(p.id)));
+    // --- مرحلة التصويت المحدثة باكتفاء بالأزرار والعدادات (نفس الواجهة في الصورة) ---
+    const userVotesMap = new Map(); 
+    const voteCounts = {};
+    activePlayers.forEach(p => voteCounts[p.id] = 0);
+    let skipVoteCount = 0;
 
-    const voteRow = new ActionRowBuilder().addComponents(voteMenu);
+    function buildVoteRows(isDisabled = false) {
+        const rows = [];
+        let currentRow = new ActionRowBuilder();
+
+        activePlayers.forEach((player, index) => {
+            const count = voteCounts[player.id] || 0;
+            const btn = new ButtonBuilder()
+                .setCustomId(`vote_${player.id}`)
+                .setLabel(`${count}  ${player.displayName || player.username}`)
+                .setStyle(ButtonStyle.Primary)
+                .setDisabled(isDisabled);
+
+            currentRow.addComponents(btn);
+
+            if (currentRow.components.length === 5 || index === activePlayers.length - 1) {
+                rows.push(currentRow);
+                currentRow = new ActionRowBuilder();
+            }
+        });
+
+        const skipBtn = new ButtonBuilder()
+            .setCustomId('vote_skip')
+            .setLabel(`${skipVoteCount}  تخطي ⏩`)
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(isDisabled);
+
+        if (rows.length > 0 && rows[rows.length - 1].components.length < 5) {
+            rows[rows.length - 1].addComponents(skipBtn);
+        } else {
+            const newRow = new ActionRowBuilder().addComponents(skipBtn);
+            rows.push(newRow);
+        }
+
+        return rows;
+    }
+
     const voteMsg = await channel.send({
-        content: "🗳️ **انتهى وقت التحقيق!** صوّتوا الآن على المشتبه به من القائمة أدناه (أمامكم 30 ثانية):",
-        components: [voteRow]
+        content: "🗳️ **لديكم 30 ثانية لاختيار شخص لطردة من اللعبة:**",
+        components: buildVoteRows(false)
     });
 
-    const votes = {};
-    activePlayers.forEach(p => votes[p.id] = 0);
-    const votedUsers = new Set();
-
-    const voteCollector = channel.createMessageComponentCollector({ componentType: ComponentType.StringSelect, time: 30000 });
+    const voteCollector = channel.createMessageComponentCollector({ componentType: ComponentType.Button, time: 30000 });
 
     voteCollector.on('collect', async vInteraction => {
+        if (!vInteraction.customId.startsWith('vote_')) return;
+
         if (!activePlayers.some(p => p.id === vInteraction.user.id)) {
             return vInteraction.reply({ content: 'أنت لست ضمن المشاركين الأحياء!', ephemeral: true });
         }
 
-        if (votedUsers.has(vInteraction.user.id)) {
-            return vInteraction.reply({ content: 'لقد قمت بالتصويت بالفعل!', ephemeral: true });
+        const userId = vInteraction.user.id;
+        const previousVote = userVotesMap.get(userId);
+
+        if (previousVote) {
+            if (previousVote === 'skip') {
+                skipVoteCount--;
+            } else {
+                voteCounts[previousVote] = Math.max(0, (voteCounts[previousVote] || 0) - 1);
+            }
         }
 
-        votedUsers.add(vInteraction.user.id);
-        const targetId = vInteraction.values[0];
-        votes[targetId] = (votes[targetId] || 0) + 1;
+        if (vInteraction.customId === 'vote_skip') {
+            skipVoteCount++;
+            userVotesMap.set(userId, 'skip');
+            await vInteraction.reply({ content: 'اخترت التخطي!', ephemeral: true });
+        } else {
+            const targetId = vInteraction.customId.replace('vote_', '');
+            voteCounts[targetId] = (voteCounts[targetId] || 0) + 1;
+            userVotesMap.set(userId, targetId);
+            
+            const targetUser = activePlayers.find(p => p.id === targetId);
+            await vInteraction.reply({ content: `تم تصويتك ضد **${targetUser ? targetUser.displayName || targetUser.username : 'المشتبه به'}**!`, ephemeral: true });
+        }
 
-        await vInteraction.reply({ content: 'تم تسجيل تصويتك بنجاح!', ephemeral: true });
+        await voteMsg.edit({ components: buildVoteRows(false) }).catch(() => {});
 
-        if (votedUsers.size >= activePlayers.length) {
+        if (userVotesMap.size >= activePlayers.length) {
             voteCollector.stop();
         }
     });
 
     voteCollector.on('end', async () => {
-        voteMenu.setDisabled(true);
-        await voteMsg.edit({ components: [new ActionRowBuilder().addComponents(voteMenu)] }).catch(() => {});
+        await voteMsg.edit({ components: buildVoteRows(true) }).catch(() => {});
 
         let maxVotes = 0;
         let topCandidate = null;
         let isTie = false;
 
-        for (const [pId, count] of Object.entries(votes)) {
+        for (const [pId, count] of Object.entries(voteCounts)) {
             if (count > maxVotes) {
                 maxVotes = count;
                 topCandidate = pId;
@@ -397,7 +444,12 @@ async function runDetectiveRound(channel, playerList, playerInteractions) {
             }
         }
 
-        // بناء كشف الحساب الشامل لجميع اللاعبين وأدوارهم
+        if (skipVoteCount > maxVotes) {
+            topCandidate = null;
+        } else if (skipVoteCount === maxVotes && maxVotes > 0) {
+            isTie = true;
+        }
+
         let rolesSummary = playerList.map(p => {
             const data = rolesData[p.id];
             const spotInfo = data.spot ? `(الموقع: ${data.spot})` : '';
@@ -409,13 +461,15 @@ async function runDetectiveRound(channel, playerList, playerInteractions) {
             .setTitle('📊 نتيجة التحقيق وكشف أوراق القضية');
 
         let resultText = "";
-        if (isTie || maxVotes === 0 || !topCandidate) {
-            resultText = `⚖️ **انتهى التصويت بالتعادل أو عدم التصويت!**\nلم يتم الاتفاق على مشتبه به واحد، وبالتالي **نجا المجرم (<@${killer.id}>) بفعلته!**`;
+        if (topCandidate === null && skipVoteCount > maxVotes) {
+            resultText = `⚖️ **تم الاتفاق على تخطي الطرد هذه الجولة!**\nنجا المجرم (<@${killer.id}>) واستغل عدم الطرد!`;
+        } else if (isTie || maxVotes === 0 || !topCandidate) {
+            resultText = `⚖️ **انتهى التصويت بالتعادل أو بعدم الاتفاق!**\nلم يتم طرد أحد، وبالتالي **نجا المجرم (<@${killer.id}>) بفعلته!**`;
         } else {
             if (topCandidate === killer.id) {
-                resultText = `🎉 **فاز المحققون والمواطنون!**\nتم كشف المجرم الحقيقي وهو: <@${killer.id}>.`;
+                resultText = `🎉 **فاز المحققون والمواطنون!**\nتم كشف وطرد المجرم الحقيقي وهو: <@${killer.id}>.`;
             } else {
-                resultText = `😈 **فاز المجرم ونجا بفعلته!**\nتم اتهام <@${topCandidate}> بالخطأ.\nالمجرم الحقيقي كان: <@${killer.id}>!`;
+                resultText = `😈 **فاز المجرم ونجا بفعلته!**\nتم اتهام وطرد <@${topCandidate}> بالخطأ.\nالمجرم الحقيقي كان: <@${killer.id}>!`;
             }
         }
 
