@@ -34,12 +34,14 @@ const NIGHT_EVENTS = [
     "🌧️ **أجواء عاصفة:** تعذر على البعض سماع الأصوات القريبة أثناء وقوع الجريمة."
 ];
 
-// مدة الانضمام بالثواني قبل بدء القضية تلقائياً
 const LOBBY_WAIT_TIME_SECONDS = 30;
 
 async function startDetectiveGame(selectInteraction, initialInteraction) {
     const players = new Map();
+    const playerInteractions = new Map(); // لحفظ التفاعلات وإرسال الرسائل المخفية تلقائياً
+
     players.set(selectInteraction.user.id, selectInteraction.user);
+    playerInteractions.set(selectInteraction.user.id, selectInteraction);
 
     const startTime = Math.floor((Date.now() + LOBBY_WAIT_TIME_SECONDS * 1000) / 1000);
 
@@ -53,7 +55,6 @@ async function startDetectiveGame(selectInteraction, initialInteraction) {
         .setLabel('انسحاب 🚪')
         .setStyle(ButtonStyle.Danger);
 
-    // تم حذف زر البدء وبقت أزرار الانضمام والانسحاب فقط
     const row = new ActionRowBuilder().addComponents(joinButton, leaveButton);
 
     function buildLobbyEmbed() {
@@ -66,13 +67,13 @@ async function startDetectiveGame(selectInteraction, initialInteraction) {
 
         return new EmbedBuilder()
             .setColor('#2c3e50')
-            .setTitle(' لعبة المحققين')
+            .setTitle('🕵️‍♂️ لعبة المحققين')
             .setDescription(
                 `**طريقة اللعب:**\n` +
-                `**1-** انضم .\n` +
-                `**2-** عند اكتمال الوقت ستوزع الأدوار السريّة ومواقع التواجد تلقائياً.\n` +
+                `**1-** انضم للقضية.\n` +
+                `**2-** عند اكتمال الوقت ستصلك رسالة مخفية بـ(دورك وموقعك) تلقائياً.\n` +
                 `**3-** استجوب المشاركين لمعرفة القاتل الحقيقي.\n` +
-                `**4-** صوّت ضد المشتبه به  !\n\n` +
+                `**4-** صوّت ضد المشتبه به لإغلاق القضية!\n\n` +
                 `📋 **اللاعبين (${count}/20):**\n${playersText}\n\n` +
                 `⏳ **ستبدأ القضية <t:${startTime}:R>**`
             );
@@ -95,10 +96,12 @@ async function startDetectiveGame(selectInteraction, initialInteraction) {
                 return i.reply({ content: 'أنت منضم بالفعل في هذه القضية!', ephemeral: true });
             }
             if (players.size >= 20) {
-                return i.reply({ content: 'اكتمل العدد الأقصى للمشتبه بهم (20)!', ephemeral: true });
+                return i.reply({ content: 'اكتمل العدد الأقصى لللاعبين (20)!', ephemeral: true });
             }
 
             players.set(i.user.id, i.user);
+            playerInteractions.set(i.user.id, i);
+
             await i.update({ embeds: [buildLobbyEmbed()] });
         }
 
@@ -108,12 +111,12 @@ async function startDetectiveGame(selectInteraction, initialInteraction) {
             }
             
             players.delete(i.user.id);
+            playerInteractions.delete(i.user.id);
             await i.update({ embeds: [buildLobbyEmbed()] });
         }
     });
 
     lobbyCollector.on('end', async () => {
-        // تعطيل الأزرار عند انتهاء الوقت
         joinButton.setDisabled(true);
         leaveButton.setDisabled(true);
         
@@ -125,12 +128,11 @@ async function startDetectiveGame(selectInteraction, initialInteraction) {
             });
         }
 
-        // بدء اللعبة تلقائياً بعد انتهاء الوقت
-        await runDetectiveRound(initialInteraction.channel, Array.from(players.values()));
+        await runDetectiveRound(initialInteraction.channel, Array.from(players.values()), playerInteractions);
     });
 }
 
-async function runDetectiveRound(channel, playerList) {
+async function runDetectiveRound(channel, playerList, playerInteractions) {
     const locationNames = Object.keys(LOCATIONS_DATA);
     const locationName = locationNames[Math.floor(Math.random() * locationNames.length)];
     const locationInfo = LOCATIONS_DATA[locationName];
@@ -139,7 +141,7 @@ async function runDetectiveRound(channel, playerList) {
     const shuffled = [...playerList].sort(() => Math.random() - 0.5);
 
     const killer = shuffled.pop();
-    const doctor = shuffled.pop() || killer; // ضمان عدم حدوث الخطأ في عدد اللاعبين القليل
+    const doctor = shuffled.pop() || killer;
     const informant = shuffled.pop() || killer;
     const detectives = shuffled.splice(0, Math.min(3, shuffled.length));
     const citizens = shuffled;
@@ -147,11 +149,11 @@ async function runDetectiveRound(channel, playerList) {
     const rolesData = {};
     const playerSpots = {};
 
-    rolesData[killer.id] = { role: 'killer', spot: 'مكان الجريمة', extra: crimeScene };
+    rolesData[killer.id] = { role: 'killer', spot: 'مكان الجريمة', extra: crimeScene, name: 'المجرم 🩸' };
 
     if (doctor.id !== killer.id) {
         const docSpot = locationInfo.innocent_spots[Math.floor(Math.random() * locationInfo.innocent_spots.length)];
-        rolesData[doctor.id] = { role: 'doctor', spot: docSpot };
+        rolesData[doctor.id] = { role: 'doctor', spot: docSpot, name: 'الطبيب 🩺' };
         playerSpots[doctor.id] = docSpot;
     }
 
@@ -162,102 +164,90 @@ async function runDetectiveRound(channel, playerList) {
             `المجرم ليس في نفس موقعك الحالي (${informantSpot}).`,
             `الجريمة تم التخطيط لها في مكان مغلق.`
         ];
-        rolesData[informant.id] = { role: 'informant', spot: informantSpot, extra: hints[Math.floor(Math.random() * hints.length)] };
+        rolesData[informant.id] = { role: 'informant', spot: informantSpot, extra: hints[Math.floor(Math.random() * hints.length)], name: 'المخبر السري 🔍' };
         playerSpots[informant.id] = informantSpot;
     }
 
     detectives.forEach(det => {
         const spot = locationInfo.innocent_spots[Math.floor(Math.random() * locationInfo.innocent_spots.length)];
-        rolesData[det.id] = { role: 'detective', spot };
+        rolesData[det.id] = { role: 'detective', spot, name: 'محقق 🔎' };
         playerSpots[det.id] = spot;
     });
 
     citizens.forEach(cit => {
         const spot = locationInfo.innocent_spots[Math.floor(Math.random() * locationInfo.innocent_spots.length)];
-        rolesData[cit.id] = { role: 'citizen', spot };
+        rolesData[cit.id] = { role: 'citizen', spot, name: 'مواطن عادي 👤' };
         playerSpots[cit.id] = spot;
     });
 
     let selectedKillTarget = null;
     let selectedProtectTarget = null;
 
-    const roleBtn = new ButtonBuilder()
-        .setCustomId('check_role_btn')
-        .setLabel('📩 اضغط لمعرفة دورك وموقعك السرّي')
-        .setStyle(ButtonStyle.Primary);
+    await channel.send("🎭 **بدأت القضية!** يتم إرسال الأدوار والمواقع السرية للجميع الآن...");
 
-    const roleRow = new ActionRowBuilder().addComponents(roleBtn);
+    // إرسال الأدوار تلقائياً للجميع بدون أزرار باستغلال تفاعلات الانضمام
+    for (const player of playerList) {
+        const data = rolesData[player.id];
+        const interaction = playerInteractions.get(player.id);
+        if (!interaction) continue;
 
-    const startMsg = await channel.send({
-        content: "🎭 **فتحت أوراق القضية!** اضغطوا على الزر أدناه لمعرفة أدواركم ومواقعكم.\n⏳ *أمام الجميع 30 ثانية لتفقّد أدوارهم.*",
-        components: [roleRow]
-    });
+        if (data.role === 'killer') {
+            const targets = playerList.filter(p => p.id !== killer.id);
+            const menu = new StringSelectMenuBuilder()
+                .setCustomId('killer_select')
+                .setPlaceholder('اختر الضحية 🩸')
+                .addOptions(targets.map(p => new StringSelectMenuOptionBuilder().setLabel(p.displayName || p.username).setValue(p.id)));
 
-    const roleCollector = channel.createMessageComponentCollector({ time: 30000 });
+            const row = new ActionRowBuilder().addComponents(menu);
+            await interaction.followUp({
+                content: `🕵️‍♂️ **دورك:** المجرم!\n📍 **موقعك:** مكان الجريمة\n📍 **مسرح الجريمة المقرر:** ${data.extra}\n🩸 **اختر ضحيتك من القائمة أدناه:**`,
+                components: [row],
+                ephemeral: true
+            }).catch(() => {});
+        } else if (data.role === 'doctor') {
+            const menu = new StringSelectMenuBuilder()
+                .setCustomId('doctor_select')
+                .setPlaceholder('اختر الشخص لحمايته 🛡️')
+                .addOptions(playerList.map(p => new StringSelectMenuOptionBuilder().setLabel(p.displayName || p.username).setValue(p.id)));
 
-    roleCollector.on('collect', async interaction => {
-        if (!rolesData[interaction.user.id]) {
-            return interaction.reply({ content: 'أنت لست ضمن المشاركين في هذه القضية!', ephemeral: true });
+            const row = new ActionRowBuilder().addComponents(menu);
+            await interaction.followUp({
+                content: `🩺 **دورك:** الطبيب الشرعي!\n📍 **موقعك:** ${data.spot}\n🛡️ **اختر من تريد حمايته:**`,
+                components: [row],
+                ephemeral: true
+            }).catch(() => {});
+        } else if (data.role === 'informant') {
+            await interaction.followUp({
+                content: `🔍 **دورك:** المخبر السري!\n📍 **موقعك:** ${data.spot}\n💡 **تلميح خاص لك:** ${data.extra}`,
+                ephemeral: true
+            }).catch(() => {});
+        } else if (data.role === 'detective') {
+            await interaction.followUp({
+                content: `🔎 **دورك:** محقق جنائي!\n📍 **موقعك:** ${data.spot}\n💡 *استجوب المشتبه بهم للوصول للجاني!*`,
+                ephemeral: true
+            }).catch(() => {});
+        } else {
+            await interaction.followUp({
+                content: `👤 **دورك:** مواطن عادي\n📍 **موقعك:** ${data.spot}\n💡 *أثبت براءتك باختيار موقعك وساعد المحققين!*`,
+                ephemeral: true
+            }).catch(() => {});
         }
+    }
 
-        const data = rolesData[interaction.user.id];
-        const role = data.role;
+    // استقبال اختيارات المجرم والطبيب من الرسائل المخفية
+    const actionCollector = channel.createMessageComponentCollector({ componentType: ComponentType.StringSelect, time: 25000 });
 
-        if (interaction.customId === 'check_role_btn') {
-            if (role === 'killer') {
-                const targets = playerList.filter(p => p.id !== killer.id);
-                const menu = new StringSelectMenuBuilder()
-                    .setCustomId('killer_select')
-                    .setPlaceholder('اختر الضحية 🩸')
-                    .addOptions(targets.map(p => new StringSelectMenuOptionBuilder().setLabel(p.displayName || p.username).setValue(p.id)));
-
-                const row = new ActionRowBuilder().addComponents(menu);
-                await interaction.reply({
-                    content: `🕵️‍♂️ **دورك:** المجرم!\n📍 **موقعك:** مكان الجريمة\n📍 **مسرح الجريمة المقرر:** ${data.extra}\n🩸 **اختر ضحيتك:**`,
-                    components: [row],
-                    ephemeral: true
-                });
-            } else if (role === 'doctor') {
-                const menu = new StringSelectMenuBuilder()
-                    .setCustomId('doctor_select')
-                    .setPlaceholder('اختر الشخص لحمايته 🛡️')
-                    .addOptions(playerList.map(p => new StringSelectMenuOptionBuilder().setLabel(p.displayName || p.username).setValue(p.id)));
-
-                const row = new ActionRowBuilder().addComponents(menu);
-                await interaction.reply({
-                    content: `🩺 **دورك:** الطبيب الشرعي!\n📍 **موقعك:** ${data.spot}\n🛡️ **اختر من تريد حمايته:**`,
-                    components: [row],
-                    ephemeral: true
-                });
-            } else if (role === 'informant') {
-                await interaction.reply({
-                    content: `🔍 **دورك:** المخبر السري!\n📍 **موقعك:** ${data.spot}\n💡 **تلميح خاص لك:** ${data.extra}`,
-                    ephemeral: true
-                });
-            } else if (role === 'detective') {
-                await interaction.reply({
-                    content: `🔎 **دورك:** محقق جنائي!\n📍 **موقعك:** ${data.spot}\n💡 *استجوب المشتبه بهم للوصول للجاني!*`,
-                    ephemeral: true
-                });
-            } else {
-                await interaction.reply({
-                    content: `👤 **دورك:** مشتبه به (مواطن عادي)\n📍 **موقعك:** ${data.spot}\n💡 *أثبت براءتك باختيار موقعك وساعد المحققين!*`,
-                    ephemeral: true
-                });
-            }
-        } else if (interaction.customId === 'killer_select') {
-            selectedKillTarget = playerList.find(p => p.id === interaction.values[0]);
-            await interaction.update({ content: `🎯 تم اختيار هدفك: **${selectedKillTarget.displayName || selectedKillTarget.username}** بنجاح!`, components: [] });
-        } else if (interaction.customId === 'doctor_select') {
-            selectedProtectTarget = playerList.find(p => p.id === interaction.values[0]);
-            await interaction.update({ content: `🛡️ اخترت حماية: **${selectedProtectTarget.displayName || selectedProtectTarget.username}** لهذه الجولة!`, components: [] });
+    actionCollector.on('collect', async i => {
+        if (i.customId === 'killer_select' && i.user.id === killer.id) {
+            selectedKillTarget = playerList.find(p => p.id === i.values[0]);
+            await i.update({ content: `🎯 تم اختيار هدفك: **${selectedKillTarget.displayName || selectedKillTarget.username}** بنجاح!`, components: [] });
+        } else if (i.customId === 'doctor_select' && doctor && i.user.id === doctor.id) {
+            selectedProtectTarget = playerList.find(p => p.id === i.values[0]);
+            await i.update({ content: `🛡️ اخترت حماية: **${selectedProtectTarget.displayName || selectedProtectTarget.username}** لهذه الجولة!`, components: [] });
         }
     });
 
-    await new Promise(resolve => setTimeout(resolve, 30000));
-
-    roleBtn.setDisabled(true);
-    await startMsg.edit({ components: [new ActionRowBuilder().addComponents(roleBtn)] }).catch(() => {});
+    await new Promise(resolve => setTimeout(resolve, 25000));
 
     const targets = playerList.filter(p => p.id !== killer.id);
     if (!selectedKillTarget && targets.length > 0) {
@@ -296,9 +286,62 @@ async function runDetectiveRound(channel, playerList) {
         activePlayers = [...playerList];
     }
 
-    await channel.send("⏳ **بدأ وقت التحقيق!** أمامكم **90 ثانية** لمناقشة الأماكن والتبريرات.");
-    await new Promise(resolve => setTimeout(resolve, 90000));
+    // --- فترة التحقيق وزر التخطي ---
+    const skipVotes = new Set();
+    const SKIP_REQUIRED = 4;
 
+    const skipButton = new ButtonBuilder()
+        .setCustomId('skip_investigation')
+        .setLabel(`تخطي التحقيق ⏩ (0/${SKIP_REQUIRED})`)
+        .setStyle(ButtonStyle.Secondary);
+
+    const skipRow = new ActionRowBuilder().addComponents(skipButton);
+
+    const investMsg = await channel.send({
+        content: "⏳ **بدأ وقت التحقيق!** أمامكم **90 ثانية** لمناقشة الأماكن والتبريرات.",
+        components: [skipRow]
+    });
+
+    let skipEarly = false;
+
+    const skipCollector = channel.createMessageComponentCollector({ componentType: ComponentType.Button, time: 90000 });
+
+    skipCollector.on('collect', async i => {
+        if (i.customId === 'skip_investigation') {
+            if (!activePlayers.some(p => p.id === i.user.id)) {
+                return i.reply({ content: 'يمكن للأصلين الأحياء فقط التصويت بالتخطي!', ephemeral: true });
+            }
+
+            if (skipVotes.has(i.user.id)) {
+                skipVotes.delete(i.user.id);
+                await i.reply({ content: 'تم إلغاء تصويتك بالتخطي.', ephemeral: true });
+            } else {
+                skipVotes.add(i.user.id);
+                await i.reply({ content: 'تم تسجيل تصويتك للتخطي!', ephemeral: true });
+            }
+
+            skipButton.setLabel(`تخطي التحقيق ⏩ (${skipVotes.size}/${SKIP_REQUIRED})`);
+            await investMsg.edit({ components: [new ActionRowBuilder().addComponents(skipButton)] }).catch(() => {});
+
+            if (skipVotes.size >= SKIP_REQUIRED) {
+                skipEarly = true;
+                skipCollector.stop('skipped');
+            }
+        }
+    });
+
+    await new Promise(resolve => {
+        skipCollector.on('end', () => resolve());
+    });
+
+    skipButton.setDisabled(true);
+    await investMsg.edit({ components: [new ActionRowBuilder().addComponents(skipButton)] }).catch(() => {});
+
+    if (skipEarly) {
+        await channel.send("⏩ **تم اكتمل نصاب التخطي! الانتقال للتصويت فوراً.**");
+    }
+
+    // --- مرحلة التصويت ---
     const voteMenu = new StringSelectMenuBuilder()
         .setCustomId('vote_select')
         .setPlaceholder('صوّت ضد المشتبه به 🗳️')
@@ -354,17 +397,32 @@ async function runDetectiveRound(channel, playerList) {
             }
         }
 
-        const resultEmbed = new EmbedBuilder().setColor('#f1c40f').setTitle('📊 نتيجة التحقيق النهائية');
+        // بناء كشف الحساب الشامل لجميع اللاعبين وأدوارهم
+        let rolesSummary = playerList.map(p => {
+            const data = rolesData[p.id];
+            const spotInfo = data.spot ? `(الموقع: ${data.spot})` : '';
+            return `• <@${p.id}> ➔ **${data.name}** ${spotInfo}`;
+        }).join('\n');
 
+        const resultEmbed = new EmbedBuilder()
+            .setColor('#f1c40f')
+            .setTitle('📊 نتيجة التحقيق وكشف أوراق القضية');
+
+        let resultText = "";
         if (isTie || maxVotes === 0 || !topCandidate) {
-            resultEmbed.setDescription(`⚖️ **انتهى التصويت بالتعادل أو عدم التصويت!**\nلم يتم الاتفاق على مشتبه به واحد، وبالتالي **نجا المجرم (<@${killer.id}>) بفعلته!**`);
+            resultText = `⚖️ **انتهى التصويت بالتعادل أو عدم التصويت!**\nلم يتم الاتفاق على مشتبه به واحد، وبالتالي **نجا المجرم (<@${killer.id}>) بفعلته!**`;
         } else {
             if (topCandidate === killer.id) {
-                resultEmbed.setDescription(`🎉 **فاز المحققون والمواطنون!**\nتم كشف المجرم الحقيقي وهو: <@${killer.id}>.`);
+                resultText = `🎉 **فاز المحققون والمواطنون!**\nتم كشف المجرم الحقيقي وهو: <@${killer.id}>.`;
             } else {
-                resultEmbed.setDescription(`😈 **فاز المجرم ونجا بفعلته!**\nتم اتهام <@${topCandidate}> بالخطأ.\nالمجرم الحقيقي كان: <@${killer.id}>!`);
+                resultText = `😈 **فاز المجرم ونجا بفعلته!**\nتم اتهام <@${topCandidate}> بالخطأ.\nالمجرم الحقيقي كان: <@${killer.id}>!`;
             }
         }
+
+        resultEmbed.setDescription(
+            `${resultText}\n\n` +
+            `📜 **كشف أدوار ومواقع جميع المشتبه بهم:**\n${rolesSummary}`
+        );
 
         await channel.send({ embeds: [resultEmbed] });
     });
