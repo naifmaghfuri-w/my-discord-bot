@@ -4,6 +4,9 @@ const {
     ActionRowBuilder, 
     ButtonBuilder, 
     ButtonStyle,
+    ModalBuilder,
+    TextInputBuilder,
+    TextInputStyle,
     MessageFlags
 } = require('discord.js');
 const fs = require('fs');
@@ -13,7 +16,6 @@ const dataPath = path.join(__dirname, 'labData.json');
 
 const labData = {
     items: {
-        // --- مواد أولية قابلة للشراء (المستويات 1 - 5) ---
         na: { name: 'الصوديوم (Na)', price: 15, buyable: true, state: '🪨 صلب' },
         cl: { name: 'الكلور (Cl)', price: 15, buyable: true, state: '💨 غاز' },
         caco3: { name: 'حجر الجير (CaCO3)', price: 30, buyable: true, state: '🪨 صلب' },
@@ -24,8 +26,6 @@ const labData = {
         so2: { name: 'ثاني أكسيد الكبريت (SO2)', price: 40, buyable: true, state: '💨 غاز' },
         cu: { name: 'النحاس (Cu)', price: 50, buyable: true, state: '🪨 صلب' },
         hno3: { name: 'حمض النيتريك (HNO3)', price: 75, buyable: true, state: '💧 سائل', shelfLife: 3600 },
-
-        // --- مواد أولية (المستويات 6 - 15) ---
         hno3_dilute: { name: 'حمض النيتريك المخفف (HNO3)', price: 50, buyable: true, state: '💧 سائل', shelfLife: 4800, reqLevel: 6 },
         zn: { name: 'مسحوق الزنك (Zn)', price: 65, buyable: true, state: '🪨 مسحوق', reqLevel: 7 },
         nh3: { name: 'محلول الأمونيا (NH3)', price: 80, buyable: true, state: '💧 سائل', shelfLife: 3600, reqLevel: 8 },
@@ -34,13 +34,9 @@ const labData = {
         naoh: { name: 'هيدروكسيد الصوديوم (NaOH)', price: 170, buyable: true, state: '🪨 صلب', reqLevel: 11 },
         ch3cooh: { name: 'حمض الاستيك (CH3COOH)', price: 200, buyable: true, state: '💧 سائل', shelfLife: 5400, reqLevel: 12 },
         oxalic: { name: 'حمض الأوكزاليك (C2H2O4)', price: 280, buyable: true, state: '🪨 صلب', reqLevel: 14 },
-
-        // --- مواد v1.5 (المستويات 16 - 25) ---
         au_ore: { name: 'خام الذهب (Au Ore)', price: 500, buyable: true, state: '🪨 خام', reqLevel: 16 },
         pt_ore: { name: 'خام البلاتين (Pt Ore)', price: 750, buyable: true, state: '🪨 خام', reqLevel: 18 },
         benzene_raw: { name: 'قطران الفحم (مصدر البنزين)', price: 350, buyable: true, state: '💧 سائل', reqLevel: 17 },
-
-        // --- النواتج ---
         nacl: { name: 'ملح الطعام (NaCl)', price: 50, buyable: false, state: '🪨 صلب', desc: 'مركب أيوني ناتج من تفاعل الصوديوم والكلور.' },
         cao: { name: 'الجير الحي (CaO)', price: 80, buyable: false, state: '🪨 صلب', desc: 'ينتج عن التفكك الحراري لحجر الجير.' },
         co2: { name: 'ثاني أكسيد الكربون (CO2)', price: 40, buyable: false, state: '💨 غاز', desc: 'غاز ينطلق كناتج ثانوي.' },
@@ -268,6 +264,7 @@ function buildMoreMenu(user, player) {
     return { embeds: [embed], components: [row1, row2, row3] };
 }
 
+// 📜 شاشة المستويات الكيميائية مع إضافة زر الإدخال السريع
 function buildLevelScreen(player, index) {
     const reaction = labData.reactions[index];
     const isUnlocked = player.unlockedReactions.includes(reaction.id);
@@ -309,14 +306,18 @@ function buildLevelScreen(player, index) {
         )
         .setFooter({ text: `نقاط القدرة لديك: ${player.abilityPoints} ⚡ | تفاعل ${index + 1} من ${labData.reactions.length}` });
 
-    const navRow = new ActionRowBuilder().addComponents(
+    const row1 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('btn_lvl_prev').setLabel('⬅️ السابق').setStyle(ButtonStyle.Secondary).setDisabled(index === 0),
         new ButtonBuilder().setCustomId(`btn_unlock_reaction_${reaction.id}`).setLabel(btnLabel).setStyle(btnStyle).setDisabled(btnDisabled),
-        new ButtonBuilder().setCustomId('btn_lvl_next').setLabel('التالي ➡️').setStyle(ButtonStyle.Secondary).setDisabled(index === labData.reactions.length - 1),
+        new ButtonBuilder().setCustomId('btn_lvl_next').setLabel('التالي ➡️').setStyle(ButtonStyle.Secondary).setDisabled(index === labData.reactions.length - 1)
+    );
+
+    const row2 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('btn_jump_to_level').setLabel('🔢 الانتقال لمستوى سريع').setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId('btn_open_more_menu').setLabel('↩️ قائمة الفرعيات').setStyle(ButtonStyle.Danger)
     );
 
-    return { embeds: [embed], components: [navRow] };
+    return { embeds: [embed], components: [row1, row2] };
 }
 
 function buildShopScreen(player, index) {
@@ -457,11 +458,17 @@ function buildReactionsScreen(player, index) {
     return { embeds: [embed], components: [navRow] };
 }
 
-function buildCodexScreen(player) {
+// 📘 شاشة الموسوعة المقسمة إلى صفحات متعددة
+function buildCodexScreen(player, page = 0) {
     const discovered = player.codex || [];
+    const itemKeys = Object.keys(labData.items);
+    const itemsPerPage = 6;
+    const totalPages = Math.ceil(itemKeys.length / itemsPerPage);
+
+    const currentPageKeys = itemKeys.slice(page * itemsPerPage, (page + 1) * itemsPerPage);
     let codexList = '';
 
-    Object.keys(labData.items).forEach(id => {
+    currentPageKeys.forEach(id => {
         const item = labData.items[id];
         if (discovered.includes(id)) {
             codexList += `✅ **${item.name}** (${item.state})\n_${item.desc || 'مادة كيميائية مخبرية'}_\n\n`;
@@ -472,15 +479,17 @@ function buildCodexScreen(player) {
 
     const embed = new EmbedBuilder()
         .setTitle('📘 الموسوعة الكيميائية (Codex)')
-        .setDescription(codexList.length > 2000 ? codexList.slice(0, 1900) + '...\n_(تابع الاكتشاف)_' : codexList)
+        .setDescription(codexList || '_لا توجد عناصر في هذه الصفحة_')
         .setColor(0x9b59b6)
-        .setFooter({ text: `تم اكتشاف ${discovered.length} من أصل ${Object.keys(labData.items).length} مركبات` });
+        .setFooter({ text: `الصفحة ${page + 1} من ${totalPages} | تم اكتشاف ${discovered.length} من أصل ${itemKeys.length} مركبات` });
 
-    const row = new ActionRowBuilder().addComponents(
+    const navRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('btn_codex_prev').setLabel('⬅️ السابق').setStyle(ButtonStyle.Secondary).setDisabled(page === 0),
+        new ButtonBuilder().setCustomId('btn_codex_next').setLabel('التالي ➡️').setStyle(ButtonStyle.Secondary).setDisabled(page >= totalPages - 1),
         new ButtonBuilder().setCustomId('btn_open_more_menu').setLabel('↩️ قائمة الفرعيات').setStyle(ButtonStyle.Danger)
     );
 
-    return { embeds: [embed], components: [row] };
+    return { embeds: [embed], components: [navRow] };
 }
 
 function buildEquipUpgradeScreen(player) {
@@ -577,6 +586,7 @@ async function handleLabSession(context, user) {
     let lvlIndex = 0;
     let shopIndex = 0;
     let reactIndex = 0;
+    let codexPage = 0;
     let selectedReaction = null;
     let tempIndex = 0;
     let pressIndex = 0;
@@ -627,7 +637,20 @@ async function handleLabSession(context, user) {
             return await updateScreen({ embeds: [invEmbed], components: [backMoreBtnRow] });
         }
 
-        if (i.customId === 'btn_open_codex') return await updateScreen(buildCodexScreen(player));
+        // 📘 الموسوعة التنقل بين الصفحات
+        if (i.customId === 'btn_open_codex') {
+            codexPage = 0;
+            return await updateScreen(buildCodexScreen(player, codexPage));
+        }
+        if (i.customId === 'btn_codex_prev') {
+            codexPage--;
+            return await updateScreen(buildCodexScreen(player, codexPage));
+        }
+        if (i.customId === 'btn_codex_next') {
+            codexPage++;
+            return await updateScreen(buildCodexScreen(player, codexPage));
+        }
+
         if (i.customId === 'btn_open_equip_upgrade') return await updateScreen(buildEquipUpgradeScreen(player));
         if (i.customId === 'btn_open_achievements') return await updateScreen(buildAchievementsScreen(player));
 
@@ -782,7 +805,7 @@ async function handleLabSession(context, user) {
             return await i.message.edit(buildMainMenu(user, player));
         }
 
-        // Levels
+        // 📜 المستويات والتنقل المباشر
         if (i.customId === 'btn_open_levels') {
             lvlIndex = 0;
             return await updateScreen(buildLevelScreen(player, lvlIndex));
@@ -795,6 +818,41 @@ async function handleLabSession(context, user) {
             lvlIndex++;
             return await updateScreen(buildLevelScreen(player, lvlIndex));
         }
+
+        // Modal للانتقال السريع لرقم المستوى
+        if (i.customId === 'btn_jump_to_level') {
+            const modal = new ModalBuilder()
+                .setCustomId('modal_jump_level')
+                .setTitle('🔢 الانتقال لمستوى سريع');
+
+            const levelInput = new TextInputBuilder()
+                .setCustomId('input_level_num')
+                .setLabel('أدخل رقم التفاعل/المستوى (1 - 16)')
+                .setStyle(TextInputStyle.Short)
+                .setPlaceholder('مثال: 5')
+                .setRequired(true);
+
+            const modalRow = new ActionRowBuilder().addComponents(levelInput);
+            modal.addComponents(modalRow);
+
+            await i.showModal(modal);
+
+            try {
+                const submitted = await i.awaitModalSubmit({ time: 30000, filter: sub => sub.user.id === user.id });
+                const targetNum = parseInt(submitted.fields.getTextInputValue('input_level_num'));
+
+                if (isNaN(targetNum) || targetNum < 1 || targetNum > labData.reactions.length) {
+                    return await submitted.reply({ content: `❌ رقم غير صحيح! أدخل رقم بين 1 و ${labData.reactions.length}`, flags: MessageFlags.Ephemeral });
+                }
+
+                lvlIndex = targetNum - 1;
+                await submitted.deferUpdate();
+                return await i.message.edit(buildLevelScreen(player, lvlIndex));
+            } catch (err) {
+                return;
+            }
+        }
+
         if (i.customId.startsWith('btn_unlock_reaction_')) {
             const rId = i.customId.replace('btn_unlock_reaction_', '');
             const reaction = labData.reactions.find(r => r.id === rId);
@@ -856,7 +914,6 @@ async function handleLabSession(context, user) {
                     await notifyOnly(`🛒 **تم شراء 1x (${item.name}) بنجاح!**`);
                 }
             }
-            // تحديث واجهة المتجر الأصلية القائمة بنفس الرسالة
             return await i.message.edit(buildShopScreen(player, shopIndex));
         }
 
