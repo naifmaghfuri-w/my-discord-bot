@@ -204,8 +204,8 @@ function updatePlayerData(userId, data) {
 
 function buildMainMenu(user, player) {
     const embed = new EmbedBuilder()
-        .setTitle('🧪 Lab v1.5')
-        .setDescription(`مرحباً بك **${user.username}** 👋`)
+        .setTitle(' Lab v1.5')
+        .setDescription(`Welcome **${user.username}** 👋`)
         .setColor(0x2ecc71)
         .addFields(
             { name: '\u200B', value: `\`Level.${player.level}/25\``, inline: true },
