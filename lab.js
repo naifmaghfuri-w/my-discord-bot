@@ -204,7 +204,7 @@ function updatePlayerData(userId, data) {
 
 function buildMainMenu(user, player) {
     const embed = new EmbedBuilder()
-        .setTitle('🧪 Lab v1.5 - المختبر الكيميائي')
+        .setTitle(' Lab v1.5')
         .setDescription(`مرحباً بك **${user.username}** 👋`)
         .setColor(0x2ecc71)
         .addFields(
@@ -1379,7 +1379,7 @@ async function handleLabSession(context, user) {
 }
 
 module.exports = {
-    data: new SlashCommandBuilder().setName('lab').setDescription('مختبر v1.5 - الكيمياء المتقدمة والتفاعلات الاقتصادية'),
+    data: new SlashCommandBuilder().setName('lab').setDescription('مختبر v1.5'),
     async execute(interaction) {
         await handleLabSession(interaction, interaction.user);
     },
