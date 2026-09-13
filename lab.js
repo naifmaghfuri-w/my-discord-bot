@@ -204,11 +204,11 @@ function updatePlayerData(userId, data) {
 
 function buildMainMenu(user, player) {
     const embed = new EmbedBuilder()
-        .setTitle(' Lab v1.5')
+        .setTitle('🧪 Lab v1.5')
         .setDescription(`مرحباً بك **${user.username}** 👋`)
         .setColor(0x2ecc71)
         .addFields(
-            { name: '👤 المستوى', value: `\`Lv.${player.level} / 25\``, inline: true },
+            { name: '\u200B', value: `\`Level.${player.level}/25\``, inline: true },
             { name: '✨ الخبرة', value: `\`${player.xp} / ${player.level * 100} XP\``, inline: true },
             { name: '⚡ نقاط القدرة', value: `\`${player.abilityPoints} نقطة\``, inline: true },
             { name: '💰 Valence', value: `\`${player.coins} 🪙\``, inline: true },
@@ -728,7 +728,7 @@ async function handleLabSession(context, user) {
             player.lastAutoClaim = Date.now();
             updatePlayerData(user.id, player);
             await notifyOnly(`⚙️ تم ضبط الورشة لإنتاج **${labData.items[player.automatedProduct].name}** بنجاح!`);
-            return await i.message.edit(buildMoreMenu(user, player));
+            return await updateScreen(buildMoreMenu(user, player));
         }
 
         // ==========================================
@@ -821,8 +821,7 @@ async function handleLabSession(context, user) {
                     player.inv[itemId] = (player.inv[itemId] || 0) + qty;
                     updatePlayerData(user.id, player);
 
-                    await submitted.deferUpdate();
-                    await notifyOnly(`📈 **تم شراء ${qty}x من ${itemInfo.name} بسعر البورصة (${currentPrice} Valence/وحدة) بنجاح!**`);
+                    await submitted.reply({ content: `📈 **تم شراء ${qty}x من ${itemInfo.name} بسعر البورصة (${currentPrice} Valence/وحدة) بنجاح!**`, flags: MessageFlags.Ephemeral });
                 } else if (typeStr.includes('بيع') || typeStr.toLowerCase() === 'sell') {
                     if (!player.inv[itemId] || player.inv[itemId] < qty) {
                         return await submitted.reply({ content: `❌ لا تملك هذه الكمية من المادة في مستودعك!`, flags: MessageFlags.Ephemeral });
@@ -832,13 +831,12 @@ async function handleLabSession(context, user) {
                     player.coins += totalCost;
                     updatePlayerData(user.id, player);
 
-                    await submitted.deferUpdate();
-                    await notifyOnly(`📉 **تم بيع ${qty}x من ${itemInfo.name} بسعر البورصة (${currentPrice} Valence/وحدة) بربح +${totalCost} Valence!**`);
+                    await submitted.reply({ content: `📉 **تم بيع ${qty}x من ${itemInfo.name} بسعر البورصة (${currentPrice} Valence/وحدة) بربح +${totalCost} Valence!**`, flags: MessageFlags.Ephemeral });
                 } else {
                     return await submitted.reply({ content: '❌ يرجى تحديد العملية بشكل صحيح (شراء أو بيع)!', flags: MessageFlags.Ephemeral });
                 }
 
-                return await i.message.edit(buildMainMenu(user, player));
+                return await responseMsg.edit(buildMainMenu(user, player)).catch(() => {});
             } catch (err) {
                 return;
             }
@@ -866,7 +864,7 @@ async function handleLabSession(context, user) {
             player.academicReputation = (player.academicReputation || 0) + 50;
             updatePlayerData(user.id, player);
             await notifyOnly('🎉 تم نشر الورقة البحثية بنجاح! حصلت على **+50 نقطة سمعة أكاديمية**.');
-            return await i.message.edit(buildMoreMenu(user, player));
+            return await updateScreen(buildMoreMenu(user, player));
         }
 
         // ==========================================
@@ -947,9 +945,9 @@ async function handleLabSession(context, user) {
                 const channel = i.channel;
                 const filter = msg => (msg.author.id === user.id || msg.author.id === targetIdRaw) && msg.content.trim().toLowerCase() === randomItem.symbol.toLowerCase();
 
-                const collector = channel.createMessageCollector({ filter, time: 20000, max: 1 });
+                const duelCollector = channel.createMessageCollector({ filter, time: 20000, max: 1 });
 
-                collector.on('collect', async m => {
+                duelCollector.on('collect', async m => {
                     const winnerId = m.author.id;
                     const loserId = winnerId === user.id ? targetIdRaw : user.id;
 
@@ -965,7 +963,7 @@ async function handleLabSession(context, user) {
                     await channel.send({ content: `🎉 **مبروك <@${winnerId}>!** كتبت الرمز الصحيح \`${randomItem.symbol}\` بسرعة وفزت بالتحدي وبمبلغ **+${betAmount} Valence** 🪙!` });
                 });
 
-                collector.on('end', collected => {
+                duelCollector.on('end', collected => {
                     if (collected.size === 0) {
                         channel.send({ content: `⏳ **انتهى وقت التحدي ولم يجب أحد بنجاح! الرمز الصحيح كان:** \`${randomItem.symbol}\`` });
                     }
@@ -998,7 +996,7 @@ async function handleLabSession(context, user) {
             player.inv['toxic_waste'] = 0;
             updatePlayerData(user.id, player);
             await notifyOnly('✅ تم تنظيف المستودع وتصريف النفايات بنجاح!');
-            return await i.message.edit(buildLabHubScreen());
+            return await updateScreen(buildLabHubScreen());
         }
 
         // ==========================================
@@ -1071,9 +1069,8 @@ async function handleLabSession(context, user) {
                 updatePlayerData(user.id, player);
                 updatePlayerData(targetIdRaw, targetPlayer);
 
-                await submitted.deferUpdate();
-                await notifyOnly(`🎁 **تم إهداء ${amount} Valence بنجاح إلى <@${targetIdRaw}>!**`);
-                return await i.message.edit(buildMainMenu(user, player));
+                await submitted.reply({ content: `🎁 **تم إهداء ${amount} Valence بنجاح إلى <@${targetIdRaw}>!**`, flags: MessageFlags.Ephemeral });
+                return await responseMsg.edit(buildMainMenu(user, player)).catch(() => {});
             } catch (err) {
                 return;
             }
@@ -1111,7 +1108,7 @@ async function handleLabSession(context, user) {
                     await notifyOnly('🛡️ **فشل التفاعل العشوائي ولكن درع الحماية منع أضرار الانفجار!**');
                 }
             }
-            return await i.message.edit(buildMainMenu(user, player));
+            return await updateScreen(buildMainMenu(user, player));
         }
 
         // Level Nav
@@ -1153,7 +1150,7 @@ async function handleLabSession(context, user) {
 
                 lvlIndex = targetNum - 1;
                 await submitted.deferUpdate();
-                return await i.message.edit(buildLevelScreen(player, lvlIndex));
+                return await responseMsg.edit(buildLevelScreen(player, lvlIndex)).catch(() => {});
             } catch (err) {
                 return;
             }
@@ -1168,7 +1165,7 @@ async function handleLabSession(context, user) {
                 player.unlockedReactions.push(reaction.id);
                 updatePlayerData(user.id, player);
                 await notifyOnly(`✅ **تم فتح (${reaction.name}) بنجاح!**`);
-                return await i.message.edit(buildLevelScreen(player, lvlIndex));
+                return await updateScreen(buildLevelScreen(player, lvlIndex));
             } else {
                 return await notifyOnly('❌ لا تملك نقاط قدرة كافية!');
             }
@@ -1220,7 +1217,7 @@ async function handleLabSession(context, user) {
                     await notifyOnly(`🛒 **تم شراء 1x (${item.name}) بنجاح!**`);
                 }
             }
-            return await i.message.edit(buildShopScreen(player, shopIndex));
+            return await updateScreen(buildShopScreen(player, shopIndex));
         }
 
         // Reaction & Calibration Nav
@@ -1287,7 +1284,7 @@ async function handleLabSession(context, user) {
                     updatePlayerData(user.id, player);
                     await notifyOnly('🛡️ **فشل التفاعل بسبب المعايرة الخاطئة، ولكن درع الحماية منع انفجار المواد!**');
                 }
-                return await i.message.edit(buildMainMenu(user, player));
+                return await updateScreen(buildMainMenu(user, player));
             }
 
             player.achievements.cautious = (player.achievements.cautious || 0) + 1;
@@ -1307,7 +1304,7 @@ async function handleLabSession(context, user) {
             }, duration * 1000);
 
             await notifyOnly(`🚀 **بدأ تفاعل (${reaction.name})! سينتهي بعد ${duration} ثانية.**`);
-            return await i.message.edit(buildMainMenu(user, player));
+            return await updateScreen(buildMainMenu(user, player));
         }
 
         // Quests & Sales
@@ -1341,7 +1338,7 @@ async function handleLabSession(context, user) {
                 player.quest.completed = true;
                 updatePlayerData(user.id, player);
                 await notifyOnly('🎉 **تم تسليم المهمة بنجاح واستلام المكافأة!**');
-                return await i.message.edit(buildMainMenu(user, player));
+                return await updateScreen(buildMainMenu(user, player));
             }
         }
 
@@ -1373,7 +1370,7 @@ async function handleLabSession(context, user) {
 
             updatePlayerData(user.id, player);
             await notifyOnly(`💵 **تمت عملية البيع بنجاح!**\n${soldList.join('\n')}\n\n💰 الإجمالي المضاف لرصيدك: **+${totalEarned} Valence** 🪙`);
-            return await i.message.edit(buildMainMenu(user, player));
+            return await updateScreen(buildMainMenu(user, player));
         }
     });
 }
