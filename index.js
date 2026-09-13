@@ -1,4 +1,4 @@
-require('dotenv').config();
+Require('dotenv').config();
 const { gamesCommands, handleGamesCommand } = require('./games');
 const labCommand = require('./lab');
 
@@ -31,7 +31,7 @@ const model = genAI.getGenerativeModel({
    - إذا كان الاسم يدل على أنثى: خاطبيها بصيغة المؤنث فوريًا (مثال: "هلا إيما، وش فيك ساكته؟ 🥹").
    - إذا كان الاسم يدل على مذكر أو غير واضح: خاطبه بصيغة المذكر (مثال: "هلا أحمد، وش فيك ساكت؟ 👀").
 2. **شخصية العضو**: ابدأي الرد بمناداة الشخص باسمه الأساسي بأسلوب عفوي وطبيعي وبدون تكلف.
-3. **الإيموجيات**: استخدمي إيموجيات تعبيرية مناسبة للسياق جداً (مثل: 🥹, 🤍, 👀, 😭 ).
+3. **الإيموجيات**: استخدمي إيموجيات تعبيرية مناسبة للسياق جداً (مثل: 1548343801683378176,🥹, 🤍, 👀, 😭 ).
 4. **الاختصار**: اجعلي الردود قصيرة جداً ومباشرة كأنك عضوة حقيقية تفاعلية داخل السيرفر.`
 });
 
@@ -207,9 +207,9 @@ const commands = [
         )
 ];
 
-client.once('ready', async () => {
+client.once('clientReady', async () => {
     console.log(`🚀 تم تسجيل الدخول باسم: ${client.user.tag}`);
-    const token = process.env.DISCORD_TOKEN || process.env.TOKEN;
+    const token = process.env.TOKEN || process.env.DISCORD_TOKEN;
     const rest = new REST({ version: '10' }).setToken(token);
     try {
         await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
@@ -247,7 +247,7 @@ client.on('messageCreate', async message => {
         }
     }
 
-    if (content === '!colors' && message.member?.permissions.has(PermissionFlagsBits.Administrator)) {
+    if (content === '!colors' && message.member.permissions.has(PermissionFlagsBits.Administrator)) {
         await sendColorMenu(message.channel);
         await message.delete().catch(() => {});
         return;
@@ -279,31 +279,14 @@ client.on('messageCreate', async message => {
 });
 
 // ==========================================
-// 5. معالجة التفاعلات (أوامر السلاش والأزرار)
+// 5. معالجة التفاعلات (أوامر السلاش)
 // ==========================================
 client.on('interactionCreate', async interaction => {
-    // 🧪 1. تحويل كافة الأزرار والقوائم المنسدلة الخاصة باللعبة إلى ملف lab.js
-    if (interaction.isButton() || interaction.isStringSelectMenu()) {
-        const isLabInteraction = interaction.customId.startsWith('btn_') || 
-                                 interaction.customId.startsWith('select_') || 
-                                 interaction.customId.startsWith('confirm_');
-        if (isLabInteraction) {
-            try {
-                await labCommand.handleLabSession(interaction, interaction.user);
-            } catch (error) {
-                console.error('❌ خطأ في معالجة تفاعلات المختبر:', error);
-            }
-            return;
-        }
-    }
-
-    // 🎨 2. معالجة قائمة اختيار الألوان
     if (interaction.isStringSelectMenu() && interaction.customId === 'select_name_color') {
         await handleColorSelect(interaction);
         return;
     }
 
-    // ⚗️ 3. معالجة أمر السلاش /lab
     if (interaction.isChatInputCommand() && interaction.commandName === 'lab') {
         try {
             await labCommand.execute(interaction);
@@ -320,10 +303,9 @@ client.on('interactionCreate', async interaction => {
 
     if (!interaction.isChatInputCommand()) return;
 
-    // 🎮 4. معالجة أمر السلاش /games
+    // استجابة أمر السلاش بالإنجليزية حصراً /games
     if (interaction.commandName === 'games') {
         await handleGamesCommand(interaction);
-        return;
     }
 
     if (interaction.commandName === 'clear') {
@@ -405,4 +387,4 @@ client.on('interactionCreate', async interaction => {
 // ==========================================
 // 6. تشغيل البوت
 // ==========================================
-client.login(process.env.DISCORD_TOKEN || process.env.TOKEN);
+client.login(process.env.DISCORD_TOKEN);
