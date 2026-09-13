@@ -1,20 +1,16 @@
-// lab.js - Minecraft / Chemistry Discord Bot Engine (v1.5 Complete & Polished)
+// lab.js - Ultimate Lab Discord Bot Engine (v1.5 Fully Corrected & Stable)
 const { 
     MessageActionRow, 
     MessageButton, 
     MessageEmbed, 
-    MessageSelectMenu,
-    Modal,
-    TextInputComponent,
-    ModalSubmitInteraction
+    MessageSelectMenu 
 } = require('discord.js');
 
 // ----------------------------------------------------
 // Database Sim / In-Memory Data Stores
 // ----------------------------------------------------
 const userProfiles = new Map();
-const marketListings = []; // P2P Market Listings
-const giftSessions = new Map(); // Store temporary state for Modals: userId -> { targetUserId, itemType }
+const giftSessions = new Map(); // userId -> { targetUserId, itemType }
 
 // Dictionary for Chemical Symbols to Arabic Names
 const ELEMENT_NAMES = {
@@ -33,25 +29,23 @@ const ELEMENT_NAMES = {
 // 1. Expanded Level Definitions (Lv.1 to Lv.25)
 // ----------------------------------------------------
 const LEVEL_DATA = {
-    1: { title: "مبتدئ مختبر", maxEnergy: 100 },
-    5: { title: "كيميائي طامح", maxEnergy: 150 },
-    10: { title: "مساعد باحث", maxEnergy: 200 },
-    15: { title: "خبير تفاعلات", maxEnergy: 250 },
-    16: { title: "كيميائي عضوي", maxEnergy: 270 },
-    18: { title: "متخصص معادن نفيسة", maxEnergy: 300 },
-    20: { title: "مهندس مفاعلات آلية", maxEnergy: 350 },
-    22: { title: "باحث أكاديمي متقدم", maxEnergy: 400 },
-    25: { title: "بروفيسور المادة والتصنيع", maxEnergy: 500 }
+    1: { title: "مبتدئ مختبر" },
+    5: { title: "كيميائي طامح" },
+    10: { title: "مساعد باحث" },
+    15: { title: "خبير تفاعلات" },
+    16: { title: "كيميائي عضوي" },
+    18: { title: "متخصص معادن نفيسة" },
+    20: { title: "مهندس مفاعلات آلية" },
+    22: { title: "باحث أكاديمي متقدم" },
+    25: { title: "بروفيسور المادة والتصنيع" }
 };
 
-// Market Fluctuation Multiplier
 let currentMarketFluctuation = 1.0;
 function updateMarketPrices() {
     currentMarketFluctuation = parseFloat((0.8 + Math.random() * 0.5).toFixed(2));
 }
-setInterval(updateMarketPrices, 3600000); // Hourly
+setInterval(updateMarketPrices, 3600000);
 
-// Helper: Fetch or initialize user profile
 function getProfile(userId) {
     if (!userProfiles.has(userId)) {
         userProfiles.set(userId, {
@@ -113,25 +107,25 @@ function buildMoreMenuRows() {
 }
 
 async function buildMemberSelectMenu(guild, currentUserId, selectCustomId, placeholder) {
-    let members = [];
+    let options = [];
     try {
-        const fetched = await guild.members.fetch({ limit: 50 });
-        members = fetched.filter(m => !m.user.bot && m.id !== currentUserId);
+        if (guild) {
+            const fetched = await guild.members.fetch({ limit: 50 });
+            options = fetched.filter(m => !m.user.bot && m.id !== currentUserId).map(m => ({
+                label: m.displayName || m.user.username,
+                value: m.id,
+                description: `إرسال الهدية إلى ${m.user.tag}`
+            })).slice(0, 25);
+        }
     } catch (e) {
-        console.error("Failed to fetch guild members:", e);
+        console.error("Guild fetch error:", e);
     }
-
-    const options = members.map(m => ({
-        label: m.displayName || m.user.username,
-        value: m.id,
-        description: `إرسال الهدية إلى ${m.user.tag}`
-    })).slice(0, 25); // Cap at 25 max items
 
     if (options.length === 0) {
         options.push({
-            label: "لا يوجد أعضاء متاحون حالياً",
+            label: "لا يوجد أعضاء آخرين متاحين",
             value: "none",
-            description: "تأكد من وجود أعضاء آخرين في السيرفر"
+            description: "تأكد من وجود أعضاء في السيرفر"
         });
     }
 
@@ -147,63 +141,6 @@ async function buildMemberSelectMenu(guild, currentUserId, selectCustomId, place
 // Unified Interaction Handler
 // ----------------------------------------------------
 async function handleLabSession(interaction) {
-    // ----------------------------------------------------
-    // Modal Submissions (Processing Custom Amounts)
-    // ----------------------------------------------------
-    if (interaction.isModalSubmit()) {
-        const profile = getProfile(interaction.user.id);
-        const session = giftSessions.get(interaction.user.id);
-
-        if (interaction.customId === 'modal_gift_valence') {
-            const amountInput = interaction.fields.getTextInputValue('input_gift_amount');
-            const amount = parseInt(amountInput);
-
-            if (isNaN(amount) || amount <= 0) {
-                return await interaction.reply({ content: '❌ يرجى إدخال مبلغ رقمي صحيح!', ephemeral: true });
-            }
-            if (profile.valence < amount) {
-                return await interaction.reply({ content: `❌ لا تملك رصيد كافٍ! رصيدك الحالي: **${profile.valence} Valence**.`, ephemeral: true });
-            }
-            if (!session || !session.targetUserId) {
-                return await interaction.reply({ content: '❌ انتهت الجلسة، يرجى إعادة محاولة الإهداء.', ephemeral: true });
-            }
-
-            const targetProfile = getProfile(session.targetUserId);
-            profile.valence -= amount;
-            targetProfile.valence += amount;
-            giftSessions.delete(interaction.user.id);
-
-            return await interaction.reply({
-                content: `🎉 تم إهداء **${amount} Valence** بنجاح إلى <@${session.targetUserId}>!`,
-                ephemeral: false
-            });
-        }
-
-        if (interaction.customId === 'modal_gift_item') {
-            const qtyInput = interaction.fields.getTextInputValue('input_item_qty');
-            const quantity = parseInt(qtyInput);
-            const itemKey = session?.itemType;
-
-            if (isNaN(quantity) || quantity <= 0) {
-                return await interaction.reply({ content: '❌ يرجى إدخال كمية رقمية صحيحة!', ephemeral: true });
-            }
-            const currentQty = profile.inventory[itemKey] || 0;
-            if (currentQty < quantity) {
-                return await interaction.reply({ content: `❌ لا تملك كمية كافية من **${ELEMENT_NAMES[itemKey] || itemKey}**! المتوفر لديك: ${currentQty}.`, ephemeral: true });
-            }
-
-            const targetProfile = getProfile(session.targetUserId);
-            profile.inventory[itemKey] -= quantity;
-            targetProfile.inventory[itemKey] = (targetProfile.inventory[itemKey] || 0) + quantity;
-            giftSessions.delete(interaction.user.id);
-
-            return await interaction.reply({
-                content: `📦 تم إرسال **${quantity}x ${ELEMENT_NAMES[itemKey] || itemKey}** بنجاح إلى <@${session.targetUserId}>!`,
-                ephemeral: false
-            });
-        }
-    }
-
     if (!interaction.isButton() && !interaction.isSelectMenu()) return;
 
     const { customId, user, guild } = interaction;
@@ -218,9 +155,49 @@ async function handleLabSession(interaction) {
         const embed = new MessageEmbed()
             .setColor('#7289da')
             .setTitle('➕ القائمة الإضافية - v1.5')
-            .setDescription('اختر القسم المطلوب للوصول للميزات الاقتصادية، البحثية، والإهداء الجديدة:');
+            .setDescription('اختر القسم المطلوب من الأزرار المتاحة أدناه:');
 
         return await interaction.update({ embeds: [embed], components: buildMoreMenuRows() });
+    }
+
+    // 🎒 Inventory
+    if (customId === 'btn_inventory') {
+        const invList = Object.entries(profile.inventory)
+            .filter(([_, qty]) => qty > 0)
+            .map(([item, qty]) => `• **${ELEMENT_NAMES[item] || item}**: \`${qty}\``)
+            .join('\n') || '_المستودع فارغ_';
+
+        const embed = new MessageEmbed()
+            .setColor('#3498db')
+            .setTitle(`🎒 مستودع المواد - ${user.username}`)
+            .setDescription(invList);
+
+        const row = new MessageActionRow().addComponents(
+            new MessageButton().setCustomId('btn_back_main').setLabel('↩️ العودة للرئيسية').setStyle('SECONDARY')
+        );
+
+        return await interaction.update({ embeds: [embed], components: [row] });
+    }
+
+    // ⚗️ Synthesis Reaction
+    if (customId === 'btn_lab_synth') {
+        profile.valence += 50;
+        profile.xp += 20;
+        if (profile.xp >= profile.level * 100 && profile.level < 25) {
+            profile.level += 1;
+            profile.xp = 0;
+        }
+
+        const embed = new MessageEmbed()
+            .setColor('#2ecc71')
+            .setTitle('⚗️ نتائج التفاعل الكيميائي')
+            .setDescription(`تم إجراء التفاعل بنجاح!\n• المكافأة: **+50 Valence** 🪙\n• الخبرة: **+20 XP** ✨`);
+
+        const row = new MessageActionRow().addComponents(
+            new MessageButton().setCustomId('btn_back_main').setLabel('↩️ الرئيسية').setStyle('PRIMARY')
+        );
+
+        return await interaction.update({ embeds: [embed], components: [row] });
     }
 
     // Automation Lab
@@ -237,7 +214,7 @@ async function handleLabSession(interaction) {
             const producedQty = Math.min(minutesPassed, 50);
             profile.inventory[profile.automatedProduct] = (profile.inventory[profile.automatedProduct] || 0) + producedQty;
             profile.lastAutoClaim = now;
-            claimedText = `✅ قامت الورشة بإنتاج **${producedQty}** من **${ELEMENT_NAMES[profile.automatedProduct] || profile.automatedProduct}**!`;
+            claimedText = `✅ قامت الورشة بإنتاج **${producedQty}** من **${ELEMENT_NAMES[profile.automatedProduct]}**!`;
         }
 
         const embed = new MessageEmbed()
@@ -257,7 +234,7 @@ async function handleLabSession(interaction) {
     if (customId === 'btn_set_auto_gold' || customId === 'btn_set_auto_benzene') {
         profile.automatedProduct = customId === 'btn_set_auto_gold' ? 'Au' : 'C6H6';
         profile.lastAutoClaim = Date.now();
-        return await interaction.reply({ content: `⚙️ تم ضبط الورشة الآلية لإنتاج **${ELEMENT_NAMES[profile.automatedProduct]}** بنجاح!`, ephemeral: true });
+        return await interaction.reply({ content: `⚙️ تم ضبط الورشة لإنتاج **${ELEMENT_NAMES[profile.automatedProduct]}** بنجاح!`, ephemeral: true });
     }
 
     // Marketplace
@@ -265,8 +242,7 @@ async function handleLabSession(interaction) {
         const embed = new MessageEmbed()
             .setColor('#f1c40f')
             .setTitle('📈 البورصة وسوق التداول بين اللاعبين')
-            .setDescription(`**مؤشر البورصة اليومي:** ${currentMarketFluctuation}x\nتتغير أسعار الشراء والبيع في المتجر بناءً على حالة السوق!`)
-            .addField('💡 نصيحة الاستثمار', 'اشترِ المركبات عندما يكون المؤشر منخفضاً وبعها في أوقات الارتفاع لتحقيق أرباح Valence عاليّة.');
+            .setDescription(`**مؤشر البورصة اليومي:** ${currentMarketFluctuation}x\nتتغير أسعار الشراء والبيع في المتجر بناءً على حالة السوق!`);
 
         return await interaction.update({ embeds: [embed], components: [new MessageActionRow().addComponents(new MessageButton().setCustomId('btn_back_main').setLabel('↩️ عودة للرئيسية').setStyle('SECONDARY'))] });
     }
@@ -277,7 +253,7 @@ async function handleLabSession(interaction) {
             .setColor('#2ecc71')
             .setTitle('📄 نشر الأوراق البحثية والمجلات العلمية')
             .setDescription(`نقاط السمعة الأكاديمية الحالية: **${profile.academicReputation} pts**`)
-            .addField('🔬 التقديم المتاح', 'نشر ورقة بحثية عن النيتروجليسرين (C3H5N3O9) ➔ +50 السمعة العلميّة.');
+            .addField('🔬 التقديم المتاح', 'نشر ورقة بحثية عن النيتروجليسرين ➔ +50 السمعة العلميّة.');
 
         const row = new MessageActionRow().addComponents(
             new MessageButton().setCustomId('btn_submit_paper').setLabel('📤 تقديم ورقة بحثية').setStyle('SUCCESS'),
@@ -296,121 +272,161 @@ async function handleLabSession(interaction) {
         return await interaction.reply({ content: '🎉 تم نشر الورقة البحثية بنجاح! حصلت على **+50 نقطة سمعة أكاديمية**.', ephemeral: true });
     }
 
-    // Gifting Menu System
-    if (customId === 'btn_gift_menu') {
+    // Hazards
+    if (customId === 'btn_hazards') {
+        const wasteCount = profile.inventory["Toxic Waste"] || 0;
         const embed = new MessageEmbed()
-            .setColor('#f39c12')
-            .setTitle('🎁 نظام الإهداء والكرم الكيميائي')
-            .setDescription('اختر نوع الهدية المراد إرسالها لأحد أعضاء السيرفر:');
+            .setColor('#9b59b6')
+            .setTitle('☣️ نظام السلامة وإدارة النفايات البيئية')
+            .setDescription(`كمية النفايات الكيميائية في مستودعك: **${wasteCount} وحدة**`);
 
         const row = new MessageActionRow().addComponents(
-            new MessageButton().setCustomId('btn_gift_valence').setLabel('💳 إهداء رصيد Valence').setStyle('PRIMARY'),
-            new MessageButton().setCustomId('btn_gift_item').setLabel('📦 إهداء مادة/عنصر').setStyle('PRIMARY'),
-            new MessageButton().setCustomId('btn_more_menu').setLabel('↩️ عودة للقائمة').setStyle('SECONDARY')
+            new MessageButton().setCustomId('btn_clean_waste').setLabel('🧹 تصريف النفايات (100V)').setStyle('PRIMARY'),
+            new MessageButton().setCustomId('btn_back_main').setLabel('↩️ عودة').setStyle('SECONDARY')
         );
 
         return await interaction.update({ embeds: [embed], components: [row] });
     }
 
-    // Gift Valence - Step 1: Select Member
+    if (customId === 'btn_clean_waste') {
+        if (profile.valence < 100) return await interaction.reply({ content: '❌ لا تملك Valence كافي!', ephemeral: true });
+        profile.valence -= 100;
+        profile.inventory["Toxic Waste"] = 0;
+        return await interaction.reply({ content: '✅ تم تنظيف مستودعك وتصريف النفايات بنجاح!', ephemeral: true });
+    }
+
+    // Duels
+    if (customId === 'btn_duels') {
+        const embed = new MessageEmbed()
+            .setColor('#e74c3c')
+            .setTitle('⚔️ تحدي الرموز الكيميائية السريعة')
+            .setDescription('اكتب الرمز الصحيح للعناصر التالية بالفاتورة: (صوديوم -> Na | ذهب -> Au)');
+
+        const row = new MessageActionRow().addComponents(
+            new MessageButton().setCustomId('btn_back_main').setLabel('↩️ عودة').setStyle('SECONDARY')
+        );
+
+        return await interaction.update({ embeds: [embed], components: [row] });
+    }
+
+    // Gifting Menu
+    if (customId === 'btn_gift_menu') {
+        const embed = new MessageEmbed()
+            .setColor('#f39c12')
+            .setTitle('🎁 نظام الإهداء')
+            .setDescription('اختر نوع الهدية المراد إرسالها:');
+
+        const row = new MessageActionRow().addComponents(
+            new MessageButton().setCustomId('btn_gift_valence').setLabel('💳 إهداء Valence').setStyle('PRIMARY'),
+            new MessageButton().setCustomId('btn_gift_item').setLabel('📦 إهداء مادة').setStyle('PRIMARY'),
+            new MessageButton().setCustomId('btn_more_menu').setLabel('↩️ عودة').setStyle('SECONDARY')
+        );
+
+        return await interaction.update({ embeds: [embed], components: [row] });
+    }
+
+    // Gift Valence - Target
     if (customId === 'btn_gift_valence') {
         const embed = new MessageEmbed()
             .setColor('#f39c12')
             .setTitle('💳 إهداء رصيد Valence')
-            .setDescription('اختر العضو المراد تحويل الرصيد إليه:');
+            .setDescription('اختر العضو المستلم من القائمة:');
 
-        const userSelectRow = await buildMemberSelectMenu(guild, user.id, 'select_gift_target_valence', '👤 اختر اللاعب المستلم...');
-        const backRow = new MessageActionRow().addComponents(new MessageButton().setCustomId('btn_gift_menu').setLabel('↩️ إلغاء وعودة').setStyle('SECONDARY'));
+        const selectRow = await buildMemberSelectMenu(guild, user.id, 'select_gift_target_valence', '👤 اختر المستلم...');
+        const backRow = new MessageActionRow().addComponents(new MessageButton().setCustomId('btn_gift_menu').setLabel('↩️ إلغاء').setStyle('SECONDARY'));
 
-        return await interaction.update({ embeds: [embed], components: [userSelectRow, backRow] });
+        return await interaction.update({ embeds: [embed], components: [selectRow, backRow] });
     }
 
-    // Gift Valence - Step 2: Show Modal
     if (interaction.isSelectMenu() && customId === 'select_gift_target_valence') {
         const targetUserId = interaction.values[0];
         if (targetUserId === 'none') return await interaction.reply({ content: '❌ مستلم غير صالح!', ephemeral: true });
 
         giftSessions.set(user.id, { targetUserId });
 
-        const modal = new Modal()
-            .setCustomId('modal_gift_valence')
-            .setTitle('💳 حدد مبلغ Valence للإهداء');
+        const embed = new MessageEmbed()
+            .setColor('#f39c12')
+            .setTitle('💳 اختر كمية Valence للإهداء:')
+            .setDescription(`المستلم المختار: <@${targetUserId}>`);
 
-        const amountInput = new TextInputComponent()
-            .setCustomId('input_gift_amount')
-            .setLabel("المبلغ المراد إهداؤه:")
-            .setStyle('SHORT')
-            .setPlaceholder('مثال: 100')
-            .setRequired(true);
+        const row = new MessageActionRow().addComponents(
+            new MessageSelectMenu().setCustomId('select_valence_amount').setPlaceholder('💰 اختر المبلغ...').addOptions([
+                { label: '50 Valence', value: '50' },
+                { label: '100 Valence', value: '100' },
+                { label: '250 Valence', value: '250' },
+                { label: '500 Valence', value: '500' }
+            ])
+        );
 
-        modal.addComponents(new MessageActionRow().addComponents(amountInput));
-        return await interaction.showModal(modal);
+        return await interaction.update({ embeds: [embed], components: [row] });
     }
 
-    // Gift Item - Step 1: Select Item
+    if (interaction.isSelectMenu() && customId === 'select_valence_amount') {
+        const amount = parseInt(interaction.values[0]);
+        const session = giftSessions.get(user.id);
+
+        if (!session || !session.targetUserId) return await interaction.reply({ content: '❌ انتهت الجلسة!', ephemeral: true });
+        if (profile.valence < amount) return await interaction.reply({ content: '❌ لا تملك رصيد كافٍ!', ephemeral: true });
+
+        const targetProfile = getProfile(session.targetUserId);
+        profile.valence -= amount;
+        targetProfile.valence += amount;
+        giftSessions.delete(user.id);
+
+        const embed = new MessageEmbed()
+            .setColor('#2ecc71')
+            .setTitle('🎁 تم الإهداء بنجاح!')
+            .setDescription(`تم إرسال **${amount} Valence** بنجاح إلى <@${session.targetUserId}>!`);
+
+        return await interaction.update({ embeds: [embed], components: [new MessageActionRow().addComponents(new MessageButton().setCustomId('btn_back_main').setLabel('↩️ الرئيسية').setStyle('PRIMARY'))] });
+    }
+
+    // Gift Item
     if (customId === 'btn_gift_item') {
         const userItems = Object.keys(profile.inventory).filter(item => profile.inventory[item] > 0 && item !== "Toxic Waste").slice(0, 25);
+        if (userItems.length === 0) return await interaction.reply({ content: '🎒 مستودعك فارغ من المواد!', ephemeral: true });
 
-        if (userItems.length === 0) {
-            return await interaction.reply({ content: '🎒 مستودعك فارغ من المواد القابلة للإهداء!', ephemeral: true });
-        }
-
-        const itemOptions = userItems.map(item => ({
+        const options = userItems.map(item => ({
             label: `${ELEMENT_NAMES[item] || item} (المتوفر: ${profile.inventory[item]})`,
             value: item
         }));
 
-        const itemSelectRow = new MessageActionRow().addComponents(
-            new MessageSelectMenu().setCustomId('select_gift_item_type').setPlaceholder('📦 اختر المادة المراد إهداؤها...').addOptions(itemOptions)
-        );
-
-        const embed = new MessageEmbed()
-            .setColor('#2ecc71')
-            .setTitle('📦 إهداء مادة من المستودع')
-            .setDescription('اختر المادة المراد تحويلها:');
-
-        const backRow = new MessageActionRow().addComponents(new MessageButton().setCustomId('btn_gift_menu').setLabel('↩️ إلغاء وعودة').setStyle('SECONDARY'));
-
-        return await interaction.update({ embeds: [embed], components: [itemSelectRow, backRow] });
+        const embed = new MessageEmbed().setColor('#2ecc71').setTitle('📦 اختر المادة للإهداء:');
+        const row = new MessageActionRow().addComponents(new MessageSelectMenu().setCustomId('select_gift_item_type').setPlaceholder('📦 اختر المادة...').addOptions(options));
+        
+        return await interaction.update({ embeds: [embed], components: [row] });
     }
 
-    // Gift Item - Step 2: Select Target Member
     if (interaction.isSelectMenu() && customId === 'select_gift_item_type') {
         const selectedItem = interaction.values[0];
         giftSessions.set(user.id, { itemType: selectedItem });
 
-        const embed = new MessageEmbed()
-            .setColor('#2ecc71')
-            .setTitle(`🎁 إهداء مادة: ${ELEMENT_NAMES[selectedItem] || selectedItem}`)
-            .setDescription(`اختر العضو المستلم لنقل الشحنة إليه:`);
+        const embed = new MessageEmbed().setColor('#2ecc71').setTitle(`🎁 إهداء مادة: ${ELEMENT_NAMES[selectedItem] || selectedItem}`).setDescription('اختر المستلم:');
+        const selectRow = await buildMemberSelectMenu(guild, user.id, 'confirm_gift_item_target', '👤 اختر المستلم...');
 
-        const userSelectRow = await buildMemberSelectMenu(guild, user.id, 'confirm_gift_item_target', '👤 اختر اللاعب المستلم...');
-        const backRow = new MessageActionRow().addComponents(new MessageButton().setCustomId('btn_gift_menu').setLabel('↩️ إلغاء وعودة').setStyle('SECONDARY'));
-
-        return await interaction.update({ embeds: [embed], components: [userSelectRow, backRow] });
+        return await interaction.update({ embeds: [embed], components: [selectRow] });
     }
 
-    // Gift Item - Step 3: Show Quantity Modal
     if (interaction.isSelectMenu() && customId === 'confirm_gift_item_target') {
         const targetUserId = interaction.values[0];
-        if (targetUserId === 'none') return await interaction.reply({ content: '❌ مستلم غير صالح!', ephemeral: true });
+        const session = giftSessions.get(user.id);
 
-        const currentSession = giftSessions.get(user.id) || {};
-        giftSessions.set(user.id, { ...currentSession, targetUserId });
+        if (targetUserId === 'none' || !session || !session.itemType) return await interaction.reply({ content: '❌ حدث خطأ بالجلسة!', ephemeral: true });
+        
+        const itemKey = session.itemType;
+        if ((profile.inventory[itemKey] || 0) < 1) return await interaction.reply({ content: '❌ لا تملك المادة!', ephemeral: true });
 
-        const modal = new Modal()
-            .setCustomId('modal_gift_item')
-            .setTitle('📦 حدد الكمية المراد إرسالها');
+        const targetProfile = getProfile(targetUserId);
+        profile.inventory[itemKey] -= 1;
+        targetProfile.inventory[itemKey] = (targetProfile.inventory[itemKey] || 0) + 1;
+        giftSessions.delete(user.id);
 
-        const qtyInput = new TextInputComponent()
-            .setCustomId('input_item_qty')
-            .setLabel("الكمية:")
-            .setStyle('SHORT')
-            .setPlaceholder('مثال: 5')
-            .setRequired(true);
+        const embed = new MessageEmbed()
+            .setColor('#2ecc71')
+            .setTitle('🎁 تم إرسال المادة بنجاح!')
+            .setDescription(`تم نقل **1x ${ELEMENT_NAMES[itemKey] || itemKey}** إلى <@${targetUserId}>!`);
 
-        modal.addComponents(new MessageActionRow().addComponents(qtyInput));
-        return await interaction.showModal(modal);
+        return await interaction.update({ embeds: [embed], components: [new MessageActionRow().addComponents(new MessageButton().setCustomId('btn_back_main').setLabel('↩️ الرئيسية').setStyle('PRIMARY'))] });
     }
 }
 
