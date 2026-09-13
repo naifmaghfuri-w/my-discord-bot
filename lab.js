@@ -54,7 +54,7 @@ const labData = {
         dry_precipitate: { name: 'مسحوق جاف فائق النقاء', symbol: 'ZnC2O4', price: 1100, buyable: false, state: '🪨 مسحوق', desc: 'ناتج تجفيف المترسبات المعقدة في الفرن الزجاجي.' },
         secret_compound: { name: 'المركب السري النادر ✨', symbol: 'X', price: 2500, buyable: false, state: '✨ طاقة', desc: 'اكتشاف نادر جداً ناتج عن الخلط العشوائي للمواد.' },
         pure_gold: { name: 'الذهب النقي (Au)', symbol: 'Au', price: 2200, buyable: false, state: '✨ معدن نفيس', desc: 'سبائك ذهب عالية النقاوة مستخلصة كيميائياً.' },
-        pure_platinum: { name: 'البلاتين الصافي (Pt)', symbol: 'Pt', price: 3500, buyable: false, state: '✨ معدن نفيس', desc: 'عنصر البلاتين النادر المستخرج عبر تحليل كهرومغناطيسي.' },
+        pure_platinum: { name: 'البلاتين الصافي (Pt)', symbol: 'Pt', price: 3500, buyable: false, state: '✨ معدن نفيس', desc: 'عنصر البلاتين النادر المستخرج عبر تحلیل كهرومغناطيسي.' },
         benzene: { name: 'مركب البنزين العطري (C6H6)', symbol: 'C6H6', price: 1200, buyable: false, state: '💧 سائل', desc: 'مركب عضوي حلقي أساسي في الصناعات المتقدمة.' },
         nitroglycerin: { name: 'النيتروجليسرين (C3H5N3O9)', symbol: 'C3H5N3O9', price: 1800, buyable: false, state: '💥 مركب حسّاس', desc: 'مركب عضوي شديد الانفجار وقيمته عالية جداً.' },
         toxic_waste: { name: 'النفايات الكيميائية ☣️', symbol: 'WASTE', price: 0, buyable: false, state: '☣️ نفايات', desc: 'نفايات ضارة تسبب تلف المواد إذا لم يتم تصريفها.' }
@@ -242,16 +242,21 @@ function buildLabHubScreen() {
         .setColor(0x9b59b6)
         .addFields(
             { name: '⚗️ غرفة التفاعلات', value: 'إجراء وتصنيع التفاعلات المفتوحة لديك.' },
-            { name: '🧪 الخلط العشوائي', value: 'دمج المواد عشوائياً لاكتشاف مركبات سرية جديدة!' }
+            { name: '🧪 الخلط العشوائي', value: 'دمج المواد عشوائياً لاكتشاف مركبات سرية جديدة!' },
+            { name: '☣️ النفايات البيئية', value: 'معالجة وتصنيع أو تنظيف النفايات الكيميائية.' }
         );
 
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('btn_open_reactions').setLabel('غرفة التفاعلات').setEmoji('⚗️').setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId('btn_open_secret_mix').setLabel('خلط عشوائي').setEmoji('🧪').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('btn_open_hazards').setLabel('النفايات البيئية').setEmoji('☣️').setStyle(ButtonStyle.Danger)
+    );
+
+    const backRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('btn_back_main').setLabel('↩️ الرئيسية').setStyle(ButtonStyle.Danger)
     );
 
-    return { embeds: [embed], components: [row] };
+    return { embeds: [embed], components: [row, backRow] };
 }
 
 function buildMoreMenu(user, player) {
@@ -265,7 +270,6 @@ function buildMoreMenu(user, player) {
             { name: '📈 البورصة والسوق', value: 'تداول العروض والاستثمار المباشر.', inline: true },
             { name: '📄 الأوراق البحثية', value: 'تقديم الأبحاث لكسب السمعة الأكاديمية.', inline: true },
             { name: '⚔️ تحدي الرموز', value: 'تحدي كيميائي سريع ضد لاعب آخر.', inline: true },
-            { name: '☣️ إدارة النفايات', value: 'تنظيف وتدوير النفايات الكيميائية.', inline: true },
             { name: '🎁 نظام الإهداء', value: 'إرسال Valence أو المواد للأصدقاء.', inline: true },
             { name: '📋 المهام اليومية', value: 'أهداف متجددة ورصيد مكافآت.', inline: true },
             { name: '🎒 المستودع والموسوعة', value: 'استعراض مخزونك والمركبات المكتشفة.', inline: true }
@@ -280,7 +284,6 @@ function buildMoreMenu(user, player) {
 
     const row2 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('btn_open_duels').setLabel('تحدي الرموز').setEmoji('⚔️').setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId('btn_open_hazards').setLabel('النفايات البيئية').setEmoji('☣️').setStyle(ButtonStyle.Danger),
         new ButtonBuilder().setCustomId('btn_open_gift').setLabel('إهداء لاعب').setEmoji('🎁').setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId('btn_open_quest').setLabel('المهام').setEmoji('📋').setStyle(ButtonStyle.Primary)
     );
@@ -972,13 +975,13 @@ async function handleLabSession(context, user) {
         if (i.customId === 'btn_open_hazards') {
             const wasteQty = player.inv['toxic_waste'] || 0;
             const wasteEmbed = new EmbedBuilder()
-                .setTitle('☣️ نظام السلامة وإدارة النفايات')
+                .setTitle('☣️ نظام السلامة وإدارة النفايات البيئية')
                 .setDescription(`كمية النفايات الكيميائية في مستودعك: **${wasteQty} وحدة**`)
                 .setColor(0x9b59b6);
 
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('btn_clean_waste').setLabel('🧹 تصريف النفايات (100V)').setStyle(ButtonStyle.Primary),
-                backMoreBtnRow.components[0]
+                new ButtonBuilder().setCustomId('btn_open_lab_hub').setLabel('↩️ المعمل').setStyle(ButtonStyle.Danger)
             );
 
             return await updateScreen({ embeds: [wasteEmbed], components: [row] });
@@ -990,7 +993,7 @@ async function handleLabSession(context, user) {
             player.inv['toxic_waste'] = 0;
             updatePlayerData(user.id, player);
             await notifyOnly('✅ تم تنظيف المستودع وتصريف النفايات بنجاح!');
-            return await i.message.edit(buildMoreMenu(user, player));
+            return await i.message.edit(buildLabHubScreen());
         }
 
         // ==========================================
