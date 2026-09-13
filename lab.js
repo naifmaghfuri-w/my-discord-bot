@@ -264,7 +264,6 @@ function buildMoreMenu(user, player) {
     return { embeds: [embed], components: [row1, row2, row3] };
 }
 
-// 📜 شاشة المستويات الكيميائية مع إضافة زر الإدخال السريع
 function buildLevelScreen(player, index) {
     const reaction = labData.reactions[index];
     const isUnlocked = player.unlockedReactions.includes(reaction.id);
@@ -458,7 +457,6 @@ function buildReactionsScreen(player, index) {
     return { embeds: [embed], components: [navRow] };
 }
 
-// 📘 شاشة الموسوعة المقسمة إلى صفحات متعددة
 function buildCodexScreen(player, page = 0) {
     const discovered = player.codex || [];
     const itemKeys = Object.keys(labData.items);
@@ -637,7 +635,7 @@ async function handleLabSession(context, user) {
             return await updateScreen({ embeds: [invEmbed], components: [backMoreBtnRow] });
         }
 
-        // 📘 الموسوعة التنقل بين الصفحات
+        // Codex Page Nav
         if (i.customId === 'btn_open_codex') {
             codexPage = 0;
             return await updateScreen(buildCodexScreen(player, codexPage));
@@ -761,13 +759,82 @@ async function handleLabSession(context, user) {
             return await i.message.edit(buildMoreMenu(user, player));
         }
 
+        // ==========================================
+        // 🎁 نظام الإهداء التفاعلي عبر الـ Modal
+        // ==========================================
         if (i.customId === 'btn_open_gift') {
             const giftEmbed = new EmbedBuilder()
                 .setTitle('🎁 نظام إهداء الأصدقاء')
-                .setDescription('يمكنك إهداء رصيد Valence أو المواد والمركبات الكيميائية من مستودعك لأي عضو في السيرفر.')
-                .setColor(0xf39c12);
+                .setDescription('يمكنك تحويل رصيد Valence مباشرة لأي لاعب عبر معرف ديسكورد (ID) أو المنشن.')
+                .setColor(0xf39c12)
+                .addFields(
+                    { name: '💰 رصيدك الحالي', value: `\`${player.coins} Valence🪙\`` }
+                );
 
-            return await updateScreen({ embeds: [giftEmbed], components: [backMoreBtnRow] });
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('btn_gift_coins_modal').setLabel('إهداء Valence 🪙').setStyle(ButtonStyle.Success),
+                backMoreBtnRow.components[0]
+            );
+
+            return await updateScreen({ embeds: [giftEmbed], components: [row] });
+        }
+
+        if (i.customId === 'btn_gift_coins_modal') {
+            const modal = new ModalBuilder()
+                .setCustomId('modal_gift_coins')
+                .setTitle('🎁 إهداء Valence لصديق');
+
+            const targetInput = new TextInputBuilder()
+                .setCustomId('input_target_user')
+                .setLabel('ID العضو أو المنشن')
+                .setStyle(TextInputStyle.Short)
+                .setPlaceholder('مثال: 123456789012345678')
+                .setRequired(true);
+
+            const amountInput = new TextInputBuilder()
+                .setCustomId('input_gift_amount')
+                .setLabel('المبلغ المراد إهداؤه')
+                .setStyle(TextInputStyle.Short)
+                .setPlaceholder('مثال: 100')
+                .setRequired(true);
+
+            modal.addComponents(
+                new ActionRowBuilder().addComponents(targetInput),
+                new ActionRowBuilder().addComponents(amountInput)
+            );
+
+            await i.showModal(modal);
+
+            try {
+                const submitted = await i.awaitModalSubmit({ time: 30000, filter: sub => sub.user.id === user.id });
+                const targetIdRaw = submitted.fields.getTextInputValue('input_target_user').replace(/[<@!>]/g, '').trim();
+                const amount = parseInt(submitted.fields.getTextInputValue('input_gift_amount'));
+
+                if (isNaN(amount) || amount <= 0) {
+                    return await submitted.reply({ content: '❌ يرجى كتابة مبلغ صحيح أكبر من الصفر!', flags: MessageFlags.Ephemeral });
+                }
+
+                if (player.coins < amount) {
+                    return await submitted.reply({ content: `❌ رصيدك غير كافٍ! تملك حالياً \`${player.coins}\` Valence فقط.`, flags: MessageFlags.Ephemeral });
+                }
+
+                if (targetIdRaw === user.id) {
+                    return await submitted.reply({ content: '❌ لا يمكنك إهداء نفسك!', flags: MessageFlags.Ephemeral });
+                }
+
+                let targetPlayer = getPlayerData(targetIdRaw);
+                player.coins -= amount;
+                targetPlayer.coins = (targetPlayer.coins || 0) + amount;
+
+                updatePlayerData(user.id, player);
+                updatePlayerData(targetIdRaw, targetPlayer);
+
+                await submitted.deferUpdate();
+                await notifyOnly(`🎁 **تم إهداء ${amount} Valence بنجاح إلى <@${targetIdRaw}>!**`);
+                return await i.message.edit(buildMainMenu(user, player));
+            } catch (err) {
+                return;
+            }
         }
 
         if (i.customId === 'btn_open_secret_mix') {
@@ -805,7 +872,7 @@ async function handleLabSession(context, user) {
             return await i.message.edit(buildMainMenu(user, player));
         }
 
-        // 📜 المستويات والتنقل المباشر
+        // Level Nav
         if (i.customId === 'btn_open_levels') {
             lvlIndex = 0;
             return await updateScreen(buildLevelScreen(player, lvlIndex));
@@ -819,7 +886,6 @@ async function handleLabSession(context, user) {
             return await updateScreen(buildLevelScreen(player, lvlIndex));
         }
 
-        // Modal للانتقال السريع لرقم المستوى
         if (i.customId === 'btn_jump_to_level') {
             const modal = new ModalBuilder()
                 .setCustomId('modal_jump_level')
@@ -832,9 +898,7 @@ async function handleLabSession(context, user) {
                 .setPlaceholder('مثال: 5')
                 .setRequired(true);
 
-            const modalRow = new ActionRowBuilder().addComponents(levelInput);
-            modal.addComponents(modalRow);
-
+            modal.addComponents(new ActionRowBuilder().addComponents(levelInput));
             await i.showModal(modal);
 
             try {
@@ -868,7 +932,7 @@ async function handleLabSession(context, user) {
             }
         }
 
-        // Shop
+        // Shop Nav
         if (i.customId === 'btn_open_shop') {
             shopIndex = 0;
             return await updateScreen(buildShopScreen(player, shopIndex));
@@ -917,7 +981,7 @@ async function handleLabSession(context, user) {
             return await i.message.edit(buildShopScreen(player, shopIndex));
         }
 
-        // Reactions & Calibration
+        // Reaction & Calibration Nav
         if (i.customId === 'btn_open_reactions') {
             reactIndex = 0;
             return await updateScreen(buildReactionsScreen(player, reactIndex));
@@ -955,7 +1019,6 @@ async function handleLabSession(context, user) {
             return await updateScreen(buildCalibScreen(selectedReaction, tempIndex, pressIndex));
         }
 
-        // --- 🧪 بدء التفاعل الكيميائي ---
         if (i.customId === 'btn_start_reaction') {
             const reaction = selectedReaction;
 
