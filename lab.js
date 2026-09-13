@@ -113,11 +113,11 @@ function ensureDataFile() {
 }
 
 function getMarketPrices() {
-    const minuteSeed = Math.floor(Date.now() / 300000); // يتغير السعر كل 5 دقائق
+    const minuteSeed = Math.floor(Date.now() / 300000);
     let prices = {};
     Object.entries(labData.items).forEach(([id, item]) => {
         if (item.price > 0) {
-            const factor = 0.7 + (Math.abs(Math.sin(minuteSeed + id.length)) * 0.6); // تذبذب بين -30% إلى +30%
+            const factor = 0.7 + (Math.abs(Math.sin(minuteSeed + id.length)) * 0.6);
             prices[id] = Math.round(item.price * factor);
         }
     });
@@ -223,17 +223,35 @@ function buildMainMenu(user, player) {
     }
 
     const row1 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('btn_open_reactions').setLabel('غرفة التفاعلات').setEmoji('⚗️').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('btn_open_lab_hub').setLabel('معمل').setEmoji('🧪').setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId('btn_open_shop').setLabel('المتجر').setEmoji('🛒').setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId('btn_sell_all').setLabel('بيع النواتج').setEmoji('💵').setStyle(ButtonStyle.Danger)
     );
 
     const row2 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('btn_open_secret_mix').setLabel('خلط عشوائي 🧪').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('btn_open_more_menu').setLabel('القائمة الإضافية 📂').setStyle(ButtonStyle.Secondary)
     );
 
     return { embeds: [embed], components: [row1, row2] };
+}
+
+function buildLabHubScreen() {
+    const embed = new EmbedBuilder()
+        .setTitle('🧪 المعمل الكيميائي')
+        .setDescription('اختر القسم الذي تريد الانتقال إليه داخل المعمل:')
+        .setColor(0x9b59b6)
+        .addFields(
+            { name: '⚗️ غرفة التفاعلات', value: 'إجراء وتصنيع التفاعلات المفتوحة لديك.' },
+            { name: '🧪 الخلط العشوائي', value: 'دمج المواد عشوائياً لاكتشاف مركبات سرية جديدة!' }
+        );
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('btn_open_reactions').setLabel('غرفة التفاعلات').setEmoji('⚗️').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('btn_open_secret_mix').setLabel('خلط عشوائي').setEmoji('🧪').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('btn_back_main').setLabel('↩️ الرئيسية').setStyle(ButtonStyle.Danger)
+    );
+
+    return { embeds: [embed], components: [row] };
 }
 
 function buildMoreMenu(user, player) {
@@ -419,7 +437,7 @@ function buildCalibScreen(reaction, tempIndex, pressIndex) {
 
     const actionRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('btn_start_reaction').setLabel('🚀 بدء التفاعل').setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId('btn_open_reactions').setLabel('↩️ إلغاء').setStyle(ButtonStyle.Danger)
+        new ButtonBuilder().setCustomId('btn_open_lab_hub').setLabel('↩️ إلغاء').setStyle(ButtonStyle.Danger)
     );
 
     return { embeds: [embed], components: [tempRow, pressRow, actionRow] };
@@ -436,7 +454,7 @@ function buildReactionsScreen(player, index) {
 
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('btn_open_levels').setLabel('فتح القدرات').setStyle(ButtonStyle.Primary),
-            new ButtonBuilder().setCustomId('btn_back_main').setLabel('↩️ الرئيسية').setStyle(ButtonStyle.Secondary)
+            new ButtonBuilder().setCustomId('btn_open_lab_hub').setLabel('↩️ المعمل').setStyle(ButtonStyle.Secondary)
         );
         return { embeds: [emptyEmbed], components: [row] };
     }
@@ -463,7 +481,7 @@ function buildReactionsScreen(player, index) {
         new ButtonBuilder().setCustomId('btn_react_prev').setLabel('⬅️ السابق').setStyle(ButtonStyle.Secondary).setDisabled(index === 0),
         new ButtonBuilder().setCustomId(`btn_select_calib_${reaction.id}`).setLabel('🎛️ بدء المعايرة').setStyle(ButtonStyle.Success).setDisabled(!equipOwned),
         new ButtonBuilder().setCustomId('btn_react_next').setLabel('التالي ➡️').setStyle(ButtonStyle.Secondary).setDisabled(index === unlockedList.length - 1),
-        new ButtonBuilder().setCustomId('btn_back_main').setLabel('↩️ الرئيسية').setStyle(ButtonStyle.Danger)
+        new ButtonBuilder().setCustomId('btn_open_lab_hub').setLabel('↩️ المعمل').setStyle(ButtonStyle.Danger)
     );
 
     return { embeds: [embed], components: [navRow] };
@@ -632,6 +650,7 @@ async function handleLabSession(context, user) {
         // Navigation
         if (i.customId === 'btn_back_main') return await updateScreen(buildMainMenu(user, player));
         if (i.customId === 'btn_open_more_menu') return await updateScreen(buildMoreMenu(user, player));
+        if (i.customId === 'btn_open_lab_hub') return await updateScreen(buildLabHubScreen());
 
         // Sections
         if (i.customId === 'btn_open_inv') {
@@ -838,7 +857,7 @@ async function handleLabSession(context, user) {
             player.inv['nitroglycerin'] -= 1;
             player.academicReputation = (player.academicReputation || 0) + 50;
             updatePlayerData(user.id, player);
-            await notifyOnly('🎉 تم نشر الورقة البحثية بنجاح!حصلت على **+50 نقطة سمعة أكاديمية**.');
+            await notifyOnly('🎉 تم نشر الورقة البحثية بنجاح! حصلت على **+50 نقطة سمعة أكاديمية**.');
             return await i.message.edit(buildMoreMenu(user, player));
         }
 
