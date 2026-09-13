@@ -241,12 +241,14 @@ function buildLabHubScreen() {
         .setDescription('اختر القسم الذي تريد الانتقال إليه داخل المعمل:')
         .setColor(0x9b59b6)
         .addFields(
+            { name: '🎒 المستودع', value: 'استعراض المواد والعناصر الموجودة في مخزونك.' },
             { name: '⚗️ غرفة التفاعلات', value: 'إجراء وتصنيع التفاعلات المفتوحة لديك.' },
             { name: '🧪 الخلط العشوائي', value: 'دمج المواد عشوائياً لاكتشاف مركبات سرية جديدة!' },
             { name: '☣️ النفايات البيئية', value: 'معالجة وتصنيع أو تنظيف النفايات الكيميائية.' }
         );
 
     const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('btn_open_inv').setLabel('المستودع').setEmoji('🎒').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('btn_open_reactions').setLabel('غرفة التفاعلات').setEmoji('⚗️').setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId('btn_open_secret_mix').setLabel('خلط عشوائي').setEmoji('🧪').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('btn_open_hazards').setLabel('النفايات البيئية').setEmoji('☣️').setStyle(ButtonStyle.Danger)
@@ -272,7 +274,7 @@ function buildMoreMenu(user, player) {
             { name: '⚔️ تحدي الرموز', value: 'تحدي كيميائي سريع ضد لاعب آخر.', inline: true },
             { name: '🎁 نظام الإهداء', value: 'إرسال Valence أو المواد للأصدقاء.', inline: true },
             { name: '📋 المهام اليومية', value: 'أهداف متجددة ورصيد مكافآت.', inline: true },
-            { name: '🎒 المستودع والموسوعة', value: 'استعراض مخزونك والمركبات المكتشفة.', inline: true }
+            { name: '📘 الموسوعة الكيميائية', value: 'استعراض المركبات والعناصر المكتشفة.', inline: true }
         );
 
     const row1 = new ActionRowBuilder().addComponents(
@@ -289,7 +291,6 @@ function buildMoreMenu(user, player) {
     );
 
     const row3 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('btn_open_inv').setLabel('المستودع').setEmoji('🎒').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('btn_open_codex').setLabel('الموسوعة').setEmoji('📘').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('btn_back_main').setLabel('↩️ الرجوع للرئيسية').setStyle(ButtonStyle.Danger)
     );
@@ -634,6 +635,10 @@ async function handleLabSession(context, user) {
             new ButtonBuilder().setCustomId('btn_open_more_menu').setLabel('الرجوع للقائمة الإضافية ↩️').setStyle(ButtonStyle.Secondary)
         );
 
+        const backLabHubRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('btn_open_lab_hub').setLabel('↩️ المعمل').setStyle(ButtonStyle.Danger)
+        );
+
         const updateScreen = async (data) => {
             if (!i.replied && !i.deferred) {
                 await i.update(data).catch(() => {});
@@ -666,7 +671,7 @@ async function handleLabSession(context, user) {
                 .setDescription(invList)
                 .setColor(0x3498db);
 
-            return await updateScreen({ embeds: [invEmbed], components: [backMoreBtnRow] });
+            return await updateScreen({ embeds: [invEmbed], components: [backLabHubRow] });
         }
 
         // Codex Page Nav
