@@ -209,8 +209,8 @@ function buildMainMenu(user, player) {
         .setColor(0x2ecc71)
         .addFields(
             { name: '\u200B', value: `\`Level.${player.level}/25\``, inline: true },
-            { name: '✨ الخبرة', value: `\`${player.xp} / ${player.level * 100} XP\``, inline: true },
-            { name: ' ', value: `\`${player.abilityPoints} AP\``, inline: true },
+            { name: '', value: `\`${player.xp} / ${player.level * 100} XP\``, inline: true },
+            { name: ' ', value: `\`${player.abilityPoints} ``\AP, inline: true },
             { name: '💰 Valence', value: `\`${player.coins} 🪙\``, inline: true },
             { name: '📜 السمعة الأكاديمية', value: `\`${player.academicReputation || 0} pts\``, inline: true },
             { name: '📘 الموسوعة', value: `\`${player.codex.length} / ${Object.keys(labData.items).length}\``, inline: true }
