@@ -3,7 +3,8 @@ const {
     EmbedBuilder, 
     ActionRowBuilder, 
     ButtonBuilder, 
-    ButtonStyle 
+    ButtonStyle,
+    MessageFlags
 } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
@@ -584,7 +585,7 @@ async function handleLabSession(context, user) {
 
     collector.on('collect', async i => {
         if (i.user.id !== user.id) {
-            return i.reply({ content: '❌ هذه اللوحة غير مخصصة لك!', ephemeral: true }).catch(() => {});
+            return i.reply({ content: '❌ هذه اللوحة غير مخصصة لك!', flags: MessageFlags.Ephemeral }).catch(() => {});
         }
 
         player = getPlayerData(user.id);
@@ -602,9 +603,9 @@ async function handleLabSession(context, user) {
 
         const sendReply = async (contentStr) => {
             if (!i.replied && !i.deferred) {
-                await i.reply({ content: contentStr, ephemeral: true }).catch(() => {});
+                await i.reply({ content: contentStr, flags: MessageFlags.Ephemeral }).catch(() => {});
             } else {
-                await i.followUp({ content: contentStr, ephemeral: true }).catch(() => {});
+                await i.followUp({ content: contentStr, flags: MessageFlags.Ephemeral }).catch(() => {});
             }
         };
 
@@ -893,6 +894,7 @@ async function handleLabSession(context, user) {
             return await updateScreen(buildCalibScreen(selectedReaction, tempIndex, pressIndex));
         }
 
+        // --- 🧪 بدء التفاعل الكيميائي ---
         if (i.customId === 'btn_start_reaction') {
             const reaction = selectedReaction;
 
@@ -938,8 +940,11 @@ async function handleLabSession(context, user) {
                 }
             }, duration * 1000);
 
-            await sendReply(`🚀 **بدأ تفاعل (${reaction.name})! سينتهي بعد ${duration} ثانية.**`);
-            return await updateScreen(buildMainMenu(user, player));
+            // 1. إرسال تنبيه مخفي بسيط بدون القائمة الرئيسية
+            await i.reply({ content: `🚀 **بدأ تفاعل (${reaction.name})! سينتهي بعد ${duration} ثانية.**`, flags: MessageFlags.Ephemeral });
+
+            // 2. تحديث الواجهة خلف التكست فوراً للقائمة الرئيسية المحدثة
+            return await i.message.edit(buildMainMenu(user, player));
         }
 
         // Quests & Sales
