@@ -24,7 +24,7 @@ const labData = {
         cu: { name: 'النحاس (Cu)', price: 50, buyable: true, state: '🪨 صلب' },
         hno3: { name: 'حمض النيتريك (HNO3)', price: 75, buyable: true, state: '💧 سائل', shelfLife: 3600 },
 
-        // --- مواد أولية جديدة (تحديث v1.4: المستويات 6 - 15) ---
+        // --- مواد أولية (المستويات 6 - 15) ---
         hno3_dilute: { name: 'حمض النيتريك المخفف (HNO3)', price: 50, buyable: true, state: '💧 سائل', shelfLife: 4800, reqLevel: 6 },
         zn: { name: 'مسحوق الزنك (Zn)', price: 65, buyable: true, state: '🪨 مسحوق', reqLevel: 7 },
         nh3: { name: 'محلول الأمونيا (NH3)', price: 80, buyable: true, state: '💧 سائل', shelfLife: 3600, reqLevel: 8 },
@@ -34,12 +34,12 @@ const labData = {
         ch3cooh: { name: 'حمض الاستيك (CH3COOH)', price: 200, buyable: true, state: '💧 سائل', shelfLife: 5400, reqLevel: 12 },
         oxalic: { name: 'حمض الأوكزاليك (C2H2O4)', price: 280, buyable: true, state: '🪨 صلب', reqLevel: 14 },
 
-        // --- مواد ومعادن v1.5 الجديدة (المستويات 16 - 25) ---
+        // --- مواد v1.5 (المستويات 16 - 25) ---
         au_ore: { name: 'خام الذهب (Au Ore)', price: 500, buyable: true, state: '🪨 خام', reqLevel: 16 },
         pt_ore: { name: 'خام البلاتين (Pt Ore)', price: 750, buyable: true, state: '🪨 خام', reqLevel: 18 },
         benzene_raw: { name: 'قطران الفحم (مصدر البنزين)', price: 350, buyable: true, state: '💧 سائل', reqLevel: 17 },
 
-        // --- النواتج القابلة للبيع (المستويات 1 - 15) ---
+        // --- النواتج ---
         nacl: { name: 'ملح الطعام (NaCl)', price: 50, buyable: false, state: '🪨 صلب', desc: 'مركب أيوني ناتج من تفاعل الصوديوم والكلور.' },
         cao: { name: 'الجير الحي (CaO)', price: 80, buyable: false, state: '🪨 صلب', desc: 'ينتج عن التفكك الحراري لحجر الجير.' },
         co2: { name: 'ثاني أكسيد الكربون (CO2)', price: 40, buyable: false, state: '💨 غاز', desc: 'غاز ينطلق كناتج ثانوي.' },
@@ -56,8 +56,6 @@ const labData = {
         ethyl_acetate: { name: 'إيثيل أسيتات', price: 680, buyable: false, state: '💧 سائل', desc: 'مذيب عضوي عطري ذو استخدامات صناعية واسعة.' },
         dry_precipitate: { name: 'مسحوق جاف فائق النقاء', price: 1100, buyable: false, state: '🪨 مسحوق', desc: 'ناتج تجفيف المترسبات المعقدة في الفرن الزجاجي.' },
         secret_compound: { name: 'المركب السري النادر ✨', price: 2500, buyable: false, state: '✨ طاقة', desc: 'اكتشاف نادر جداً ناتج عن الخلط العشوائي للمواد.' },
-
-        // --- نواتج v1.5 المتقدمة (المستويات 16 - 25) ---
         pure_gold: { name: 'الذهب النقي (Au)', price: 2200, buyable: false, state: '✨ معدن نفيس', desc: 'سبائك ذهب عالية النقاوة مستخلصة كيميائياً.' },
         pure_platinum: { name: 'البلاتين الصافي (Pt)', price: 3500, buyable: false, state: '✨ معدن نفيس', desc: 'عنصر البلاتين النادر المستخرج عبر تحليل كهرومغناطيسي.' },
         benzene: { name: 'مركب البنزين العطري (C6H6)', price: 1200, buyable: false, state: '💧 سائل', desc: 'مركب عضوي حلقي أساسي في الصناعات المتقدمة.' },
@@ -104,8 +102,6 @@ const labData = {
         { id: 'r_neutral_salt', name: '⚖️ معايرة حمض وقاعدة (تفاعل تعادل)', tool: 'burette', reqLevel: 11, costAbility: 6, req: { hno3_dilute: 1, naoh: 1 }, targetTemp: 25, targetPress: 1, timeSec: 20, yield: { salt_neutral: 1 }, xp: 170 },
         { id: 'r_ethyl_acetate', name: '🌸 تصنيع الإيثيل أسيتات العطري', tool: 'water_bath', reqLevel: 12, costAbility: 6, req: { ethanol: 1, ch3cooh: 1 }, targetTemp: 110, targetPress: 2, timeSec: 28, yield: { ethyl_acetate: 1 }, xp: 200 },
         { id: 'r_dry_powder', name: '🔥 تجفيف المترسبات الصلبة', tool: 'drying_oven', reqLevel: 15, costAbility: 7, req: { oxalic: 1, zn: 1 }, targetTemp: 500, targetPress: 3, timeSec: 35, yield: { dry_precipitate: 1, toxic_waste: 1 }, xp: 280 },
-        
-        // --- تفاعلات جديدة v1.5 (المستويات 16 - 25) ---
         { id: 'r_gold_refine', name: '✨ استخلاص الذهب النقي (Au)', tool: 'furnace', reqLevel: 16, costAbility: 8, req: { au_ore: 2, hno3: 1 }, targetTemp: 900, targetPress: 2, timeSec: 40, yield: { pure_gold: 1, toxic_waste: 1 }, xp: 350 },
         { id: 'r_benzene_synth', name: '🧪 تقطير مركب البنزين (C6H6)', tool: 'distil_setup', reqLevel: 17, costAbility: 8, req: { benzene_raw: 2 }, targetTemp: 110, targetPress: 1, timeSec: 30, yield: { benzene: 1 }, xp: 380 },
         { id: 'r_nitroglycerin', name: '💥 تخليق النيتروجليسرين (C3H5N3O9)', tool: 'water_bath', reqLevel: 20, costAbility: 10, req: { hno3: 2, h2so4: 1 }, targetTemp: 25, targetPress: 1, timeSec: 45, yield: { nitroglycerin: 1, toxic_waste: 2 }, xp: 500 }
@@ -185,7 +181,6 @@ function getPlayerData(userId) {
     if (!db[userId].equipmentLevels) db[userId].equipmentLevels = { beaker: 1 };
     if (!db[userId].achievements) db[userId].achievements = { cautious: 0, trader: 0, explorer: false };
     if (!db[userId].unlockedBadges) db[userId].unlockedBadges = [];
-    if (db[userId].academicReputation === undefined) db[userId].academicReputation = 0;
 
     return db[userId];
 }
@@ -198,10 +193,9 @@ function updatePlayerData(userId, data) {
     fs.writeFileSync(dataPath, JSON.stringify(db, null, 2));
 }
 
-// 🌐 1. القائمة الرئيسية
 function buildMainMenu(user, player) {
     const embed = new EmbedBuilder()
-        .setTitle('Lab v1.5')
+        .setTitle('🧪 Lab v1.5 - المختبر الكيميائي')
         .setDescription(`مرحباً بك **${user.username}** 👋`)
         .setColor(0x2ecc71)
         .addFields(
@@ -233,7 +227,6 @@ function buildMainMenu(user, player) {
     return { embeds: [embed], components: [row1, row2] };
 }
 
-// 📂 2. قائمة الفرعيات (More Menu v1.5)
 function buildMoreMenu(user, player) {
     const embed = new EmbedBuilder()
         .setTitle('📂 القائمة الإضافية - v1.5')
@@ -274,7 +267,6 @@ function buildMoreMenu(user, player) {
     return { embeds: [embed], components: [row1, row2, row3] };
 }
 
-// 📜 3. شاشة المستويات
 function buildLevelScreen(player, index) {
     const reaction = labData.reactions[index];
     const isUnlocked = player.unlockedReactions.includes(reaction.id);
@@ -326,7 +318,6 @@ function buildLevelScreen(player, index) {
     return { embeds: [embed], components: [navRow] };
 }
 
-// 🛒 4. شاشة المتجر والأجهزة
 function buildShopScreen(player, index) {
     const shopList = [
         ...Object.entries(labData.items).filter(([_, item]) => item.buyable && (item.reqLevel || 1) <= player.level).map(([id, item]) => ({ type: 'item', id, ...item })),
@@ -383,7 +374,6 @@ function buildShopScreen(player, index) {
     return { embeds: [embed], components: [navRow] };
 }
 
-// 🎛️ 5. شاشة المعايرة
 function buildCalibScreen(reaction, tempIndex, pressIndex) {
     const currentTemp = TEMP_STEPS[tempIndex];
     const currentPress = PRESS_STEPS[pressIndex];
@@ -422,7 +412,6 @@ function buildCalibScreen(reaction, tempIndex, pressIndex) {
     return { embeds: [embed], components: [tempRow, pressRow, actionRow] };
 }
 
-// ⚗️ 6. شاشة غرفة التفاعلات
 function buildReactionsScreen(player, index) {
     const unlockedList = labData.reactions.filter(r => player.unlockedReactions.includes(r.id));
 
@@ -467,7 +456,6 @@ function buildReactionsScreen(player, index) {
     return { embeds: [embed], components: [navRow] };
 }
 
-// 📘 7. شاشة الموسوعة
 function buildCodexScreen(player) {
     const discovered = player.codex || [];
     let codexList = '';
@@ -494,7 +482,6 @@ function buildCodexScreen(player) {
     return { embeds: [embed], components: [row] };
 }
 
-// ⚙️ 8. شاشة ترقية المعدات
 function buildEquipUpgradeScreen(player) {
     let equipList = '';
     const owned = player.ownedEquipment || {};
@@ -521,7 +508,6 @@ function buildEquipUpgradeScreen(player) {
     return { embeds: [embed], components: [row] };
 }
 
-// 🎖️ 9. شاشة الإنجازات
 function buildAchievementsScreen(player) {
     let achList = '';
 
@@ -542,16 +528,11 @@ function buildAchievementsScreen(player) {
     return { embeds: [embed], components: [row] };
 }
 
-// 🧠 10. معالج الجلسة التفاعلي الرئيسي
 async function handleLabSession(context, user) {
     let player = getPlayerData(user.id);
-
-    // معالجة استقرار المواد والتحلل الزمني
     const decayedNames = processItemStabilityAndDecay(player);
-
     const currentNow = Math.floor(Date.now() / 1000);
 
-    // معالجة التفاعلات المكتملة
     if (player.pendingQueue && player.pendingQueue.length > 0) {
         let updatedQueue = [];
         for (const task of player.pendingQueue) {
@@ -592,7 +573,6 @@ async function handleLabSession(context, user) {
         context.channel.send({ content: `⚠️ <@${user.id}> **تنبيه استقرار المواد:** تحللت المواد التالية لانتهاء صلاحيتها في المستودع: (${decayedNames.join(', ')})` }).catch(() => {});
     }
 
-    // حالات التصفح
     let lvlIndex = 0;
     let shopIndex = 0;
     let reactIndex = 0;
@@ -603,25 +583,36 @@ async function handleLabSession(context, user) {
     const collector = responseMsg.createMessageComponentCollector({ time: 300000 });
 
     collector.on('collect', async i => {
-        if (i.user.id !== user.id) return i.reply({ content: '❌ هذه اللوحة غير مخصصة لك!', ephemeral: true });
+        if (i.user.id !== user.id) {
+            return i.reply({ content: '❌ هذه اللوحة غير مخصصة لك!', ephemeral: true }).catch(() => {});
+        }
 
         player = getPlayerData(user.id);
-        const channel = i.channel;
-
         const backMoreBtnRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('btn_open_more_menu').setLabel('الرجوع للقائمة الإضافية ↩️').setStyle(ButtonStyle.Secondary)
         );
 
-        // --- 🏠 Navigation Control ---
-        if (i.customId === 'btn_back_main') {
-            return await i.update(buildMainMenu(user, player));
-        }
+        const updateScreen = async (data) => {
+            if (!i.replied && !i.deferred) {
+                await i.update(data).catch(() => {});
+            } else {
+                await i.editReply(data).catch(() => {});
+            }
+        };
 
-        if (i.customId === 'btn_open_more_menu') {
-            return await i.update(buildMoreMenu(user, player));
-        }
+        const sendReply = async (contentStr) => {
+            if (!i.replied && !i.deferred) {
+                await i.reply({ content: contentStr, ephemeral: true }).catch(() => {});
+            } else {
+                await i.followUp({ content: contentStr, ephemeral: true }).catch(() => {});
+            }
+        };
 
-        // --- 🎒 المستودع ---
+        // Navigation
+        if (i.customId === 'btn_back_main') return await updateScreen(buildMainMenu(user, player));
+        if (i.customId === 'btn_open_more_menu') return await updateScreen(buildMoreMenu(user, player));
+
+        // Sections
         if (i.customId === 'btn_open_inv') {
             const invList = Object.keys(player.inv).length > 0 
                 ? Object.entries(player.inv).map(([id, qty]) => `• **${labData.items[id]?.name || id}**: \`${qty}\``).join('\n')
@@ -632,28 +623,17 @@ async function handleLabSession(context, user) {
                 .setDescription(invList)
                 .setColor(0x3498db);
 
-            return await i.update({ embeds: [invEmbed], components: [backMoreBtnRow] });
+            return await updateScreen({ embeds: [invEmbed], components: [backMoreBtnRow] });
         }
 
-        // --- 📘 الموسوعة الكيميائية ---
-        if (i.customId === 'btn_open_codex') {
-            return await i.update(buildCodexScreen(player));
-        }
+        if (i.customId === 'btn_open_codex') return await updateScreen(buildCodexScreen(player));
+        if (i.customId === 'btn_open_equip_upgrade') return await updateScreen(buildEquipUpgradeScreen(player));
+        if (i.customId === 'btn_open_achievements') return await updateScreen(buildAchievementsScreen(player));
 
-        // --- ⚙️ ترقية المعدات ---
-        if (i.customId === 'btn_open_equip_upgrade') {
-            return await i.update(buildEquipUpgradeScreen(player));
-        }
-
-        // --- 🎖️ الإنجازات والألقاب ---
-        if (i.customId === 'btn_open_achievements') {
-            return await i.update(buildAchievementsScreen(player));
-        }
-
-        // --- 🏭 1. الورشة الآلية (v1.5) ---
+        // Automation
         if (i.customId === 'btn_open_automation') {
             if (player.level < 20) {
-                return await i.reply({ content: '🔒 يتطلب فتح الورشة الآلية الوصول إلى **المستوى 20**!', ephemeral: true });
+                return await sendReply('🔒 يتطلب فتح الورشة الآلية الوصول إلى **المستوى 20**!');
             }
 
             const now = Date.now();
@@ -679,28 +659,25 @@ async function handleLabSession(context, user) {
                 new ButtonBuilder().setCustomId('btn_open_more_menu').setLabel('↩️ قائمة الفرعيات').setStyle(ButtonStyle.Danger)
             );
 
-            return await i.update({ embeds: [autoEmbed], components: [row] });
+            return await updateScreen({ embeds: [autoEmbed], components: [row] });
         }
 
-        // معالجة زر ضبط الإنتاج للورشة الآلية
         if (i.customId === 'btn_set_auto_gold' || i.customId === 'btn_set_auto_benzene') {
             player.automatedProduct = i.customId === 'btn_set_auto_gold' ? 'pure_gold' : 'benzene';
             player.lastAutoClaim = Date.now();
             updatePlayerData(user.id, player);
-            return await i.reply({ content: `⚙️ تم ضبط الورشة لإنتاج **${labData.items[player.automatedProduct].name}** بنجاح!`, ephemeral: true });
+            return await sendReply(`⚙️ تم ضبط الورشة لإنتاج **${labData.items[player.automatedProduct].name}** بنجاح!`);
         }
 
-        // --- 📈 2. البورصة والسوق (v1.5) ---
         if (i.customId === 'btn_open_market') {
             const marketEmbed = new EmbedBuilder()
                 .setTitle('📈 البورصة وسوق التداول الكيميائي')
                 .setDescription('مؤشرات الأسعار اليومية متقلبة، قم ببيع نواتجك في أوقات الارتفاع لتحقيق أقصى أرباح Valence!')
                 .setColor(0xf1c40f);
 
-            return await i.update({ embeds: [marketEmbed], components: [backMoreBtnRow] });
+            return await updateScreen({ embeds: [marketEmbed], components: [backMoreBtnRow] });
         }
 
-        // --- 📄 3. نشر الأوراق البحثية (v1.5) ---
         if (i.customId === 'btn_open_research') {
             const researchEmbed = new EmbedBuilder()
                 .setTitle('📄 نشر الأوراق البحثية والمجلات العلمية')
@@ -712,30 +689,28 @@ async function handleLabSession(context, user) {
                 backMoreBtnRow.components[0]
             );
 
-            return await i.update({ embeds: [researchEmbed], components: [row] });
+            return await updateScreen({ embeds: [researchEmbed], components: [row] });
         }
 
         if (i.customId === 'btn_submit_paper') {
             if ((player.inv['nitroglycerin'] || 0) < 1) {
-                return await i.reply({ content: '❌ لا تملك مركب **النيتروجليسرين** لنشر هذا البحث!', ephemeral: true });
+                return await sendReply('❌ لا تملك مركب **النيتروجليسرين** لنشر هذا البحث!');
             }
             player.inv['nitroglycerin'] -= 1;
             player.academicReputation = (player.academicReputation || 0) + 50;
             updatePlayerData(user.id, player);
-            return await i.reply({ content: '🎉 تم نشر الورقة البحثية بنجاح! حصلت على **+50 نقطة سمعة أكاديمية**.', ephemeral: true });
+            return await sendReply('🎉 تم نشر الورقة البحثية بنجاح! حصلت على **+50 نقطة سمعة أكاديمية**.');
         }
 
-        // --- ⚔️ 4. تحدي الرموز (v1.5) ---
         if (i.customId === 'btn_open_duels') {
             const duelEmbed = new EmbedBuilder()
                 .setTitle('⚔️ تحدي الرموز الكيميائية السريعة')
                 .setDescription('اختبر سرعتك! اكتب الرموز الصحيحة للعناصر (مثل: صوديوم -> Na | ذهب -> Au) لربح الـ Valence والخبرة.')
                 .setColor(0xe74c3c);
 
-            return await i.update({ embeds: [duelEmbed], components: [backMoreBtnRow] });
+            return await updateScreen({ embeds: [duelEmbed], components: [backMoreBtnRow] });
         }
 
-        // --- ☣️ 5. إدارة النفايات (v1.5) ---
         if (i.customId === 'btn_open_hazards') {
             const wasteQty = player.inv['toxic_waste'] || 0;
             const wasteEmbed = new EmbedBuilder()
@@ -748,32 +723,30 @@ async function handleLabSession(context, user) {
                 backMoreBtnRow.components[0]
             );
 
-            return await i.update({ embeds: [wasteEmbed], components: [row] });
+            return await updateScreen({ embeds: [wasteEmbed], components: [row] });
         }
 
         if (i.customId === 'btn_clean_waste') {
-            if (player.coins < 100) return await i.reply({ content: '❌ لا تملك Valence كافي!', ephemeral: true });
+            if (player.coins < 100) return await sendReply('❌ لا تملك Valence كافي!');
             player.coins -= 100;
             player.inv['toxic_waste'] = 0;
             updatePlayerData(user.id, player);
-            return await i.reply({ content: '✅ تم تنظيف المستودع وتصريف النفايات بنجاح!', ephemeral: true });
+            return await sendReply('✅ تم تنظيف المستودع وتصريف النفايات بنجاح!');
         }
 
-        // --- 🎁 6. نظام الإهداء (v1.5) ---
         if (i.customId === 'btn_open_gift') {
             const giftEmbed = new EmbedBuilder()
                 .setTitle('🎁 نظام إهداء الأصدقاء')
                 .setDescription('يمكنك إهداء رصيد Valence أو المواد والمركبات الكيميائية من مستودعك لأي عضو في السيرفر.')
                 .setColor(0xf39c12);
 
-            return await i.update({ embeds: [giftEmbed], components: [backMoreBtnRow] });
+            return await updateScreen({ embeds: [giftEmbed], components: [backMoreBtnRow] });
         }
 
-        // --- 🧪 الخلط العشوائي والتفاعلات السرية ---
         if (i.customId === 'btn_open_secret_mix') {
             const userMaterials = Object.keys(player.inv);
             if (userMaterials.length < 2) {
-                return await i.reply({ content: '❌ تحتاج إلى مادتين كيميائيتين على الأقل في مستودعك لإجراء خلط عشوائي!', ephemeral: true });
+                return await sendReply('❌ تحتاج إلى مادتين كيميائيتين على الأقل في مستودعك لإجراء خلط عشوائي!');
             }
 
             const mat1 = userMaterials[0];
@@ -792,32 +765,31 @@ async function handleLabSession(context, user) {
                 }
                 player.xp += 200;
                 updatePlayerData(user.id, player);
-
-                await i.reply({ content: '✨ **نجاح مبهر! قمت باكتشاف (المركب السري النادر ✨) عبر الخلط العشوائي!**', ephemeral: true });
+                await sendReply('✨ **نجاح مبهر! قمت باكتشاف (المركب السري النادر ✨) عبر الخلط العشوائي!**');
             } else {
                 if (!player.upgrades.shield) {
                     updatePlayerData(user.id, player);
-                    await i.reply({ content: '💥 **حدث انفجار كيميائي غير متوقع أثناء الخلط العشوائي! خسرت المواد.**', ephemeral: true });
+                    await sendReply('💥 **حدث انفجار كيميائي غير متوقع أثناء الخلط العشوائي! خسرت المواد.**');
                 } else {
                     updatePlayerData(user.id, player);
-                    await i.reply({ content: '🛡️ **فشل التفاعل العشوائي ولكن درع الحماية منع أضرار الانفجار!**', ephemeral: true });
+                    await sendReply('🛡️ **فشل التفاعل العشوائي ولكن درع الحماية منع أضرار الانفجار!**');
                 }
             }
-            return await i.message.edit(buildMainMenu(user, player));
+            return await updateScreen(buildMainMenu(user, player));
         }
 
-        // --- 📜 القدرات والمستويات ---
+        // Levels
         if (i.customId === 'btn_open_levels') {
             lvlIndex = 0;
-            return await i.update(buildLevelScreen(player, lvlIndex));
+            return await updateScreen(buildLevelScreen(player, lvlIndex));
         }
         if (i.customId === 'btn_lvl_prev') {
             lvlIndex--;
-            return await i.update(buildLevelScreen(player, lvlIndex));
+            return await updateScreen(buildLevelScreen(player, lvlIndex));
         }
         if (i.customId === 'btn_lvl_next') {
             lvlIndex++;
-            return await i.update(buildLevelScreen(player, lvlIndex));
+            return await updateScreen(buildLevelScreen(player, lvlIndex));
         }
         if (i.customId.startsWith('btn_unlock_reaction_')) {
             const rId = i.customId.replace('btn_unlock_reaction_', '');
@@ -827,25 +799,25 @@ async function handleLabSession(context, user) {
                 player.abilityPoints -= reaction.costAbility;
                 player.unlockedReactions.push(reaction.id);
                 updatePlayerData(user.id, player);
-                await i.reply({ content: `✅ **تم فتح (${reaction.name}) بنجاح!**`, ephemeral: true });
-                return await i.message.edit(buildLevelScreen(player, lvlIndex));
+                await sendReply(`✅ **تم فتح (${reaction.name}) بنجاح!**`);
+                return await updateScreen(buildLevelScreen(player, lvlIndex));
             } else {
-                return await i.reply({ content: '❌ لا تملك نقاط قدرة كافية!', ephemeral: true });
+                return await sendReply('❌ لا تملك نقاط قدرة كافية!');
             }
         }
 
-        // --- 🛒 المتجر والترقيات والأجهزة ---
+        // Shop
         if (i.customId === 'btn_open_shop') {
             shopIndex = 0;
-            return await i.update(buildShopScreen(player, shopIndex));
+            return await updateScreen(buildShopScreen(player, shopIndex));
         }
         if (i.customId === 'btn_shop_prev') {
             shopIndex--;
-            return await i.update(buildShopScreen(player, shopIndex));
+            return await updateScreen(buildShopScreen(player, shopIndex));
         }
         if (i.customId === 'btn_shop_next') {
             shopIndex++;
-            return await i.update(buildShopScreen(player, shopIndex));
+            return await updateScreen(buildShopScreen(player, shopIndex));
         }
         if (i.customId.startsWith('btn_buy_shop_')) {
             const parts = i.customId.replace('btn_buy_shop_', '').split('_');
@@ -858,7 +830,7 @@ async function handleLabSession(context, user) {
                     player.coins -= upItem.price;
                     player.upgrades[id] = true;
                     updatePlayerData(user.id, player);
-                    await i.reply({ content: `🎉 **تم شراء الترقية (${upItem.name}) بنجاح!**`, ephemeral: true });
+                    await sendReply(`🎉 **تم شراء الترقية (${upItem.name}) بنجاح!**`);
                 }
             } else if (type === 'equipment') {
                 const eqItem = labData.equipment[id];
@@ -868,7 +840,7 @@ async function handleLabSession(context, user) {
                     player.ownedEquipment[id] = true;
                     player.equipmentLevels[id] = 1;
                     updatePlayerData(user.id, player);
-                    await i.reply({ content: `🎉 **تم شراء الجهاز (${eqItem.name}) بنجاح!**`, ephemeral: true });
+                    await sendReply(`🎉 **تم شراء الجهاز (${eqItem.name}) بنجاح!**`);
                 }
             } else {
                 const item = labData.items[id];
@@ -877,58 +849,56 @@ async function handleLabSession(context, user) {
                     player.inv[id] = (player.inv[id] || 0) + 1;
                     if (item.shelfLife) player.itemTimestamps[id] = Date.now();
                     updatePlayerData(user.id, player);
-                    await i.reply({ content: `🛒 **تم شراء 1x (${item.name}) بنجاح!**`, ephemeral: true });
+                    await sendReply(`🛒 **تم شراء 1x (${item.name}) بنجاح!**`);
                 }
             }
-            return await i.message.edit(buildShopScreen(player, shopIndex));
+            return await updateScreen(buildShopScreen(player, shopIndex));
         }
 
-        // --- ⚗️ غرفة التفاعلات والمعايرة ---
+        // Reactions & Calibration
         if (i.customId === 'btn_open_reactions') {
             reactIndex = 0;
-            return await i.update(buildReactionsScreen(player, reactIndex));
+            return await updateScreen(buildReactionsScreen(player, reactIndex));
         }
         if (i.customId === 'btn_react_prev') {
             reactIndex--;
-            return await i.update(buildReactionsScreen(player, reactIndex));
+            return await updateScreen(buildReactionsScreen(player, reactIndex));
         }
         if (i.customId === 'btn_react_next') {
             reactIndex++;
-            return await i.update(buildReactionsScreen(player, reactIndex));
+            return await updateScreen(buildReactionsScreen(player, reactIndex));
         }
         if (i.customId.startsWith('btn_select_calib_')) {
             const rId = i.customId.replace('btn_select_calib_', '');
             selectedReaction = labData.reactions.find(r => r.id === rId);
             tempIndex = 0;
             pressIndex = 0;
-            return await i.update(buildCalibScreen(selectedReaction, tempIndex, pressIndex));
+            return await updateScreen(buildCalibScreen(selectedReaction, tempIndex, pressIndex));
         }
 
-        // أزرار التحكم بالحرارة والضغط
         if (i.customId === 'btn_temp_down') {
             tempIndex--;
-            return await i.update(buildCalibScreen(selectedReaction, tempIndex, pressIndex));
+            return await updateScreen(buildCalibScreen(selectedReaction, tempIndex, pressIndex));
         }
         if (i.customId === 'btn_temp_up') {
             tempIndex++;
-            return await i.update(buildCalibScreen(selectedReaction, tempIndex, pressIndex));
+            return await updateScreen(buildCalibScreen(selectedReaction, tempIndex, pressIndex));
         }
         if (i.customId === 'btn_press_down') {
             pressIndex--;
-            return await i.update(buildCalibScreen(selectedReaction, tempIndex, pressIndex));
+            return await updateScreen(buildCalibScreen(selectedReaction, tempIndex, pressIndex));
         }
         if (i.customId === 'btn_press_up') {
             pressIndex++;
-            return await i.update(buildCalibScreen(selectedReaction, tempIndex, pressIndex));
+            return await updateScreen(buildCalibScreen(selectedReaction, tempIndex, pressIndex));
         }
 
-        // بدء التفاعل الكيميائي
         if (i.customId === 'btn_start_reaction') {
             const reaction = selectedReaction;
 
             for (const [mat, qty] of Object.entries(reaction.req)) {
                 if (!player.inv[mat] || player.inv[mat] < qty) {
-                    return await i.reply({ content: `❌ لا تملك المواد الكافية! تحتاج إلى (${labData.items[mat]?.name || mat} x${qty})`, ephemeral: true });
+                    return await sendReply(`❌ لا تملك المواد الكافية! تحتاج إلى (${labData.items[mat]?.name || mat} x${qty})`);
                 }
             }
 
@@ -944,12 +914,12 @@ async function handleLabSession(context, user) {
                 player.achievements.cautious = 0;
                 if (!player.upgrades.shield) {
                     updatePlayerData(user.id, player);
-                    await i.reply({ content: '💥 **حدث انفجار مخبري بسبب ضبط درجات حرارة أو ضغط خاطئة! خسرت المواد.**', ephemeral: true });
+                    await sendReply('💥 **حدث انفجار مخبري بسبب ضبط درجات حرارة أو ضغط خاطئة! خسرت المواد.**');
                 } else {
                     updatePlayerData(user.id, player);
-                    await i.reply({ content: '🛡️ **فشل التفاعل بسبب المعايرة الخاطئة، ولكن درع الحماية منع انفجار المواد!**', ephemeral: true });
+                    await sendReply('🛡️ **فشل التفاعل بسبب المعايرة الخاطئة، ولكن درع الحماية منع انفجار المواد!**');
                 }
-                return await i.message.edit(buildMainMenu(user, player));
+                return await updateScreen(buildMainMenu(user, player));
             }
 
             player.achievements.cautious = (player.achievements.cautious || 0) + 1;
@@ -963,16 +933,16 @@ async function handleLabSession(context, user) {
             updatePlayerData(user.id, player);
 
             setTimeout(() => {
-                if (channel) {
-                    channel.send({ content: `🎉 <@${user.id}> **اكتمل التفاعل الكيميائي (${reaction.name})! افتح المختبر لاستلام نتائجك.**` }).catch(() => {});
+                if (i.channel) {
+                    i.channel.send({ content: `🎉 <@${user.id}> **اكتمل التفاعل الكيميائي (${reaction.name})! افتح المختبر لاستلام نتائجك.**` }).catch(() => {});
                 }
             }, duration * 1000);
 
-            await i.reply({ content: `🚀 **بدأ تفاعل (${reaction.name})! سينتهي بعد ${duration} ثانية.**`, ephemeral: true });
-            return await i.message.edit(buildMainMenu(user, player));
+            await sendReply(`🚀 **بدأ تفاعل (${reaction.name})! سينتهي بعد ${duration} ثانية.**`);
+            return await updateScreen(buildMainMenu(user, player));
         }
 
-        // --- 📋 المهام اليومية ---
+        // Quests & Sales
         if (i.customId === 'btn_open_quest') {
             const q = player.quest;
             const itemNeeded = labData.items[q.item];
@@ -993,7 +963,7 @@ async function handleLabSession(context, user) {
                 .setDisabled(q.completed || q.progress < q.count);
 
             const questRow = new ActionRowBuilder().addComponents(claimBtn, backMoreBtnRow.components[0]);
-            return await i.update({ embeds: [questEmbed], components: [questRow] });
+            return await updateScreen({ embeds: [questEmbed], components: [questRow] });
         }
 
         if (i.customId === 'btn_claim_quest') {
@@ -1002,12 +972,11 @@ async function handleLabSession(context, user) {
                 player.xp += player.quest.rewardXp;
                 player.quest.completed = true;
                 updatePlayerData(user.id, player);
-                await i.reply({ content: `🎉 **تم تسليم المهمة بنجاح واستلام المكافأة!**`, ephemeral: true });
-                return await i.message.edit(buildMainMenu(user, player));
+                await sendReply('🎉 **تم تسليم المهمة بنجاح واستلام المكافأة!**');
+                return await updateScreen(buildMainMenu(user, player));
             }
         }
 
-        // --- 💵 بيع النواتج ---
         if (i.customId === 'btn_sell_all') {
             let totalEarned = 0;
             let soldList = [];
@@ -1024,7 +993,7 @@ async function handleLabSession(context, user) {
             });
 
             if (totalEarned === 0) {
-                return await i.reply({ content: '⚠️ لا تملك أي مواد مُصنّعة قابلة للبيع حالياً!', ephemeral: true });
+                return await sendReply('⚠️ لا تملك أي مواد مُصنّعة قابلة للبيع حالياً!');
             }
 
             player.coins += totalEarned;
@@ -1035,19 +1004,14 @@ async function handleLabSession(context, user) {
             }
 
             updatePlayerData(user.id, player);
-
-            await i.reply({
-                content: `💵 **تمت عملية البيع بنجاح!**\n${soldList.join('\n')}\n\n💰 الإجمالي المضاف لرصيدك: **+${totalEarned} Valence** 🪙`,
-                ephemeral: true
-            });
-
-            return await i.message.edit(buildMainMenu(user, player));
+            await sendReply(`💵 **تمت عملية البيع بنجاح!**\n${soldList.join('\n')}\n\n💰 الإجمالي المضاف لرصيدك: **+${totalEarned} Valence** 🪙`);
+            return await updateScreen(buildMainMenu(user, player));
         }
     });
 }
 
 module.exports = {
-    data: new SlashCommandBuilder().setName('lab').setDescription('مختبر v1.5 '),
+    data: new SlashCommandBuilder().setName('lab').setDescription('مختبر v1.5 - الكيمياء المتقدمة والتفاعلات الاقتصادية'),
     async execute(interaction) {
         await handleLabSession(interaction, interaction.user);
     },
