@@ -12,7 +12,7 @@ const dataPath = path.join(__dirname, 'labData.json');
 
 const labData = {
     items: {
-        // --- مواد أولية قابلة للشراء ---
+        // --- مواد أولية قابلة للشراء (المستويات 1 - 5) ---
         na: { name: 'الصوديوم (Na)', price: 15, buyable: true, state: '🪨 صلب' },
         cl: { name: 'الكلور (Cl)', price: 15, buyable: true, state: '💨 غاز' },
         caco3: { name: 'حجر الجير (CaCO3)', price: 30, buyable: true, state: '🪨 صلب' },
@@ -22,31 +22,62 @@ const labData = {
         h2: { name: 'الهيدروجين (H2)', price: 25, buyable: true, state: '💨 غاز' },
         so2: { name: 'ثاني أكسيد الكبريت (SO2)', price: 40, buyable: true, state: '💨 غاز' },
         cu: { name: 'النحاس (Cu)', price: 50, buyable: true, state: '🪨 صلب' },
-        hno3: { name: 'حمض النيتريك (HNO3)', price: 75, buyable: true, state: '💧 سائل' },
+        hno3: { name: 'حمض النيتريك (HNO3)', price: 75, buyable: true, state: '💧 سائل', shelfLife: 3600 },
 
-        // --- النواتج القابلة للبيع ---
+        // --- مواد أولية جديدة (تحديث v1.4: المستويات 6 - 15) ---
+        hno3_dilute: { name: 'حمض النيتريك المخفف (HNO3)', price: 50, buyable: true, state: '💧 سائل', shelfLife: 4800, reqLevel: 6 },
+        zn: { name: 'مسحوق الزنك (Zn)', price: 65, buyable: true, state: '🪨 مسحوق', reqLevel: 7 },
+        nh3: { name: 'محلول الأمونيا (NH3)', price: 80, buyable: true, state: '💧 سائل', shelfLife: 3600, reqLevel: 8 },
+        cuso4: { name: 'كبريتات النحاس (CuSO4)', price: 110, buyable: true, state: '🪨 بلورات', reqLevel: 9 },
+        ethanol: { name: 'إيثانول (C2H5OH)', price: 140, buyable: true, state: '💧 سائل', shelfLife: 7200, reqLevel: 10 },
+        naoh: { name: 'هيدروكسيد الصوديوم (NaOH)', price: 170, buyable: true, state: '🪨 صلب', reqLevel: 11 },
+        ch3cooh: { name: 'حمض الاستيك (CH3COOH)', price: 200, buyable: true, state: '💧 سائل', shelfLife: 5400, reqLevel: 12 },
+        oxalic: { name: 'حمض الأوكزاليك (C2H2O4)', price: 280, buyable: true, state: '🪨 صلب', reqLevel: 14 },
+
+        // --- النواتج القابلة للبيع (المستويات 1 - 5) ---
         nacl: { name: 'ملح الطعام (NaCl)', price: 50, buyable: false, state: '🪨 صلب', desc: 'مركب أيوني ناتج من تفاعل الصوديوم والكلور.' },
         cao: { name: 'الجير الحي (CaO)', price: 80, buyable: false, state: '🪨 صلب', desc: 'ينتج عن التفكك الحراري لحجر الجير.' },
         co2: { name: 'ثاني أكسيد الكربون (CO2)', price: 40, buyable: false, state: '💨 غاز', desc: 'غاز ينطلق كناتج ثانوي.' },
         h2o_pure: { name: 'ماء نقي 💧 (Pure H2O)', price: 45, buyable: false, state: '💧 سائل', desc: 'ماء مقطر عالي النقاوة.' },
         fe2o3: { name: 'أكسيد الحديد (Fe2O3)', price: 90, buyable: false, state: '🪨 صلب', desc: 'مركب ناتج من أكسدة الحديد العالية.' },
-        h2so4: { name: 'حمض الكبريتيك (H2SO4)', price: 150, buyable: false, state: '💧 سائل', desc: 'حمض شديد التآكل.' },
+        h2so4: { name: 'حمض الكبريتيك (H2SO4)', price: 150, buyable: false, state: '💧 سائل', desc: 'حمض شديد التآكل.', shelfLife: 2700 },
         cuno3_2: { name: 'نترات النحاس Cu(NO3)2', price: 180, buyable: false, state: '🪨 بلورات', desc: 'مركب كيميائي عالي القيمة مستخدم في الطلاء.' },
-        n2: { name: 'غاز النيتروجين النقي (N2)', price: 210, buyable: false, state: '💨 غاز', desc: 'غاز خامل ممتاز للتطبيقات الصناعية.' }
+        n2: { name: 'غاز النيتروجين النقي (N2)', price: 210, buyable: false, state: '💨 غاز', desc: 'غاز خامل ممتاز للتطبيقات الصناعية.' },
+
+        // --- النواتج الجديدة (تحديث v1.4: المستويات 6 - 15) ---
+        zn_no3: { name: 'نترات الزنك Zn(NO3)2', price: 180, buyable: false, state: '🪨 بلورات', desc: 'مركب ناتج عن تفاعل الزنك مع حمض النيتريك المخفف.' },
+        nh4no3: { name: 'نترات الأمونيوم (NH4NO3)', price: 260, buyable: false, state: '🪨 بلورات', desc: 'سماد نتروجيني مركب عالي التركيز.' },
+        copper_cryst: { name: 'بلورات النحاس المنقاة', price: 340, buyable: false, state: '🪨 بلورات', desc: 'بلورات نحاسية زرقاء نقية جداً.' },
+        pure_ethanol: { name: 'إيثانول منقى 100%', price: 450, buyable: false, state: '💧 سائل', desc: 'مذيب عضوي عالي النقاء مستخلص بالتقطير.' },
+        salt_neutral: { name: 'محلول ملحي متعادل', price: 520, buyable: false, state: '💧 سائل', desc: 'ناتج تفاعل التعادل بين حمض وقاعدة قوية.' },
+        ethyl_acetate: { name: 'إيثيل أسيتات', price: 680, buyable: false, state: '💧 سائل', desc: 'مذيب عضوي عطري ذو استخدامات صناعية واسعة.' },
+        dry_precipitate: { name: 'مسحوق جاف فائق النقاء', price: 1100, buyable: false, state: '🪨 مسحوق', desc: 'ناتج تجفيف المترسبات المعقدة في الفرن الزجاجي.' },
+        secret_compound: { name: 'المركب السري النادر ✨', price: 2500, buyable: false, state: '✨ طاقة', desc: 'اكتشاف نادر جداً ناتج عن الخلت العشوائي للمواد.' }
     },
     equipment: {
-        beaker: { name: 'وعاء التفاعل (Beaker)', reqLevel: 1 },
-        electrolysis: { name: 'جهاز التحليل الكهربائي', reqLevel: 2 },
-        still: { name: 'جهاز التقطير (Distillation)', reqLevel: 3 },
-        combustion: { name: 'مفاعل الأكسدة', reqLevel: 4 },
-        furnace: { name: 'الفرن الحراري (Furnace)', reqLevel: 5 },
-        oxidation_tower: { name: 'برج الأكسدة الكيميائية', reqLevel: 6 },
-        autoclave: { name: 'مفاعل الضغط العالي (Autoclave)', reqLevel: 7 },
-        reflux_sys: { name: 'غرفة التكثيف والتبخير (Reflux)', reqLevel: 8 }
+        beaker: { name: 'وعاء التفاعل (Beaker)', reqLevel: 1, price: 100 },
+        electrolysis: { name: 'جهاز التحليل الكهربائي', reqLevel: 2, price: 200 },
+        still: { name: 'جهاز التقطير (Distillation)', reqLevel: 3, price: 300 },
+        combustion: { name: 'مفاعل الأكسدة', reqLevel: 4, price: 400 },
+        furnace: { name: 'الفرن الحراري (Furnace)', reqLevel: 5, price: 500 },
+        ph_meter: { name: 'مقياس الحموضة الرقمي (Digital pH Meter)', reqLevel: 6, price: 300 },
+        stirrer: { name: 'المخلاط المغناطيسي (Magnetic Stirrer)', reqLevel: 7, price: 450 },
+        fume_hood: { name: 'مظلة سحب الأبخرة (Fume Hood)', reqLevel: 8, price: 700 },
+        analytical_bal: { name: 'الميزان التحليلي الدقيق', reqLevel: 9, price: 950 },
+        distil_setup: { name: 'جهاز التقطير البسيط', reqLevel: 10, price: 1500 },
+        burette: { name: 'صحاحة قياسية (Burette)', reqLevel: 11, price: 1800 },
+        water_bath: { name: 'حمام مائي حراري (Water Bath)', reqLevel: 12, price: 2200 },
+        vacuum_filter: { name: 'جهاز الترشيح المفرغ', reqLevel: 13, price: 2800 },
+        drying_oven: { name: 'فرن تجفيف زجاجي (Drying Oven)', reqLevel: 15, price: 3800 }
     },
     upgrades: {
         speed: { id: 'up_speed', name: '⚡ المسرع الكيميائي (سرعة x2)', price: 200, desc: 'يخفض زمن التفاعلات 50%' },
         shield: { id: 'up_shield', name: '🛡️ درع الحماية من الانفجار', price: 150, desc: 'يحميك من خسارة المواد عند الخطأ' }
+    },
+    achievements: {
+        cautious: { id: 'cautious', name: '🧪 الكيميائي الحذر', desc: 'إجراء 10 تفاعلات بدون خطأ معايرة', reward: 300 },
+        trader: { id: 'trader', name: '💵 تاجر المواد', desc: 'بيع نواتج بقيمة 1000 Valence', reward: 500 },
+        explorer: { id: 'explorer', name: '🔍 المكتشف السري', desc: 'اكتشاف مركب سري ناتج عن الخلط العشوائي', reward: 1000 }
     },
     reactions: [
         { id: 'r_nacl', name: '🧪 تخليق ملح الطعام (NaCl)', tool: 'beaker', reqLevel: 1, costAbility: 1, req: { na: 1, cl: 1 }, targetTemp: 25, targetPress: 1, timeSec: 10, yield: { nacl: 1 }, xp: 25 },
@@ -54,9 +85,14 @@ const labData = {
         { id: 'r_h2o', name: '💧 تنقية وتقطير الماء (H2O)', tool: 'still', reqLevel: 3, costAbility: 2, req: { h2o_imp: 1 }, targetTemp: 110, targetPress: 1, timeSec: 15, yield: { h2o_pure: 1 }, xp: 35 },
         { id: 'r_fe2o3', name: '🔥 أكسدة الحديد وتكوين أكسيد الحديد', tool: 'combustion', reqLevel: 4, costAbility: 3, req: { fe: 2, o2: 1 }, targetTemp: 500, targetPress: 2, timeSec: 18, yield: { fe2o3: 1 }, xp: 70 },
         { id: 'r_cao', name: '🔥 التفكك الحراري لحجر الجير', tool: 'furnace', reqLevel: 5, costAbility: 4, req: { caco3: 1 }, targetTemp: 900, targetPress: 1, timeSec: 20, yield: { cao: 1, co2: 1 }, xp: 60 },
-        { id: 'r_h2so4_prep', name: '💨 أكسدة الكبريت المتقدمة (H2SO4)', tool: 'oxidation_tower', reqLevel: 6, costAbility: 4, req: { so2: 1, o2: 1, h2o_pure: 1 }, targetTemp: 500, targetPress: 2, timeSec: 22, yield: { h2so4: 1 }, xp: 85 },
-        { id: 'r_cuno3', name: '⚗️ تفاعل النحاس مع حمض النيتريك', tool: 'autoclave', reqLevel: 7, costAbility: 5, req: { cu: 1, hno3: 2 }, targetTemp: 110, targetPress: 3, timeSec: 25, yield: { cuno3_2: 1 }, xp: 100 },
-        { id: 'r_nitrogen_prod', name: '💥 التفكك الانفجاري المحكوم لإنتاج النيتروجين', tool: 'reflux_sys', reqLevel: 8, costAbility: 5, req: { hno3: 2, fe: 1 }, targetTemp: 900, targetPress: 3, timeSec: 30, yield: { n2: 2 }, xp: 120 }
+        { id: 'r_h2so4_prep', name: '💨 أكسدة الكبريت المتقدمة (H2SO4)', tool: 'fume_hood', reqLevel: 6, costAbility: 4, req: { so2: 1, o2: 1, h2o_pure: 1 }, targetTemp: 500, targetPress: 2, timeSec: 22, yield: { h2so4: 1 }, xp: 85 },
+        { id: 'r_zn_no3', name: '🧪 تفاعل الزنك مع حمض النيتريك', tool: 'stirrer', reqLevel: 7, costAbility: 4, req: { zn: 1, hno3_dilute: 1 }, targetTemp: 110, targetPress: 1, timeSec: 18, yield: { zn_no3: 1 }, xp: 90 },
+        { id: 'r_nh4no3', name: '💥 إنتاج نترات الأمونيوم', tool: 'fume_hood', reqLevel: 8, costAbility: 5, req: { nh3: 1, hno3_dilute: 1 }, targetTemp: 110, targetPress: 2, timeSec: 20, yield: { nh4no3: 1 }, xp: 110 },
+        { id: 'r_copper_cryst', name: '💎 تنقية وتكريس بلورات النحاس', tool: 'analytical_bal', reqLevel: 9, costAbility: 5, req: { cuso4: 1, h2o_pure: 1 }, targetTemp: 110, targetPress: 1, timeSec: 25, yield: { copper_cryst: 1 }, xp: 130 },
+        { id: 'r_pure_ethanol', name: '🍾 تقطير وحفظ الإيثانول النقي', tool: 'distil_setup', reqLevel: 10, costAbility: 5, req: { ethanol: 1, h2o_pure: 1 }, targetTemp: 110, targetPress: 1, timeSec: 25, yield: { pure_ethanol: 1 }, xp: 150 },
+        { id: 'r_neutral_salt', name: '⚖️ معايرة حمض وقاعدة (تفاعل تعادل)', tool: 'burette', reqLevel: 11, costAbility: 6, req: { hno3_dilute: 1, naoh: 1 }, targetTemp: 25, targetPress: 1, timeSec: 20, yield: { salt_neutral: 1 }, xp: 170 },
+        { id: 'r_ethyl_acetate', name: '🌸 تصنيع الإيثيل أسيتات العطري', tool: 'water_bath', reqLevel: 12, costAbility: 6, req: { ethanol: 1, ch3cooh: 1 }, targetTemp: 110, targetPress: 2, timeSec: 28, yield: { ethyl_acetate: 1 }, xp: 200 },
+        { id: 'r_dry_powder', name: '🔥 تجفيف المترسبات الصلبة', tool: 'drying_oven', reqLevel: 15, costAbility: 7, req: { oxalic: 1, zn: 1 }, targetTemp: 500, targetPress: 3, timeSec: 35, yield: { dry_precipitate: 1 }, xp: 280 }
     ]
 };
 
@@ -65,6 +101,42 @@ const PRESS_STEPS = [1, 2, 3];
 
 function ensureDataFile() {
     if (!fs.existsSync(dataPath)) fs.writeFileSync(dataPath, JSON.stringify({}, null, 2));
+}
+
+function generateDailyQuest(playerLevel) {
+    const targetItems = Object.entries(labData.items).filter(([_, item]) => !item.buyable);
+    const randomItem = targetItems[Math.floor(Math.random() * targetItems.length)][0];
+    const count = Math.floor(Math.random() * 2) + 1;
+    return {
+        item: randomItem,
+        count: count,
+        progress: 0,
+        rewardCoins: count * 150 + playerLevel * 20,
+        rewardXp: count * 40 + playerLevel * 10,
+        completed: false,
+        lastReset: Date.now()
+    };
+}
+
+function processItemStabilityAndDecay(player) {
+    if (!player.itemTimestamps) player.itemTimestamps = {};
+    const now = Date.now();
+    let decayedItems = [];
+
+    for (const [itemId, qty] of Object.entries(player.inv)) {
+        const itemInfo = labData.items[itemId];
+        if (itemInfo && itemInfo.shelfLife) {
+            if (!player.itemTimestamps[itemId]) {
+                player.itemTimestamps[itemId] = now;
+            } else if (now - player.itemTimestamps[itemId] > itemInfo.shelfLife * 1000) {
+                delete player.inv[itemId];
+                delete player.itemTimestamps[itemId];
+                player.inv['h2o_imp'] = (player.inv['h2o_imp'] || 0) + qty;
+                decayedItems.push(itemInfo.name);
+            }
+        }
+    }
+    return decayedItems;
 }
 
 function getPlayerData(userId) {
@@ -76,15 +148,26 @@ function getPlayerData(userId) {
         db[userId] = {
             level: 1, xp: 0, coins: 200, abilityPoints: 2,
             unlockedReactions: ['r_nacl'],
+            ownedEquipment: { beaker: 1 },
+            equipmentLevels: { beaker: 1 },
             inv: { na: 2, cl: 2, h2o_imp: 3, fe: 2, o2: 1 },
+            itemTimestamps: {},
             codex: [], upgrades: { speed: false, shield: false },
-            quest: { item: 'h2o_pure', count: 2, progress: 0, rewardCoins: 100, rewardXp: 50, completed: false },
+            achievements: { cautious: 0, trader: 0, explorer: false },
+            unlockedBadges: [],
+            quest: generateDailyQuest(1),
             pendingQueue: []
         };
         fs.writeFileSync(dataPath, JSON.stringify(db, null, 2));
     }
-    if (db[userId].abilityPoints === undefined) db[userId].abilityPoints = 1;
-    if (!db[userId].unlockedReactions) db[userId].unlockedReactions = ['r_nacl'];
+    
+    // التحقق من صلاحية وتجديد المهمة اليومية (24 ساعة)
+    if (!db[userId].quest || (Date.now() - (db[userId].quest.lastReset || 0)) > 86400000) {
+        db[userId].quest = generateDailyQuest(db[userId].level || 1);
+    }
+    if (!db[userId].equipmentLevels) db[userId].equipmentLevels = { beaker: 1 };
+    if (!db[userId].achievements) db[userId].achievements = { cautious: 0, trader: 0, explorer: false };
+    if (!db[userId].unlockedBadges) db[userId].unlockedBadges = [];
 
     return db[userId];
 }
@@ -100,7 +183,7 @@ function updatePlayerData(userId, data) {
 // 🌐 1. القائمة الرئيسية المبسطة
 function buildMainMenu(user, player) {
     const embed = new EmbedBuilder()
-        .setTitle('🧪 Lab v1.3')
+        .setTitle(' Lab v1.4')
         .setDescription(`مرحباً بك **${user.username}** 👋`)
         .setColor(0x2ecc71)
         .addFields(
@@ -108,8 +191,8 @@ function buildMainMenu(user, player) {
             { name: '✨ الخبرة', value: `\`${player.xp} / ${player.level * 100} XP\``, inline: true },
             { name: '⚡ نقاط القدرة', value: `\`${player.abilityPoints} نقطة\``, inline: true },
             { name: '💰 Valence', value: `\`${player.coins} 🪙\``, inline: true },
-            { name: '📘 الموسوعة', value: `\`${player.codex.length} / 8\``, inline: true },
-            { name: '🛡️ الحماية', value: player.upgrades.shield ? '`مفعل ✅`' : '`غير مفعل ❌`', inline: true }
+            { name: '📘 الموسوعة', value: `\`${player.codex.length} / ${Object.keys(labData.items).length}\``, inline: true },
+            { name: '🎖️ الألقاب', value: `\`${player.unlockedBadges.length} ألقاب\``, inline: true }
         )
         .setThumbnail(user.displayAvatarURL())
         .setFooter({ text: 'اختر إجراءً سريعاً أو فتح القائمة الإضافية' });
@@ -125,6 +208,7 @@ function buildMainMenu(user, player) {
     );
 
     const row2 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('btn_open_secret_mix').setLabel('خلط عشوائي 🧪').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('btn_open_more_menu').setLabel('القائمة الإضافية 📂').setStyle(ButtonStyle.Secondary)
     );
 
@@ -139,19 +223,23 @@ function buildMoreMenu(user, player) {
         .setColor(0x7289da)
         .addFields(
             { name: '📜 القدرات والمستويات', value: 'تصفح التفاعلات المتاحة وافتح تفاعلات جديدة بنقاط القدرة.', inline: false },
-            { name: '📋 المهام اليومية', value: 'استعرض أهدافك اليومية واستلم المكافآت عند الإنجاز.', inline: false },
+            { name: '📋 المهام اليومية', value: 'استعرض أهدافك اليومية واستلم المكافآت المتجددة.', inline: false },
+            { name: '⚙️ ترقية المعدات', value: 'تطوير وتسريع عمل الأجهزة والأدوات المملوكة.', inline: false },
+            { name: '🎖️ الإنجازات والألقاب', value: 'استعرض تقدمك والألقاب التي تم فتحها.', inline: false },
             { name: '🎒 المستودع', value: 'استعرض كافة المواد الأولية والمركبات المتوفرة لديك.', inline: false },
-            { name: '📘 الموسوعة الكيميائية', value: 'تصفح المركبات الكيميائية التي تم اكتشافها وتصنيعها.', inline: false }
+            { name: '📘 الموسوعة الكيميائية', value: 'تصفح المركبات الكيميائية التي تم اكتشافها.', inline: false }
         );
 
     const row1 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('btn_open_levels').setLabel('المستويات').setEmoji('📜').setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId('btn_open_quest').setLabel('المهام').setEmoji('📋').setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId('btn_open_inv').setLabel('المستودع').setEmoji('🎒').setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId('btn_open_codex').setLabel('الموسوعة').setEmoji('📘').setStyle(ButtonStyle.Primary)
+        new ButtonBuilder().setCustomId('btn_open_equip_upgrade').setLabel('المعدات').setEmoji('⚙️').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('btn_open_achievements').setLabel('الإنجازات').setEmoji('🎖️').setStyle(ButtonStyle.Primary)
     );
 
     const row2 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('btn_open_inv').setLabel('المستودع').setEmoji('🎒').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('btn_open_codex').setLabel('الموسوعة').setEmoji('📘').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('btn_back_main').setLabel('↩️ الرجوع للرئيسية').setStyle(ButtonStyle.Danger)
     );
 
@@ -189,7 +277,7 @@ function buildLevelScreen(player, index) {
 
     const embed = new EmbedBuilder()
         .setTitle(`📜 تفاعل: ${reaction.name}`)
-        .setDescription(`**الحالة:** ${statusText}\n\n**الجهاز المطلوب:** ${labData.equipment[reaction.tool]?.name}`)
+        .setDescription(`**الحالة:** ${statusText}\n\n**الجهاز المطلوب:** ${labData.equipment[reaction.tool]?.name || reaction.tool}`)
         .setColor(isUnlocked ? 0x2ecc71 : (isLevelReached ? 0xf1c40f : 0xe74c3c))
         .addFields(
             { name: '🎯 المستوى المطلوب', value: `\`Lv.${reaction.reqLevel}\``, inline: true },
@@ -210,10 +298,11 @@ function buildLevelScreen(player, index) {
     return { embeds: [embed], components: [navRow] };
 }
 
-// 🛒 4. شاشة المتجر والترقيات (نظام أسهم)
+// 🛒 4. شاشة المتجر والأجهزة والترقيات
 function buildShopScreen(player, index) {
     const shopList = [
-        ...Object.entries(labData.items).filter(([_, item]) => item.buyable).map(([id, item]) => ({ type: 'item', id, ...item })),
+        ...Object.entries(labData.items).filter(([_, item]) => item.buyable && (item.reqLevel || 1) <= player.level).map(([id, item]) => ({ type: 'item', id, ...item })),
+        ...Object.entries(labData.equipment).filter(([_, eq]) => eq.reqLevel <= player.level).map(([id, eq]) => ({ type: 'equipment', id, ...eq })),
         ...Object.values(labData.upgrades).map(up => ({ type: 'upgrade', ...up }))
     ];
 
@@ -230,6 +319,15 @@ function buildShopScreen(player, index) {
             buyBtnDisabled = true;
             buyBtnLabel = `❌ الرصيد غير كافي (${currentItem.price} Valence)`;
         }
+    } else if (currentItem.type === 'equipment') {
+        const isOwned = player.ownedEquipment && player.ownedEquipment[currentItem.id];
+        if (isOwned) {
+            buyBtnDisabled = true;
+            buyBtnLabel = '✅ تمتلك هذا الجهاز بالفعل';
+        } else if (player.coins < currentItem.price) {
+            buyBtnDisabled = true;
+            buyBtnLabel = `❌ الرصيد غير كافي (${currentItem.price} Valence)`;
+        }
     } else {
         if (player.coins < currentItem.price) {
             buyBtnDisabled = true;
@@ -239,11 +337,11 @@ function buildShopScreen(player, index) {
 
     const embed = new EmbedBuilder()
         .setTitle(`🛒 المتجر: ${currentItem.name}`)
-        .setDescription(currentItem.desc || `عنصر كيميائي أولي يستعمل في التفاعلات المخبرية.\n**الحالة الفيزيائية:** ${currentItem.state || 'غير محدد'}`)
+        .setDescription(currentItem.desc || `عنصر كيميائي أو جهاز مخبري متقدم.\n**الحالة الفيزيائية/المستوى:** ${currentItem.state || 'مستوى ' + (currentItem.reqLevel || 1)}`)
         .setColor(0xf1c40f)
         .addFields(
             { name: '💵 السعر', value: `\`${currentItem.price} Valence 🪙\``, inline: true },
-            { name: '🎒 الكمية الحالية لديك', value: currentItem.type === 'item' ? `\`${player.inv[currentItem.id] || 0}\`` : (player.upgrades[currentItem.id.replace('up_', '')] ? '`مفعّل`' : '`غير مفعّل`'), inline: true }
+            { name: '🎒 الكمية / الحالة لديك', value: currentItem.type === 'item' ? `\`${player.inv[currentItem.id] || 0}\`` : (currentItem.type === 'equipment' ? (player.ownedEquipment[currentItem.id] ? '`مملوك`' : '`غير مملوك`') : (player.upgrades[currentItem.id.replace('up_', '')] ? '`مفعّل`' : '`غير مفعّل`')), inline: true }
         )
         .setFooter({ text: `رصيدك الحالي: ${player.coins} Valence 🪙 | عنصر ${index + 1} من ${shopList.length}` });
 
@@ -268,7 +366,7 @@ function buildCalibScreen(reaction, tempIndex, pressIndex) {
 
     const embed = new EmbedBuilder()
         .setTitle(`🎛️ معايرة التفاعل: ${reaction.name}`)
-        .setDescription(`**الجهاز المستخدم:** ${labData.equipment[reaction.tool]?.name}\nاضبط الحرارة والضغط بالأسهم ثم اضغط **بدء التفاعل**.`)
+        .setDescription(`**الجهاز المستخدم:** ${labData.equipment[reaction.tool]?.name || reaction.tool}\nاضبط الحرارة والضغط بالأسهم ثم اضغط **بدء التفاعل**.`)
         .setColor(0xe74c3c)
         .addFields(
             { name: '🔥 درجة الحرارة الحالية', value: `\`${currentTemp} °C\``, inline: true },
@@ -318,9 +416,12 @@ function buildReactionsScreen(player, index) {
         .map(([id, qty]) => `• ${labData.items[id]?.name || id}: \`${qty}\` (لديك: \`${player.inv[id] || 0}\`)`)
         .join('\n');
 
+    const equipOwned = player.ownedEquipment && player.ownedEquipment[reaction.tool];
+    const equipName = labData.equipment[reaction.tool]?.name || reaction.tool;
+
     const embed = new EmbedBuilder()
         .setTitle(`⚗️ اختر تفاعلاً: ${reaction.name}`)
-        .setDescription(`**الجهاز:** ${labData.equipment[reaction.tool]?.name}\n**الوقت المطلوب:** \`${player.upgrades.speed ? Math.ceil(reaction.timeSec / 2) : reaction.timeSec} ثانية\``)
+        .setDescription(`**الجهاز المطلوب:** ${equipName} ${equipOwned ? '✅' : '❌ (غير مملوك)'}\n**الوقت المطلوب:** \`${player.upgrades.speed ? Math.ceil(reaction.timeSec / 2) : reaction.timeSec} ثانية\``)
         .setColor(0x3498db)
         .addFields(
             { name: '🧪 المواد المطلوبة للتفاعل', value: reqList },
@@ -330,7 +431,7 @@ function buildReactionsScreen(player, index) {
 
     const navRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('btn_react_prev').setLabel('⬅️ السابق').setStyle(ButtonStyle.Secondary).setDisabled(index === 0),
-        new ButtonBuilder().setCustomId(`btn_select_calib_${reaction.id}`).setLabel('🎛️ بدء المعايرة').setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(`btn_select_calib_${reaction.id}`).setLabel('🎛️ بدء المعايرة').setStyle(ButtonStyle.Success).setDisabled(!equipOwned),
         new ButtonBuilder().setCustomId('btn_react_next').setLabel('التالي ➡️').setStyle(ButtonStyle.Secondary).setDisabled(index === unlockedList.length - 1),
         new ButtonBuilder().setCustomId('btn_back_main').setLabel('↩️ الرئيسية').setStyle(ButtonStyle.Danger)
     );
@@ -343,22 +444,20 @@ function buildCodexScreen(player) {
     const discovered = player.codex || [];
     let codexList = '';
 
-    const allProducts = ['nacl', 'cao', 'co2', 'h2o_pure', 'fe2o3', 'h2so4', 'cuno3_2', 'n2'];
-
-    allProducts.forEach(id => {
+    Object.keys(labData.items).forEach(id => {
         const item = labData.items[id];
         if (discovered.includes(id)) {
-            codexList += `✅ **${item.name}** (${item.state})\n_${item.desc}_\n\n`;
+            codexList += `✅ **${item.name}** (${item.state})\n_${item.desc || 'مادة كيميائية مخبرية'}_\n\n`;
         } else {
-            codexList += `❓ **مركب مجهول** - (لم تقم بتصنيعه بعد)\n\n`;
+            codexList += `❓ **مركب مجهول** - (لم تقم بتصنيعه أو اكتشافه بعد)\n\n`;
         }
     });
 
     const embed = new EmbedBuilder()
         .setTitle('📘 الموسوعة الكيميائية (Codex)')
-        .setDescription(codexList)
+        .setDescription(codexList.length > 2000 ? codexList.slice(0, 1900) + '...\n_(تابع الاكتشاف)_' : codexList)
         .setColor(0x9b59b6)
-        .setFooter({ text: `تم اكتشاف ${discovered.length} من أصل 8 مركبات` });
+        .setFooter({ text: `تم اكتشاف ${discovered.length} من أصل ${Object.keys(labData.items).length} مركبات` });
 
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('btn_open_more_menu').setLabel('↩️ قائمة الفرعيات').setStyle(ButtonStyle.Danger)
@@ -367,9 +466,61 @@ function buildCodexScreen(player) {
     return { embeds: [embed], components: [row] };
 }
 
-// 🧠 8. معالج الجلسة التفاعلي
+// ⚙️ 8. شاشة ترقية المعدات
+function buildEquipUpgradeScreen(player) {
+    let equipList = '';
+    const owned = player.ownedEquipment || {};
+
+    Object.entries(labData.equipment).forEach(([id, eq]) => {
+        if (owned[id]) {
+            const currentLv = player.equipmentLevels[id] || 1;
+            const upgradeCost = currentLv * 250;
+            equipList += `⚙️ **${eq.name}** (مستوى Lv.${currentLv})\n• كفاءة الجهاز: \`+${currentLv * 10}%\` | تكلفة الترقية التالية: \`${upgradeCost} Valence\`\n\n`;
+        }
+    });
+
+    if (!equipList) equipList = '_لا تملك أي أجهزة قابلة للترقية حالياً! اشتر الأجهزة من المتجر أولاً._';
+
+    const embed = new EmbedBuilder()
+        .setTitle('⚙️ تطوير وترقية أجهزة المختبر')
+        .setDescription(equipList)
+        .setColor(0x34495e);
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('btn_open_more_menu').setLabel('↩️ قائمة الفرعيات').setStyle(ButtonStyle.Danger)
+    );
+
+    return { embeds: [embed], components: [row] };
+}
+
+// 🎖️ 9. شاشة الإنجازات والألقاب
+function buildAchievementsScreen(player) {
+    let achList = '';
+
+    Object.entries(labData.achievements).forEach(([id, ach]) => {
+        const isUnlocked = player.unlockedBadges.includes(id);
+        achList += `${isUnlocked ? '✅' : '🔒'} **${ach.name}**\n_${ach.desc}_\n💰 المكافأة: \`${ach.reward} Valence\` ${isUnlocked ? '(تمت المطالبة)' : ''}\n\n`;
+    });
+
+    const embed = new EmbedBuilder()
+        .setTitle('🎖️ الإنجازات والألقاب الكيميائية')
+        .setDescription(achList)
+        .setColor(0xe67e22);
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('btn_open_more_menu').setLabel('↩️ قائمة الفرعيات').setStyle(ButtonStyle.Danger)
+    );
+
+    return { embeds: [embed], components: [row] };
+}
+
+// 🧠 10. معالج الجلسة التفاعلي
 async function handleLabSession(context, user) {
     let player = getPlayerData(user.id);
+
+    // معالجة استقرار المواد والتحلل الزمني (Decay)
+    const decayedNames = processItemStabilityAndDecay(player);
+
     const channel = context.channel;
     const currentNow = Math.floor(Date.now() / 1000);
 
@@ -408,6 +559,10 @@ async function handleLabSession(context, user) {
         responseMsg = await context.reply({ ...initialMenu, fetchReply: true });
     } else {
         responseMsg = await context.reply(initialMenu);
+    }
+
+    if (decayedNames.length > 0) {
+        channel.send({ content: `⚠️ <@${user.id}> **تنبيه استقرار المواد:** تحللت المواد التالية لانتهاء صلاحيتها في المستودع: (${decayedNames.join(', ')})` }).catch(() => {});
     }
 
     // حالات التصفح المحلية للجلسة
@@ -457,6 +612,55 @@ async function handleLabSession(context, user) {
             return await i.update(buildCodexScreen(player));
         }
 
+        // --- ⚙️ ترقية المعدات ---
+        if (i.customId === 'btn_open_equip_upgrade') {
+            return await i.update(buildEquipUpgradeScreen(player));
+        }
+
+        // --- 🎖️ الإنجازات والألقاب ---
+        if (i.customId === 'btn_open_achievements') {
+            return await i.update(buildAchievementsScreen(player));
+        }
+
+        // --- 🧪 الخلط العشوائي والتفاعلات السرية ---
+        if (i.customId === 'btn_open_secret_mix') {
+            const userMaterials = Object.keys(player.inv);
+            if (userMaterials.length < 2) {
+                return await i.reply({ content: '❌ تحتاج إلى مادتين كيميائيتين على الأقل في مستودعك لإجراء خلط عشوائي!', ephemeral: true });
+            }
+
+            const mat1 = userMaterials[0];
+            const mat2 = userMaterials[1];
+
+            player.inv[mat1]--; if (player.inv[mat1] <= 0) delete player.inv[mat1];
+            player.inv[mat2]--; if (player.inv[mat2] <= 0) delete player.inv[mat2];
+
+            const successChance = Math.random();
+            if (successChance > 0.75) {
+                // نجاح اكتشاف مركب سري
+                player.inv['secret_compound'] = (player.inv['secret_compound'] || 0) + 1;
+                if (!player.codex.includes('secret_compound')) player.codex.push('secret_compound');
+                if (!player.unlockedBadges.includes('explorer')) {
+                    player.unlockedBadges.push('explorer');
+                    player.coins += labData.achievements.explorer.reward;
+                }
+                player.xp += 200;
+                updatePlayerData(user.id, player);
+
+                await i.reply({ content: '✨ **نجاح مبهر! قمت باكتشاف (المركب السري النادر ✨) عبر الخلط العشوائي!**', ephemeral: true });
+            } else {
+                // تفاعل فاشل أو انفجار
+                if (!player.upgrades.shield) {
+                    updatePlayerData(user.id, player);
+                    await i.reply({ content: '💥 **حدث انفجار كيميائي غير متوقع أثناء الخلط العشوائي! خسرت المواد.**', ephemeral: true });
+                } else {
+                    updatePlayerData(user.id, player);
+                    await i.reply({ content: '🛡️ **فشل التفاعل العشوائي ولكن درع الحماية منع أضرار الانفجار!**', ephemeral: true });
+                }
+            }
+            return await i.message.edit(buildMainMenu(user, player));
+        }
+
         // --- 📜 القدرات والمستويات ---
         if (i.customId === 'btn_open_levels') {
             lvlIndex = 0;
@@ -485,7 +689,7 @@ async function handleLabSession(context, user) {
             }
         }
 
-        // --- 🛒 المتجر والترقيات ---
+        // --- 🛒 المتجر والترقيات والأجهزة ---
         if (i.customId === 'btn_open_shop') {
             shopIndex = 0;
             return await i.update(buildShopScreen(player, shopIndex));
@@ -511,11 +715,22 @@ async function handleLabSession(context, user) {
                     updatePlayerData(user.id, player);
                     await i.reply({ content: `🎉 **تم شراء الترقية (${upItem.name}) بنجاح!**`, ephemeral: true });
                 }
+            } else if (type === 'equipment') {
+                const eqItem = labData.equipment[id];
+                if (player.coins >= eqItem.price) {
+                    player.coins -= eqItem.price;
+                    if (!player.ownedEquipment) player.ownedEquipment = {};
+                    player.ownedEquipment[id] = true;
+                    player.equipmentLevels[id] = 1;
+                    updatePlayerData(user.id, player);
+                    await i.reply({ content: `🎉 **تم شراء الجهاز (${eqItem.name}) بنجاح!**`, ephemeral: true });
+                }
             } else {
                 const item = labData.items[id];
                 if (player.coins >= item.price) {
                     player.coins -= item.price;
                     player.inv[id] = (player.inv[id] || 0) + 1;
+                    if (item.shelfLife) player.itemTimestamps[id] = Date.now();
                     updatePlayerData(user.id, player);
                     await i.reply({ content: `🛒 **تم شراء 1x (${item.name}) بنجاح!**`, ephemeral: true });
                 }
@@ -584,6 +799,7 @@ async function handleLabSession(context, user) {
 
             // فحص صحة المعايرة
             if (currentTemp !== reaction.targetTemp || currentPress !== reaction.targetPress) {
+                player.achievements.cautious = 0; // إعادة تعيين عداد المعايرة السليمة عند الخطأ
                 if (!player.upgrades.shield) {
                     updatePlayerData(user.id, player);
                     await i.reply({ content: '💥 **حدث انفجار مخبري بسبب ضبط درجات حرارة أو ضغط خاطئة! خسرت المواد.**', ephemeral: true });
@@ -592,6 +808,13 @@ async function handleLabSession(context, user) {
                     await i.reply({ content: '🛡️ **فشل التفاعل بسبب المعايرة الخاطئة، ولكن درع الحماية منع انفجار المواد!**', ephemeral: true });
                 }
                 return await i.message.edit(buildMainMenu(user, player));
+            }
+
+            // تحديث إنجاز المعايرة السليمة
+            player.achievements.cautious = (player.achievements.cautious || 0) + 1;
+            if (player.achievements.cautious >= 10 && !player.unlockedBadges.includes('cautious')) {
+                player.unlockedBadges.push('cautious');
+                player.coins += labData.achievements.cautious.reward;
             }
 
             let duration = player.upgrades.speed ? Math.ceil(reaction.timeSec / 2) : reaction.timeSec;
@@ -612,7 +835,7 @@ async function handleLabSession(context, user) {
             const itemNeeded = labData.items[q.item];
             
             const questEmbed = new EmbedBuilder()
-                .setTitle('📜 المهام اليومية')
+                .setTitle('📜 المهام اليومية المتجددة')
                 .addFields(
                     { name: '🎯 المطلوب', value: `إنتاج **${q.count}x ${itemNeeded?.name || q.item}**`, inline: true },
                     { name: '📊 التقدم الحالي', value: `\`${q.progress} / ${q.count}\``, inline: true },
@@ -636,7 +859,8 @@ async function handleLabSession(context, user) {
                 player.xp += player.quest.rewardXp;
                 player.quest.completed = true;
                 updatePlayerData(user.id, player);
-                return await i.update(buildMainMenu(user, player));
+                await i.reply({ content: `🎉 **تم تسليم المهمة بنجاح واستلام المكافأة!**`, ephemeral: true });
+                return await i.message.edit(buildMainMenu(user, player));
             }
         }
 
@@ -644,14 +868,14 @@ async function handleLabSession(context, user) {
         if (i.customId === 'btn_sell_all') {
             let totalEarned = 0;
             let soldList = [];
-            const sellableItems = ['nacl', 'cao', 'co2', 'h2o_pure', 'fe2o3', 'h2so4', 'cuno3_2', 'n2'];
 
-            sellableItems.forEach(id => {
-                if (player.inv[id] && player.inv[id] > 0) {
+            Object.keys(player.inv).forEach(id => {
+                const itemInfo = labData.items[id];
+                if (itemInfo && !itemInfo.buyable && player.inv[id] > 0) {
                     const qty = player.inv[id];
-                    const price = labData.items[id].price * qty;
+                    const price = itemInfo.price * qty;
                     totalEarned += price;
-                    soldList.push(`• **${labData.items[id].name}** (x${qty}) ➔ \`+${price} Valence\``);
+                    soldList.push(`• **${itemInfo.name}** (x${qty}) ➔ \`+${price} Valence\``);
                     delete player.inv[id];
                 }
             });
@@ -661,6 +885,12 @@ async function handleLabSession(context, user) {
             }
 
             player.coins += totalEarned;
+            player.achievements.trader = (player.achievements.trader || 0) + totalEarned;
+            if (player.achievements.trader >= 1000 && !player.unlockedBadges.includes('trader')) {
+                player.unlockedBadges.push('trader');
+                player.coins += labData.achievements.trader.reward;
+            }
+
             updatePlayerData(user.id, player);
 
             await i.reply({
@@ -674,7 +904,7 @@ async function handleLabSession(context, user) {
 }
 
 module.exports = {
-    data: new SlashCommandBuilder().setName('lab').setDescription('مختبر v1.3'),
+    data: new SlashCommandBuilder().setName('lab').setDescription('مختبر v1.4 '),
     async execute(interaction) {
         await handleLabSession(interaction, interaction.user);
     },
