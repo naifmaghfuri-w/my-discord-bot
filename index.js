@@ -1,4 +1,4 @@
-Require('dotenv').config();
+require('dotenv').config();
 const { gamesCommands, handleGamesCommand } = require('./games');
 const labCommand = require('./lab');
 
