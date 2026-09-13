@@ -597,11 +597,11 @@ async function handleLabSession(context, user) {
             if (!i.replied && !i.deferred) {
                 await i.update(data).catch(() => {});
             } else {
-                await i.editReply(data).catch(() => {});
+                await i.message.edit(data).catch(() => {});
             }
         };
 
-        const sendReply = async (contentStr) => {
+        const notifyOnly = async (contentStr) => {
             if (!i.replied && !i.deferred) {
                 await i.reply({ content: contentStr, flags: MessageFlags.Ephemeral }).catch(() => {});
             } else {
@@ -634,7 +634,7 @@ async function handleLabSession(context, user) {
         // Automation
         if (i.customId === 'btn_open_automation') {
             if (player.level < 20) {
-                return await sendReply('🔒 يتطلب فتح الورشة الآلية الوصول إلى **المستوى 20**!');
+                return await notifyOnly('🔒 يتطلب فتح الورشة الآلية الوصول إلى **المستوى 20**!');
             }
 
             const now = Date.now();
@@ -667,7 +667,8 @@ async function handleLabSession(context, user) {
             player.automatedProduct = i.customId === 'btn_set_auto_gold' ? 'pure_gold' : 'benzene';
             player.lastAutoClaim = Date.now();
             updatePlayerData(user.id, player);
-            return await sendReply(`⚙️ تم ضبط الورشة لإنتاج **${labData.items[player.automatedProduct].name}** بنجاح!`);
+            await notifyOnly(`⚙️ تم ضبط الورشة لإنتاج **${labData.items[player.automatedProduct].name}** بنجاح!`);
+            return await i.message.edit(buildMoreMenu(user, player));
         }
 
         if (i.customId === 'btn_open_market') {
@@ -695,12 +696,13 @@ async function handleLabSession(context, user) {
 
         if (i.customId === 'btn_submit_paper') {
             if ((player.inv['nitroglycerin'] || 0) < 1) {
-                return await sendReply('❌ لا تملك مركب **النيتروجليسرين** لنشر هذا البحث!');
+                return await notifyOnly('❌ لا تملك مركب **النيتروجليسرين** لنشر هذا البحث!');
             }
             player.inv['nitroglycerin'] -= 1;
             player.academicReputation = (player.academicReputation || 0) + 50;
             updatePlayerData(user.id, player);
-            return await sendReply('🎉 تم نشر الورقة البحثية بنجاح! حصلت على **+50 نقطة سمعة أكاديمية**.');
+            await notifyOnly('🎉 تم نشر الورقة البحثية بنجاح! حصلت على **+50 نقطة سمعة أكاديمية**.');
+            return await i.message.edit(buildMoreMenu(user, player));
         }
 
         if (i.customId === 'btn_open_duels') {
@@ -728,11 +730,12 @@ async function handleLabSession(context, user) {
         }
 
         if (i.customId === 'btn_clean_waste') {
-            if (player.coins < 100) return await sendReply('❌ لا تملك Valence كافي!');
+            if (player.coins < 100) return await notifyOnly('❌ لا تملك Valence كافي!');
             player.coins -= 100;
             player.inv['toxic_waste'] = 0;
             updatePlayerData(user.id, player);
-            return await sendReply('✅ تم تنظيف المستودع وتصريف النفايات بنجاح!');
+            await notifyOnly('✅ تم تنظيف المستودع وتصريف النفايات بنجاح!');
+            return await i.message.edit(buildMoreMenu(user, player));
         }
 
         if (i.customId === 'btn_open_gift') {
@@ -747,7 +750,7 @@ async function handleLabSession(context, user) {
         if (i.customId === 'btn_open_secret_mix') {
             const userMaterials = Object.keys(player.inv);
             if (userMaterials.length < 2) {
-                return await sendReply('❌ تحتاج إلى مادتين كيميائيتين على الأقل في مستودعك لإجراء خلط عشوائي!');
+                return await notifyOnly('❌ تحتاج إلى مادتين كيميائيتين على الأقل في مستودعك لإجراء خلط عشوائي!');
             }
 
             const mat1 = userMaterials[0];
@@ -766,17 +769,17 @@ async function handleLabSession(context, user) {
                 }
                 player.xp += 200;
                 updatePlayerData(user.id, player);
-                await sendReply('✨ **نجاح مبهر! قمت باكتشاف (المركب السري النادر ✨) عبر الخلط العشوائي!**');
+                await notifyOnly('✨ **نجاح مبهر! قمت باكتشاف (المركب السري النادر ✨) عبر الخلط العشوائي!**');
             } else {
                 if (!player.upgrades.shield) {
                     updatePlayerData(user.id, player);
-                    await sendReply('💥 **حدث انفجار كيميائي غير متوقع أثناء الخلط العشوائي! خسرت المواد.**');
+                    await notifyOnly('💥 **حدث انفجار كيميائي غير متوقع أثناء الخلط العشوائي! خسرت المواد.**');
                 } else {
                     updatePlayerData(user.id, player);
-                    await sendReply('🛡️ **فشل التفاعل العشوائي ولكن درع الحماية منع أضرار الانفجار!**');
+                    await notifyOnly('🛡️ **فشل التفاعل العشوائي ولكن درع الحماية منع أضرار الانفجار!**');
                 }
             }
-            return await updateScreen(buildMainMenu(user, player));
+            return await i.message.edit(buildMainMenu(user, player));
         }
 
         // Levels
@@ -800,10 +803,10 @@ async function handleLabSession(context, user) {
                 player.abilityPoints -= reaction.costAbility;
                 player.unlockedReactions.push(reaction.id);
                 updatePlayerData(user.id, player);
-                await sendReply(`✅ **تم فتح (${reaction.name}) بنجاح!**`);
-                return await updateScreen(buildLevelScreen(player, lvlIndex));
+                await notifyOnly(`✅ **تم فتح (${reaction.name}) بنجاح!**`);
+                return await i.message.edit(buildLevelScreen(player, lvlIndex));
             } else {
-                return await sendReply('❌ لا تملك نقاط قدرة كافية!');
+                return await notifyOnly('❌ لا تملك نقاط قدرة كافية!');
             }
         }
 
@@ -831,7 +834,7 @@ async function handleLabSession(context, user) {
                     player.coins -= upItem.price;
                     player.upgrades[id] = true;
                     updatePlayerData(user.id, player);
-                    await sendReply(`🎉 **تم شراء الترقية (${upItem.name}) بنجاح!**`);
+                    await notifyOnly(`🎉 **تم شراء الترقية (${upItem.name}) بنجاح!**`);
                 }
             } else if (type === 'equipment') {
                 const eqItem = labData.equipment[id];
@@ -841,7 +844,7 @@ async function handleLabSession(context, user) {
                     player.ownedEquipment[id] = true;
                     player.equipmentLevels[id] = 1;
                     updatePlayerData(user.id, player);
-                    await sendReply(`🎉 **تم شراء الجهاز (${eqItem.name}) بنجاح!**`);
+                    await notifyOnly(`🎉 **تم شراء الجهاز (${eqItem.name}) بنجاح!**`);
                 }
             } else {
                 const item = labData.items[id];
@@ -850,10 +853,11 @@ async function handleLabSession(context, user) {
                     player.inv[id] = (player.inv[id] || 0) + 1;
                     if (item.shelfLife) player.itemTimestamps[id] = Date.now();
                     updatePlayerData(user.id, player);
-                    await sendReply(`🛒 **تم شراء 1x (${item.name}) بنجاح!**`);
+                    await notifyOnly(`🛒 **تم شراء 1x (${item.name}) بنجاح!**`);
                 }
             }
-            return await updateScreen(buildShopScreen(player, shopIndex));
+            // تحديث واجهة المتجر الأصلية القائمة بنفس الرسالة
+            return await i.message.edit(buildShopScreen(player, shopIndex));
         }
 
         // Reactions & Calibration
@@ -900,7 +904,7 @@ async function handleLabSession(context, user) {
 
             for (const [mat, qty] of Object.entries(reaction.req)) {
                 if (!player.inv[mat] || player.inv[mat] < qty) {
-                    return await sendReply(`❌ لا تملك المواد الكافية! تحتاج إلى (${labData.items[mat]?.name || mat} x${qty})`);
+                    return await notifyOnly(`❌ لا تملك المواد الكافية! تحتاج إلى (${labData.items[mat]?.name || mat} x${qty})`);
                 }
             }
 
@@ -916,12 +920,12 @@ async function handleLabSession(context, user) {
                 player.achievements.cautious = 0;
                 if (!player.upgrades.shield) {
                     updatePlayerData(user.id, player);
-                    await sendReply('💥 **حدث انفجار مخبري بسبب ضبط درجات حرارة أو ضغط خاطئة! خسرت المواد.**');
+                    await notifyOnly('💥 **حدث انفجار مخبري بسبب ضبط درجات حرارة أو ضغط خاطئة! خسرت المواد.**');
                 } else {
                     updatePlayerData(user.id, player);
-                    await sendReply('🛡️ **فشل التفاعل بسبب المعايرة الخاطئة، ولكن درع الحماية منع انفجار المواد!**');
+                    await notifyOnly('🛡️ **فشل التفاعل بسبب المعايرة الخاطئة، ولكن درع الحماية منع انفجار المواد!**');
                 }
-                return await updateScreen(buildMainMenu(user, player));
+                return await i.message.edit(buildMainMenu(user, player));
             }
 
             player.achievements.cautious = (player.achievements.cautious || 0) + 1;
@@ -940,10 +944,7 @@ async function handleLabSession(context, user) {
                 }
             }, duration * 1000);
 
-            // 1. إرسال تنبيه مخفي بسيط بدون القائمة الرئيسية
-            await i.reply({ content: `🚀 **بدأ تفاعل (${reaction.name})! سينتهي بعد ${duration} ثانية.**`, flags: MessageFlags.Ephemeral });
-
-            // 2. تحديث الواجهة خلف التكست فوراً للقائمة الرئيسية المحدثة
+            await notifyOnly(`🚀 **بدأ تفاعل (${reaction.name})! سينتهي بعد ${duration} ثانية.**`);
             return await i.message.edit(buildMainMenu(user, player));
         }
 
@@ -977,8 +978,8 @@ async function handleLabSession(context, user) {
                 player.xp += player.quest.rewardXp;
                 player.quest.completed = true;
                 updatePlayerData(user.id, player);
-                await sendReply('🎉 **تم تسليم المهمة بنجاح واستلام المكافأة!**');
-                return await updateScreen(buildMainMenu(user, player));
+                await notifyOnly('🎉 **تم تسليم المهمة بنجاح واستلام المكافأة!**');
+                return await i.message.edit(buildMainMenu(user, player));
             }
         }
 
@@ -998,7 +999,7 @@ async function handleLabSession(context, user) {
             });
 
             if (totalEarned === 0) {
-                return await sendReply('⚠️ لا تملك أي مواد مُصنّعة قابلة للبيع حالياً!');
+                return await notifyOnly('⚠️ لا تملك أي مواد مُصنّعة قابلة للبيع حالياً!');
             }
 
             player.coins += totalEarned;
@@ -1009,8 +1010,8 @@ async function handleLabSession(context, user) {
             }
 
             updatePlayerData(user.id, player);
-            await sendReply(`💵 **تمت عملية البيع بنجاح!**\n${soldList.join('\n')}\n\n💰 الإجمالي المضاف لرصيدك: **+${totalEarned} Valence** 🪙`);
-            return await updateScreen(buildMainMenu(user, player));
+            await notifyOnly(`💵 **تمت عملية البيع بنجاح!**\n${soldList.join('\n')}\n\n💰 الإجمالي المضاف لرصيدك: **+${totalEarned} Valence** 🪙`);
+            return await i.message.edit(buildMainMenu(user, player));
         }
     });
 }
