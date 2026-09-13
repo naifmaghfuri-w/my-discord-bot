@@ -112,6 +112,18 @@ function ensureDataFile() {
     if (!fs.existsSync(dataPath)) fs.writeFileSync(dataPath, JSON.stringify({}, null, 2));
 }
 
+function getMarketPrices() {
+    const minuteSeed = Math.floor(Date.now() / 300000); // يتغير السعر كل 5 دقائق
+    let prices = {};
+    Object.entries(labData.items).forEach(([id, item]) => {
+        if (item.price > 0) {
+            const factor = 0.7 + (Math.abs(Math.sin(minuteSeed + id.length)) * 0.6); // تذبذب بين -30% إلى +30%
+            prices[id] = Math.round(item.price * factor);
+        }
+    });
+    return prices;
+}
+
 function generateDailyQuest(playerLevel) {
     const targetItems = Object.entries(labData.items).filter(([_, item]) => !item.buyable && item.price > 0);
     const randomItem = targetItems[Math.floor(Math.random() * targetItems.length)][0];
@@ -232,7 +244,7 @@ function buildMoreMenu(user, player) {
         .addFields(
             { name: '📜 المستويات والقدرات', value: 'فتح التفاعلات المتاحة حتى Lv.25.', inline: true },
             { name: '🏭 الورشة الآلية', value: 'خط إنتاج تلقائي للمركبات (Lv.20+).', inline: true },
-            { name: '📈 البورصة والسوق', value: 'تداول العروض والاستثمار في المواد.', inline: true },
+            { name: '📈 البورصة والسوق', value: 'تداول العروض والاستثمار المباشر.', inline: true },
             { name: '📄 الأوراق البحثية', value: 'تقديم الأبحاث لكسب السمعة الأكاديمية.', inline: true },
             { name: '⚔️ تحدي الرموز', value: 'تحدي كيميائي سريع ضد لاعب آخر.', inline: true },
             { name: '☣️ إدارة النفايات', value: 'تنظيف وتدوير النفايات الكيميائية.', inline: true },
@@ -316,7 +328,7 @@ function buildLevelScreen(player, index) {
         new ButtonBuilder().setCustomId('btn_open_more_menu').setLabel('↩️ قائمة الفرعيات').setStyle(ButtonStyle.Danger)
     );
 
-    return { embeds: [embed], components: [row1, row2] };
+    return { embeds: [embed], components: [row2, row1] };
 }
 
 function buildShopScreen(player, index) {
@@ -692,13 +704,117 @@ async function handleLabSession(context, user) {
             return await i.message.edit(buildMoreMenu(user, player));
         }
 
+        // ==========================================
+        // 📈 نظام البورصة والتداول المباشر
+        // ==========================================
         if (i.customId === 'btn_open_market') {
-            const marketEmbed = new EmbedBuilder()
-                .setTitle('📈 البورصة وسوق التداول الكيميائي')
-                .setDescription('مؤشرات الأسعار اليومية متقلبة، قم ببيع نواتجك في أوقات الارتفاع لتحقيق أقصى أرباح Valence!')
-                .setColor(0xf1c40f);
+            const currentPrices = getMarketPrices();
+            let priceListStr = Object.entries(currentPrices).slice(0, 7).map(([id, p]) => {
+                const baseP = labData.items[id].price;
+                const diff = p - baseP;
+                const status = diff >= 0 ? `📈 (+${diff})` : `📉 (${diff})`;
+                return `• **${labData.items[id].name}**: \`${p} Valence\` ${status}`;
+            }).join('\n');
 
-            return await updateScreen({ embeds: [marketEmbed], components: [backMoreBtnRow] });
+            const marketEmbed = new EmbedBuilder()
+                .setTitle('📈 البورصة الكيميائية للمضاربة')
+                .setDescription(`تتغير أسعار البورصة تلقائياً كل 5 دقائق بناءً على حركة العرض والطلب!\n\n**أسعار التداول الحالية:**\n${priceListStr}`)
+                .setColor(0xf1c40f)
+                .addFields({ name: '💰 رصيدك الحالي', value: `\`${player.coins} Valence🪙\`` });
+
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('btn_market_trade_modal').setLabel('📊 تداول مادة الآن').setStyle(ButtonStyle.Success),
+                backMoreBtnRow.components[0]
+            );
+
+            return await updateScreen({ embeds: [marketEmbed], components: [row] });
+        }
+
+        if (i.customId === 'btn_market_trade_modal') {
+            const modal = new ModalBuilder()
+                .setCustomId('modal_market_trade')
+                .setTitle('📈 تداول المواد في البورصة');
+
+            const symbolInput = new TextInputBuilder()
+                .setCustomId('input_trade_symbol')
+                .setLabel('رمز أو اسم المادة (مثال: Au أو pure_gold)')
+                .setStyle(TextInputStyle.Short)
+                .setPlaceholder('مثال: Au')
+                .setRequired(true);
+
+            const typeInput = new TextInputBuilder()
+                .setCustomId('input_trade_type')
+                .setLabel('نوع العملية (شراء / بيع)')
+                .setStyle(TextInputStyle.Short)
+                .setPlaceholder('شراء أو بيع')
+                .setRequired(true);
+
+            const qtyInput = new TextInputBuilder()
+                .setCustomId('input_trade_qty')
+                .setLabel('الكمية')
+                .setStyle(TextInputStyle.Short)
+                .setPlaceholder('مثال: 1')
+                .setRequired(true);
+
+            modal.addComponents(
+                new ActionRowBuilder().addComponents(symbolInput),
+                new ActionRowBuilder().addComponents(typeInput),
+                new ActionRowBuilder().addComponents(qtyInput)
+            );
+
+            await i.showModal(modal);
+
+            try {
+                const submitted = await i.awaitModalSubmit({ time: 30000, filter: sub => sub.user.id === user.id });
+                const queryStr = submitted.fields.getTextInputValue('input_trade_symbol').toLowerCase().trim();
+                const typeStr = submitted.fields.getTextInputValue('input_trade_type').trim();
+                const qty = parseInt(submitted.fields.getTextInputValue('input_trade_qty'));
+
+                if (isNaN(qty) || qty <= 0) {
+                    return await submitted.reply({ content: '❌ يرجى كتابة كمية صحيحة!', flags: MessageFlags.Ephemeral });
+                }
+
+                const matchedItemEntry = Object.entries(labData.items).find(([id, item]) => id === queryStr || (item.symbol && item.symbol.toLowerCase() === queryStr));
+
+                if (!matchedItemEntry) {
+                    return await submitted.reply({ content: '❌ مادة غير موجودة أو غير قابلة للتداول في البورصة!', flags: MessageFlags.Ephemeral });
+                }
+
+                const itemId = matchedItemEntry[0];
+                const itemInfo = matchedItemEntry[1];
+                const marketPrices = getMarketPrices();
+                const currentPrice = marketPrices[itemId] || itemInfo.price;
+                const totalCost = currentPrice * qty;
+
+                if (typeStr.includes('شراء') || typeStr.toLowerCase() === 'buy') {
+                    if (player.coins < totalCost) {
+                        return await submitted.reply({ content: `❌ رصيدك غير كافٍ! التكلفة الإجمالية: \`${totalCost}\` Valence.`, flags: MessageFlags.Ephemeral });
+                    }
+                    player.coins -= totalCost;
+                    player.inv[itemId] = (player.inv[itemId] || 0) + qty;
+                    updatePlayerData(user.id, player);
+
+                    await submitted.deferUpdate();
+                    await notifyOnly(`📈 **تم شراء ${qty}x من ${itemInfo.name} بسعر البورصة (${currentPrice} Valence/وحدة) بنجاح!**`);
+                } else if (typeStr.includes('بيع') || typeStr.toLowerCase() === 'sell') {
+                    if (!player.inv[itemId] || player.inv[itemId] < qty) {
+                        return await submitted.reply({ content: `❌ لا تملك هذه الكمية من المادة في مستودعك!`, flags: MessageFlags.Ephemeral });
+                    }
+                    player.inv[itemId] -= qty;
+                    if (player.inv[itemId] <= 0) delete player.inv[itemId];
+                    player.coins += totalCost;
+                    updatePlayerData(user.id, player);
+
+                    await submitted.deferUpdate();
+                    await notifyOnly(`📉 **تم بيع ${qty}x من ${itemInfo.name} بسعر البورصة (${currentPrice} Valence/وحدة) بربح +${totalCost} Valence!**`);
+                } else {
+                    return await submitted.reply({ content: '❌ يرجى تحديد العملية بشكل صحيح (شراء أو بيع)!', flags: MessageFlags.Ephemeral });
+                }
+
+                return await i.message.edit(buildMainMenu(user, player));
+            } catch (err) {
+                return;
+            }
         }
 
         if (i.customId === 'btn_open_research') {
@@ -722,7 +838,7 @@ async function handleLabSession(context, user) {
             player.inv['nitroglycerin'] -= 1;
             player.academicReputation = (player.academicReputation || 0) + 50;
             updatePlayerData(user.id, player);
-            await notifyOnly('🎉 تم نشر الورقة البحثية بنجاح! حصلت على **+50 نقطة سمعة أكاديمية**.');
+            await notifyOnly('🎉 تم نشر الورقة البحثية بنجاح!حصلت على **+50 نقطة سمعة أكاديمية**.');
             return await i.message.edit(buildMoreMenu(user, player));
         }
 
@@ -794,7 +910,6 @@ async function handleLabSession(context, user) {
                     return await submitted.reply({ content: `❌ الخصم لا يملك رصيد كافي للرهان (${betAmount} Valence)!`, flags: MessageFlags.Ephemeral });
                 }
 
-                // اختيار عنصر عشوائي للتحدي
                 const validItems = Object.values(labData.items).filter(item => item.symbol && item.symbol !== 'X' && item.symbol !== 'WASTE');
                 const randomItem = validItems[Math.floor(Math.random() * validItems.length)];
 
