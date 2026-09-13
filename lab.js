@@ -179,7 +179,6 @@ function getPlayerData(userId) {
         fs.writeFileSync(dataPath, JSON.stringify(db, null, 2));
     }
     
-    // تجديد المهمة والتأكد من البيانات
     if (!db[userId].quest || (Date.now() - (db[userId].quest.lastReset || 0)) > 86400000) {
         db[userId].quest = generateDailyQuest(db[userId].level || 1);
     }
@@ -234,7 +233,7 @@ function buildMainMenu(user, player) {
     return { embeds: [embed], components: [row1, row2] };
 }
 
-// 📂 2. قائمة الفرعيات (More Menu v1.5 المحدثة)
+// 📂 2. قائمة الفرعيات (More Menu v1.5)
 function buildMoreMenu(user, player) {
     const embed = new EmbedBuilder()
         .setTitle('📂 القائمة الإضافية - v1.5')
@@ -495,14 +494,61 @@ function buildCodexScreen(player) {
     return { embeds: [embed], components: [row] };
 }
 
-// 🧠 8. معالج الجلسة التفاعلي الرئيسي (الكود الخاص بك مع إضافة ميزات v1.5)
+// ⚙️ 8. شاشة ترقية المعدات
+function buildEquipUpgradeScreen(player) {
+    let equipList = '';
+    const owned = player.ownedEquipment || {};
+
+    Object.entries(labData.equipment).forEach(([id, eq]) => {
+        if (owned[id]) {
+            const currentLv = player.equipmentLevels[id] || 1;
+            const upgradeCost = currentLv * 250;
+            equipList += `⚙️ **${eq.name}** (مستوى Lv.${currentLv})\n• كفاءة الجهاز: \`+${currentLv * 10}%\` | تكلفة الترقية التالية: \`${upgradeCost} Valence\`\n\n`;
+        }
+    });
+
+    if (!equipList) equipList = '_لا تملك أي أجهزة قابلة للترقية حالياً! اشتر الأجهزة من المتجر أولاً._';
+
+    const embed = new EmbedBuilder()
+        .setTitle('⚙️ تطوير وترقية أجهزة المختبر')
+        .setDescription(equipList)
+        .setColor(0x34495e);
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('btn_open_more_menu').setLabel('↩️ قائمة الفرعيات').setStyle(ButtonStyle.Danger)
+    );
+
+    return { embeds: [embed], components: [row] };
+}
+
+// 🎖️ 9. شاشة الإنجازات
+function buildAchievementsScreen(player) {
+    let achList = '';
+
+    Object.entries(labData.achievements).forEach(([id, ach]) => {
+        const isUnlocked = player.unlockedBadges.includes(id);
+        achList += `${isUnlocked ? '✅' : '🔒'} **${ach.name}**\n_${ach.desc}_\n💰 المكافأة: \`${ach.reward} Valence\` ${isUnlocked ? '(تمت المطالبة)' : ''}\n\n`;
+    });
+
+    const embed = new EmbedBuilder()
+        .setTitle('🎖️ الإنجازات والألقاب الكيميائية')
+        .setDescription(achList)
+        .setColor(0xe67e22);
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('btn_open_more_menu').setLabel('↩️ قائمة الفرعيات').setStyle(ButtonStyle.Danger)
+    );
+
+    return { embeds: [embed], components: [row] };
+}
+
+// 🧠 10. معالج الجلسة التفاعلي الرئيسي
 async function handleLabSession(context, user) {
     let player = getPlayerData(user.id);
 
     // معالجة استقرار المواد والتحلل الزمني
     const decayedNames = processItemStabilityAndDecay(player);
 
-    const channel = context.channel;
     const currentNow = Math.floor(Date.now() / 1000);
 
     // معالجة التفاعلات المكتملة
@@ -542,8 +588,8 @@ async function handleLabSession(context, user) {
         responseMsg = await context.reply(initialMenu);
     }
 
-    if (decayedNames.length > 0) {
-        channel.send({ content: `⚠️ <@${user.id}> **تنبيه استقرار المواد:** تحللت المواد التالية لانتهاء صلاحيتها في المستودع: (${decayedNames.join(', ')})` }).catch(() => {});
+    if (decayedNames.length > 0 && context.channel) {
+        context.channel.send({ content: `⚠️ <@${user.id}> **تنبيه استقرار المواد:** تحللت المواد التالية لانتهاء صلاحيتها في المستودع: (${decayedNames.join(', ')})` }).catch(() => {});
     }
 
     // حالات التصفح
@@ -560,6 +606,7 @@ async function handleLabSession(context, user) {
         if (i.user.id !== user.id) return i.reply({ content: '❌ هذه اللوحة غير مخصصة لك!', ephemeral: true });
 
         player = getPlayerData(user.id);
+        const channel = i.channel;
 
         const backMoreBtnRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('btn_open_more_menu').setLabel('الرجوع للقائمة الإضافية ↩️').setStyle(ButtonStyle.Secondary)
@@ -591,6 +638,16 @@ async function handleLabSession(context, user) {
         // --- 📘 الموسوعة الكيميائية ---
         if (i.customId === 'btn_open_codex') {
             return await i.update(buildCodexScreen(player));
+        }
+
+        // --- ⚙️ ترقية المعدات ---
+        if (i.customId === 'btn_open_equip_upgrade') {
+            return await i.update(buildEquipUpgradeScreen(player));
+        }
+
+        // --- 🎖️ الإنجازات والألقاب ---
+        if (i.customId === 'btn_open_achievements') {
+            return await i.update(buildAchievementsScreen(player));
         }
 
         // --- 🏭 1. الورشة الآلية (v1.5) ---
@@ -625,6 +682,7 @@ async function handleLabSession(context, user) {
             return await i.update({ embeds: [autoEmbed], components: [row] });
         }
 
+        // معالجة زر ضبط الإنتاج للورشة الآلية
         if (i.customId === 'btn_set_auto_gold' || i.customId === 'btn_set_auto_benzene') {
             player.automatedProduct = i.customId === 'btn_set_auto_gold' ? 'pure_gold' : 'benzene';
             player.lastAutoClaim = Date.now();
@@ -905,7 +963,9 @@ async function handleLabSession(context, user) {
             updatePlayerData(user.id, player);
 
             setTimeout(() => {
-                channel.send(`🎉 <@${user.id}> **اكتمل التفاعل الكيميائي (${reaction.name})! افتح المختبر لاستلام نتائجك.**`).catch(() => {});
+                if (channel) {
+                    channel.send({ content: `🎉 <@${user.id}> **اكتمل التفاعل الكيميائي (${reaction.name})! افتح المختبر لاستلام نتائجك.**` }).catch(() => {});
+                }
             }, duration * 1000);
 
             await i.reply({ content: `🚀 **بدأ تفاعل (${reaction.name})! سينتهي بعد ${duration} ثانية.**`, ephemeral: true });
@@ -987,7 +1047,7 @@ async function handleLabSession(context, user) {
 }
 
 module.exports = {
-    data: new SlashCommandBuilder().setName('lab').setDescription('مختبر v1.5'),
+    data: new SlashCommandBuilder().setName('lab').setDescription('مختبر v1.5 '),
     async execute(interaction) {
         await handleLabSession(interaction, interaction.user);
     },
