@@ -16,48 +16,48 @@ const dataPath = path.join(__dirname, 'labData.json');
 
 const labData = {
     items: {
-        na: { name: 'الصوديوم (Na)', price: 15, buyable: true, state: '🪨 صلب' },
-        cl: { name: 'الكلور (Cl)', price: 15, buyable: true, state: '💨 غاز' },
-        caco3: { name: 'حجر الجير (CaCO3)', price: 30, buyable: true, state: '🪨 صلب' },
-        h2o_imp: { name: 'ماء غير نقي (H2O)', price: 20, buyable: true, state: '💧 سائل' },
-        fe: { name: 'الحديد (Fe)', price: 35, buyable: true, state: '🪨 صلب' },
-        o2: { name: 'الأكسجين (O2)', price: 25, buyable: true, state: '💨 غاز' },
-        h2: { name: 'الهيدروجين (H2)', price: 25, buyable: true, state: '💨 غاز' },
-        so2: { name: 'ثاني أكسيد الكبريت (SO2)', price: 40, buyable: true, state: '💨 غاز' },
-        cu: { name: 'النحاس (Cu)', price: 50, buyable: true, state: '🪨 صلب' },
-        hno3: { name: 'حمض النيتريك (HNO3)', price: 75, buyable: true, state: '💧 سائل', shelfLife: 3600 },
-        hno3_dilute: { name: 'حمض النيتريك المخفف (HNO3)', price: 50, buyable: true, state: '💧 سائل', shelfLife: 4800, reqLevel: 6 },
-        zn: { name: 'مسحوق الزنك (Zn)', price: 65, buyable: true, state: '🪨 مسحوق', reqLevel: 7 },
-        nh3: { name: 'محلول الأمونيا (NH3)', price: 80, buyable: true, state: '💧 سائل', shelfLife: 3600, reqLevel: 8 },
-        cuso4: { name: 'كبريتات النحاس (CuSO4)', price: 110, buyable: true, state: '🪨 بلورات', reqLevel: 9 },
-        ethanol: { name: 'إيثانول (C2H5OH)', price: 140, buyable: true, state: '💧 سائل', shelfLife: 7200, reqLevel: 10 },
-        naoh: { name: 'هيدروكسيد الصوديوم (NaOH)', price: 170, buyable: true, state: '🪨 صلب', reqLevel: 11 },
-        ch3cooh: { name: 'حمض الاستيك (CH3COOH)', price: 200, buyable: true, state: '💧 سائل', shelfLife: 5400, reqLevel: 12 },
-        oxalic: { name: 'حمض الأوكزاليك (C2H2O4)', price: 280, buyable: true, state: '🪨 صلب', reqLevel: 14 },
-        au_ore: { name: 'خام الذهب (Au Ore)', price: 500, buyable: true, state: '🪨 خام', reqLevel: 16 },
-        pt_ore: { name: 'خام البلاتين (Pt Ore)', price: 750, buyable: true, state: '🪨 خام', reqLevel: 18 },
-        benzene_raw: { name: 'قطران الفحم (مصدر البنزين)', price: 350, buyable: true, state: '💧 سائل', reqLevel: 17 },
-        nacl: { name: 'ملح الطعام (NaCl)', price: 50, buyable: false, state: '🪨 صلب', desc: 'مركب أيوني ناتج من تفاعل الصوديوم والكلور.' },
-        cao: { name: 'الجير الحي (CaO)', price: 80, buyable: false, state: '🪨 صلب', desc: 'ينتج عن التفكك الحراري لحجر الجير.' },
-        co2: { name: 'ثاني أكسيد الكربون (CO2)', price: 40, buyable: false, state: '💨 غاز', desc: 'غاز ينطلق كناتج ثانوي.' },
-        h2o_pure: { name: 'ماء نقي 💧 (Pure H2O)', price: 45, buyable: false, state: '💧 سائل', desc: 'ماء مقطر عالي النقاوة.' },
-        fe2o3: { name: 'أكسيد الحديد (Fe2O3)', price: 90, buyable: false, state: '🪨 صلب', desc: 'مركب ناتج من أكسدة الحديد العالية.' },
-        h2so4: { name: 'حمض الكبريتيك (H2SO4)', price: 150, buyable: false, state: '💧 سائل', desc: 'حمض شديد التآكل.', shelfLife: 2700 },
-        cuno3_2: { name: 'نترات النحاس Cu(NO3)2', price: 180, buyable: false, state: '🪨 بلورات', desc: 'مركب كيميائي عالي القيمة مستخدم في الطلاء.' },
-        n2: { name: 'غاز النيتروجين النقي (N2)', price: 210, buyable: false, state: '💨 غاز', desc: 'غاز خامل ممتاز للتطبيقات الصناعية.' },
-        zn_no3: { name: 'نترات الزنك Zn(NO3)2', price: 180, buyable: false, state: '🪨 بلورات', desc: 'مركب ناتج عن تفاعل الزنك مع حمض النيتريك المخفف.' },
-        nh4no3: { name: 'نترات الأمونيوم (NH4NO3)', price: 260, buyable: false, state: '🪨 بلورات', desc: 'سماد نتروجيني مركب عالي التركيز.' },
-        copper_cryst: { name: 'بلورات النحاس المنقاة', price: 340, buyable: false, state: '🪨 بلورات', desc: 'بلورات نحاسية زرقاء نقية جداً.' },
-        pure_ethanol: { name: 'إيثانول منقى 100%', price: 450, buyable: false, state: '💧 سائل', desc: 'مذيب عضوي عالي النقاء مستخلص بالتقطير.' },
-        salt_neutral: { name: 'محلول ملحي متعادل', price: 520, buyable: false, state: '💧 سائل', desc: 'ناتج تفاعل التعادل بين حمض وقاعدة قوية.' },
-        ethyl_acetate: { name: 'إيثيل أسيتات', price: 680, buyable: false, state: '💧 سائل', desc: 'مذيب عضوي عطري ذو استخدامات صناعية واسعة.' },
-        dry_precipitate: { name: 'مسحوق جاف فائق النقاء', price: 1100, buyable: false, state: '🪨 مسحوق', desc: 'ناتج تجفيف المترسبات المعقدة في الفرن الزجاجي.' },
-        secret_compound: { name: 'المركب السري النادر ✨', price: 2500, buyable: false, state: '✨ طاقة', desc: 'اكتشاف نادر جداً ناتج عن الخلط العشوائي للمواد.' },
-        pure_gold: { name: 'الذهب النقي (Au)', price: 2200, buyable: false, state: '✨ معدن نفيس', desc: 'سبائك ذهب عالية النقاوة مستخلصة كيميائياً.' },
-        pure_platinum: { name: 'البلاتين الصافي (Pt)', price: 3500, buyable: false, state: '✨ معدن نفيس', desc: 'عنصر البلاتين النادر المستخرج عبر تحليل كهرومغناطيسي.' },
-        benzene: { name: 'مركب البنزين العطري (C6H6)', price: 1200, buyable: false, state: '💧 سائل', desc: 'مركب عضوي حلقي أساسي في الصناعات المتقدمة.' },
-        nitroglycerin: { name: 'النيتروجليسرين (C3H5N3O9)', price: 1800, buyable: false, state: '💥 مركب حسّاس', desc: 'مركب عضوي شديد الانفجار وقيمته عالية جداً.' },
-        toxic_waste: { name: 'النفايات الكيميائية ☣️', price: 0, buyable: false, state: '☣️ نفايات', desc: 'نفايات ضارة تسبب تلف المواد إذا لم يتم تصريفها.' }
+        na: { name: 'الصوديوم (Na)', symbol: 'Na', price: 15, buyable: true, state: '🪨 صلب' },
+        cl: { name: 'الكلور (Cl)', symbol: 'Cl', price: 15, buyable: true, state: '💨 غاز' },
+        caco3: { name: 'حجر الجير (CaCO3)', symbol: 'CaCO3', price: 30, buyable: true, state: '🪨 صلب' },
+        h2o_imp: { name: 'ماء غير نقي (H2O)', symbol: 'H2O', price: 20, buyable: true, state: '💧 سائل' },
+        fe: { name: 'الحديد (Fe)', symbol: 'Fe', price: 35, buyable: true, state: '🪨 صلب' },
+        o2: { name: 'الأكسجين (O2)', symbol: 'O2', price: 25, buyable: true, state: '💨 غاز' },
+        h2: { name: 'الهيدروجين (H2)', symbol: 'H2', price: 25, buyable: true, state: '💨 غاز' },
+        so2: { name: 'ثاني أكسيد الكبريت (SO2)', symbol: 'SO2', price: 40, buyable: true, state: '💨 غاز' },
+        cu: { name: 'النحاس (Cu)', symbol: 'Cu', price: 50, buyable: true, state: '🪨 صلب' },
+        hno3: { name: 'حمض النيتريك (HNO3)', symbol: 'HNO3', price: 75, buyable: true, state: '💧 سائل', shelfLife: 3600 },
+        hno3_dilute: { name: 'حمض النيتريك المخفف (HNO3)', symbol: 'HNO3', price: 50, buyable: true, state: '💧 سائل', shelfLife: 4800, reqLevel: 6 },
+        zn: { name: 'مسحوق الزنك (Zn)', symbol: 'Zn', price: 65, buyable: true, state: '🪨 مسحوق', reqLevel: 7 },
+        nh3: { name: 'محلول الأمونيا (NH3)', symbol: 'NH3', price: 80, buyable: true, state: '💧 سائل', shelfLife: 3600, reqLevel: 8 },
+        cuso4: { name: 'كبريتات النحاس (CuSO4)', symbol: 'CuSO4', price: 110, buyable: true, state: '🪨 بلورات', reqLevel: 9 },
+        ethanol: { name: 'إيثانول (C2H5OH)', symbol: 'C2H5OH', price: 140, buyable: true, state: '💧 سائل', shelfLife: 7200, reqLevel: 10 },
+        naoh: { name: 'هيدروكسيد الصوديوم (NaOH)', symbol: 'NaOH', price: 170, buyable: true, state: '🪨 صلب', reqLevel: 11 },
+        ch3cooh: { name: 'حمض الاستيك (CH3COOH)', symbol: 'CH3COOH', price: 200, buyable: true, state: '💧 سائل', shelfLife: 5400, reqLevel: 12 },
+        oxalic: { name: 'حمض الأوكزاليك (C2H2O4)', symbol: 'C2H2O4', price: 280, buyable: true, state: '🪨 صلب', reqLevel: 14 },
+        au_ore: { name: 'خام الذهب (Au Ore)', symbol: 'Au', price: 500, buyable: true, state: '🪨 خام', reqLevel: 16 },
+        pt_ore: { name: 'خام البلاتين (Pt Ore)', symbol: 'Pt', price: 750, buyable: true, state: '🪨 خام', reqLevel: 18 },
+        benzene_raw: { name: 'قطران الفحم (مصدر البنزين)', symbol: 'C6H6', price: 350, buyable: true, state: '💧 سائل', reqLevel: 17 },
+        nacl: { name: 'ملح الطعام (NaCl)', symbol: 'NaCl', price: 50, buyable: false, state: '🪨 صلب', desc: 'مركب أيوني ناتج من تفاعل الصوديوم والكلور.' },
+        cao: { name: 'الجير الحي (CaO)', symbol: 'CaO', price: 80, buyable: false, state: '🪨 صلب', desc: 'ينتج عن التفكك الحراري لحجر الجير.' },
+        co2: { name: 'ثاني أكسيد الكربون (CO2)', symbol: 'CO2', price: 40, buyable: false, state: '💨 غاز', desc: 'غاز ينطلق كناتج ثانوي.' },
+        h2o_pure: { name: 'ماء نقي 💧 (Pure H2O)', symbol: 'H2O', price: 45, buyable: false, state: '💧 سائل', desc: 'ماء مقطر عالي النقاوة.' },
+        fe2o3: { name: 'أكسيد الحديد (Fe2O3)', symbol: 'Fe2O3', price: 90, buyable: false, state: '🪨 صلب', desc: 'مركب ناتج من أكسدة الحديد العالية.' },
+        h2so4: { name: 'حمض الكبريتيك (H2SO4)', symbol: 'H2SO4', price: 150, buyable: false, state: '💧 سائل', desc: 'حمض شديد التآكل.', shelfLife: 2700 },
+        cuno3_2: { name: 'نترات النحاس Cu(NO3)2', symbol: 'Cu(NO3)2', price: 180, buyable: false, state: '🪨 بلورات', desc: 'مركب كيميائي عالي القيمة مستخدم في الطلاء.' },
+        n2: { name: 'غاز النيتروجين النقي (N2)', symbol: 'N2', price: 210, buyable: false, state: '💨 غاز', desc: 'غاز خامل ممتاز للتطبيقات الصناعية.' },
+        zn_no3: { name: 'نترات الزنك Zn(NO3)2', symbol: 'Zn(NO3)2', price: 180, buyable: false, state: '🪨 بلورات', desc: 'مركب ناتج عن تفاعل الزنك مع حمض النيتريك المخفف.' },
+        nh4no3: { name: 'نترات الأمونيوم (NH4NO3)', symbol: 'NH4NO3', price: 260, buyable: false, state: '🪨 بلورات', desc: 'سماد نتروجيني مركب عالي التركيز.' },
+        copper_cryst: { name: 'بلورات النحاس المنقاة', symbol: 'Cu', price: 340, buyable: false, state: '🪨 بلورات', desc: 'بلورات نحاسية زرقاء نقية جداً.' },
+        pure_ethanol: { name: 'إيثانول منقى 100%', symbol: 'C2H5OH', price: 450, buyable: false, state: '💧 سائل', desc: 'مذيب عضوي عالي النقاء مستخلص بالتقطير.' },
+        salt_neutral: { name: 'محلول ملحي متعادل', symbol: 'NaCl', price: 520, buyable: false, state: '💧 سائل', desc: 'ناتج تفاعل التعادل بين حمض وقاعدة قوية.' },
+        ethyl_acetate: { name: 'إيثيل أسيتات', symbol: 'CH3COOCH2CH3', price: 680, buyable: false, state: '💧 سائل', desc: 'مذيب عضوي عطري ذو استخدامات صناعية واسعة.' },
+        dry_precipitate: { name: 'مسحوق جاف فائق النقاء', symbol: 'ZnC2O4', price: 1100, buyable: false, state: '🪨 مسحوق', desc: 'ناتج تجفيف المترسبات المعقدة في الفرن الزجاجي.' },
+        secret_compound: { name: 'المركب السري النادر ✨', symbol: 'X', price: 2500, buyable: false, state: '✨ طاقة', desc: 'اكتشاف نادر جداً ناتج عن الخلط العشوائي للمواد.' },
+        pure_gold: { name: 'الذهب النقي (Au)', symbol: 'Au', price: 2200, buyable: false, state: '✨ معدن نفيس', desc: 'سبائك ذهب عالية النقاوة مستخلصة كيميائياً.' },
+        pure_platinum: { name: 'البلاتين الصافي (Pt)', symbol: 'Pt', price: 3500, buyable: false, state: '✨ معدن نفيس', desc: 'عنصر البلاتين النادر المستخرج عبر تحليل كهرومغناطيسي.' },
+        benzene: { name: 'مركب البنزين العطري (C6H6)', symbol: 'C6H6', price: 1200, buyable: false, state: '💧 سائل', desc: 'مركب عضوي حلقي أساسي في الصناعات المتقدمة.' },
+        nitroglycerin: { name: 'النيتروجليسرين (C3H5N3O9)', symbol: 'C3H5N3O9', price: 1800, buyable: false, state: '💥 مركب حسّاس', desc: 'مركب عضوي شديد الانفجار وقيمته عالية جداً.' },
+        toxic_waste: { name: 'النفايات الكيميائية ☣️', symbol: 'WASTE', price: 0, buyable: false, state: '☣️ نفايات', desc: 'نفايات ضارة تسبب تلف المواد إذا لم يتم تصريفها.' }
     },
     equipment: {
         beaker: { name: 'وعاء التفاعل (Beaker)', reqLevel: 1, price: 100 },
@@ -234,7 +234,7 @@ function buildMoreMenu(user, player) {
             { name: '🏭 الورشة الآلية', value: 'خط إنتاج تلقائي للمركبات (Lv.20+).', inline: true },
             { name: '📈 البورصة والسوق', value: 'تداول العروض والاستثمار في المواد.', inline: true },
             { name: '📄 الأوراق البحثية', value: 'تقديم الأبحاث لكسب السمعة الأكاديمية.', inline: true },
-            { name: '⚔️ تحدي الرموز', value: 'اختبار سرعة كتابة الرموز الكيميائية.', inline: true },
+            { name: '⚔️ تحدي الرموز', value: 'تحدي كيميائي سريع ضد لاعب آخر.', inline: true },
             { name: '☣️ إدارة النفايات', value: 'تنظيف وتدوير النفايات الكيميائية.', inline: true },
             { name: '🎁 نظام الإهداء', value: 'إرسال Valence أو المواد للأصدقاء.', inline: true },
             { name: '📋 المهام اليومية', value: 'أهداف متجددة ورصيد مكافآت.', inline: true },
@@ -726,13 +726,113 @@ async function handleLabSession(context, user) {
             return await i.message.edit(buildMoreMenu(user, player));
         }
 
+        // ==========================================
+        // ⚔️ تحدي الرموز الكيميائية بين لاعبين 
+        // ==========================================
         if (i.customId === 'btn_open_duels') {
             const duelEmbed = new EmbedBuilder()
-                .setTitle('⚔️ تحدي الرموز الكيميائية السريعة')
-                .setDescription('اختبر سرعتك! اكتب الرموز الصحيحة للعناصر (مثل: صوديوم -> Na | ذهب -> Au) لربح الـ Valence والخبرة.')
-                .setColor(0xe74c3c);
+                .setTitle('⚔️ تحدي الرموز الكيميائية (لاعب ضد لاعب)')
+                .setDescription('تحدى صديقك في جولة كتابة الرموز الكيميائية! من يكتب الرمز الصحيح أولاً يربح رهان Valence.')
+                .setColor(0xe74c3c)
+                .addFields(
+                    { name: '💰 رصيدك الحالي', value: `\`${player.coins} Valence 🪙\`` }
+                );
 
-            return await updateScreen({ embeds: [duelEmbed], components: [backMoreBtnRow] });
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('btn_start_duel_modal').setLabel('⚔️ إنشاء تحدي جديد').setStyle(ButtonStyle.Danger),
+                backMoreBtnRow.components[0]
+            );
+
+            return await updateScreen({ embeds: [duelEmbed], components: [row] });
+        }
+
+        if (i.customId === 'btn_start_duel_modal') {
+            const modal = new ModalBuilder()
+                .setCustomId('modal_start_duel')
+                .setTitle('⚔️ تحدي الرموز الكيميائية');
+
+            const targetInput = new TextInputBuilder()
+                .setCustomId('input_duel_target')
+                .setLabel('ID الخصم أو المنشن')
+                .setStyle(TextInputStyle.Short)
+                .setPlaceholder('مثال: 123456789012345678')
+                .setRequired(true);
+
+            const betInput = new TextInputBuilder()
+                .setCustomId('input_duel_bet')
+                .setLabel('مبلغ الرهان (Valence)')
+                .setStyle(TextInputStyle.Short)
+                .setPlaceholder('مثال: 50')
+                .setRequired(true);
+
+            modal.addComponents(
+                new ActionRowBuilder().addComponents(targetInput),
+                new ActionRowBuilder().addComponents(betInput)
+            );
+
+            await i.showModal(modal);
+
+            try {
+                const submitted = await i.awaitModalSubmit({ time: 30000, filter: sub => sub.user.id === user.id });
+                const targetIdRaw = submitted.fields.getTextInputValue('input_duel_target').replace(/[<@!>]/g, '').trim();
+                const betAmount = parseInt(submitted.fields.getTextInputValue('input_duel_bet'));
+
+                if (isNaN(betAmount) || betAmount <= 0) {
+                    return await submitted.reply({ content: '❌ يرجى كتابة مبلغ رهان صحيح!', flags: MessageFlags.Ephemeral });
+                }
+
+                if (player.coins < betAmount) {
+                    return await submitted.reply({ content: `❌ رصيدك غير كافٍ! تملك \`${player.coins}\` Valence فقط.`, flags: MessageFlags.Ephemeral });
+                }
+
+                if (targetIdRaw === user.id) {
+                    return await submitted.reply({ content: '❌ لا يمكنك تحدي نفسك!', flags: MessageFlags.Ephemeral });
+                }
+
+                let opponent = getPlayerData(targetIdRaw);
+                if (opponent.coins < betAmount) {
+                    return await submitted.reply({ content: `❌ الخصم لا يملك رصيد كافي للرهان (${betAmount} Valence)!`, flags: MessageFlags.Ephemeral });
+                }
+
+                // اختيار عنصر عشوائي للتحدي
+                const validItems = Object.values(labData.items).filter(item => item.symbol && item.symbol !== 'X' && item.symbol !== 'WASTE');
+                const randomItem = validItems[Math.floor(Math.random() * validItems.length)];
+
+                await submitted.reply({ 
+                    content: `⚔️ **تحدي الرموز قائمة الآن!**\n<@${user.id}> 🆚 <@${targetIdRaw}>\n💰 **مبلغ الرهان:** \`${betAmount} Valence\`\n\n🧪 **ما هو الرمز الكيميائي لـ:** **${randomItem.name}**؟\n_اكتبوا الرمز في الشات فورا! (أول شخص يكتبه صح يربح)_` 
+                });
+
+                const channel = i.channel;
+                const filter = msg => (msg.author.id === user.id || msg.author.id === targetIdRaw) && msg.content.trim().toLowerCase() === randomItem.symbol.toLowerCase();
+
+                const collector = channel.createMessageCollector({ filter, time: 20000, max: 1 });
+
+                collector.on('collect', async m => {
+                    const winnerId = m.author.id;
+                    const loserId = winnerId === user.id ? targetIdRaw : user.id;
+
+                    let winnerPlayer = getPlayerData(winnerId);
+                    let loserPlayer = getPlayerData(loserId);
+
+                    winnerPlayer.coins += betAmount;
+                    loserPlayer.coins -= betAmount;
+
+                    updatePlayerData(winnerId, winnerPlayer);
+                    updatePlayerData(loserId, loserPlayer);
+
+                    await channel.send({ content: `🎉 **مبروك <@${winnerId}>!** كتبت الرمز الصحيح \`${randomItem.symbol}\` بسرعة وفزت بالتحدي وبمبلغ **+${betAmount} Valence** 🪙!` });
+                });
+
+                collector.on('end', collected => {
+                    if (collected.size === 0) {
+                        channel.send({ content: `⏳ **انتهى وقت التحدي ولم يجب أحد بنجاح! الرمز الصحيح كان:** \`${randomItem.symbol}\`` });
+                    }
+                });
+
+            } catch (err) {
+                return;
+            }
+            return;
         }
 
         if (i.customId === 'btn_open_hazards') {
