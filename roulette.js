@@ -57,7 +57,8 @@ async function drawWheel(players, rotationAngle = 0, centerAvatarUrl = null) {
         ctx.textAlign = 'right';
         ctx.fillStyle = '#FFFFFF';
         ctx.font = 'bold 17px sans-serif';
-        ctx.fillText(`${player.number}- ${player.name}`, radius - 20, 5);
+        // يظهر هنا الرقم اسم المستخدم (Username) بدلاً من Display Name
+        ctx.fillText(`${player.number}- ${player.username}`, radius - 20, 5);
         ctx.restore();
     });
 
@@ -111,14 +112,14 @@ async function drawWheel(players, rotationAngle = 0, centerAvatarUrl = null) {
 }
 
 async function executeRouletteGame(interaction) {
-    const players = []; // { id, number, name, avatarUrl }
+    const players = []; // { id, number, username, avatarUrl }
     const maxPlayers = 20;
     let countdown = 60;
 
     const buildEmbed = (secondsLeft) => {
         const playersListText = players.length > 0 
             ? players.sort((a, b) => a.number - b.number).map(p => `**${p.number}**- <@${p.id}>`).join('\n')
-            : "لا يوجد لاعبين مشاركين باللعبة'";
+            : "لا يوجد لاعبين مشاركين باللعبة";
 
         return new EmbedBuilder()
             .setTitle('روليت 🎲')
@@ -136,7 +137,6 @@ async function executeRouletteGame(interaction) {
             .setTimestamp();
     };
 
-    // تصميم الأزرار: جعل أزرار الأرقام غير المحجوزة باللون الرمادي (Secondary)
     const buildButtons = () => {
         const rows = [];
         const takenNumbers = players.map(p => p.number);
@@ -151,8 +151,8 @@ async function executeRouletteGame(interaction) {
                     new ButtonBuilder()
                         .setCustomId(`num_${num}`)
                         .setLabel(`${num}`)
-                        .setStyle(ButtonStyle.Secondary) // لون رمادي لجميع أزرار الأرقام
-                        .setDisabled(isTaken) // تعطيل الزر إذا تم اختياره
+                        .setStyle(ButtonStyle.Secondary)
+                        .setDisabled(isTaken)
                 );
             }
             rows.push(row);
@@ -196,7 +196,7 @@ async function executeRouletteGame(interaction) {
 
     collector.on('collect', async (i) => {
         const userId = i.user.id;
-        const displayName = i.member?.displayName || i.user.username;
+        const username = i.user.username; // جلب اسم المستخدم بدلاً من Display Name
         const avatarUrl = i.user.displayAvatarURL({ extension: 'png', size: 128 });
 
         if (i.customId === 'leave_game') {
@@ -234,7 +234,7 @@ async function executeRouletteGame(interaction) {
             }
         }
 
-        players.push({ id: userId, number: chosenNumber, name: displayName, avatarUrl: avatarUrl });
+        players.push({ id: userId, number: chosenNumber, username: username, avatarUrl: avatarUrl });
         await i.reply({ content: `تم دخولك بنجاح بالرقم: **${chosenNumber}**`, flags: MessageFlags.Ephemeral });
         await interaction.editReply({ embeds: [buildEmbed(countdown)], components: buildButtons() });
     });
@@ -312,7 +312,7 @@ async function runGameLoop(interaction, players) {
             .setPlaceholder('اختر اللاعب الذي تريد طرده من اللعبة...')
             .addOptions(
                 targets.map(p => ({
-                    label: `اللاعب رقم ${p.number} (${p.name})`,
+                    label: `اللاعب رقم ${p.number} (${p.username})`,
                     value: p.id,
                     description: `طرد صاحب الرقم ${p.number}`,
                     emoji: '❌'
