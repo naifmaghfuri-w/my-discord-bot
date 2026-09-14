@@ -83,12 +83,11 @@ async function drawWheel(players, rotationAngle = 0, centerAvatarUrl = null) {
             ctx.beginPath();
             ctx.arc(center, center, centerRadius, 0, Math.PI * 2, true);
             ctx.closePath();
-            ctx.clip(); // قص الصورة دائرياً
+            ctx.clip();
 
             ctx.drawImage(img, center - centerRadius, center - centerRadius, centerRadius * 2, centerRadius * 2);
             ctx.restore();
         } catch {
-            // صورة احتياطية داكنة في حال تعذر التحميل
             ctx.beginPath();
             ctx.arc(center, center, centerRadius, 0, 2 * Math.PI);
             ctx.fillStyle = '#1A1A1A';
@@ -137,6 +136,7 @@ async function executeRouletteGame(interaction) {
             .setTimestamp();
     };
 
+    // تصميم الأزرار: جعل أزرار الأرقام غير المحجوزة باللون الرمادي (Secondary)
     const buildButtons = () => {
         const rows = [];
         const takenNumbers = players.map(p => p.number);
@@ -151,8 +151,8 @@ async function executeRouletteGame(interaction) {
                     new ButtonBuilder()
                         .setCustomId(`num_${num}`)
                         .setLabel(`${num}`)
-                        .setStyle(isTaken ? ButtonStyle.Secondary : ButtonStyle.Primary)
-                        .setDisabled(isTaken)
+                        .setStyle(ButtonStyle.Secondary) // لون رمادي لجميع أزرار الأرقام
+                        .setDisabled(isTaken) // تعطيل الزر إذا تم اختياره
                 );
             }
             rows.push(row);
@@ -266,14 +266,12 @@ async function runGameLoop(interaction, players) {
         const sliceAngle = (2 * Math.PI) / players.length;
         const targetAngle = -(chosenIndex * sliceAngle + sliceAngle / 2);
 
-        // دوران سريع للعجلة مع تغيير الصورة في الوسط تلقائياً بين اللاعبين
         let currentAngle = 0;
         const frames = 2;
         let wheelMsg;
 
         for (let f = 0; f < frames; f++) {
             currentAngle += Math.PI;
-            // اختيار أفياتار لاعب عشوائي أثناء الحركة لمنح انطباع تدوير سريع للصورة
             const randomAvatar = players[Math.floor(Math.random() * players.length)].avatarUrl;
             
             const buffer = await drawWheel(players, currentAngle, randomAvatar);
@@ -293,7 +291,6 @@ async function runGameLoop(interaction, players) {
             await sleep(250);
         }
 
-        // إظهار الصورة النهائية لأفياتار الشخص المختار عند توقف العجلة
         const finalBuffer = await drawWheel(players, targetAngle, chosenPlayer.avatarUrl);
         const finalAttachment = new AttachmentBuilder(finalBuffer, { name: 'wheel_final.png' });
 
