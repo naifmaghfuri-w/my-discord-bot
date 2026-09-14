@@ -4,6 +4,7 @@ const port = process.env.PORT || 3000;
 
 app.get('/', (req, res) => res.send('Bot is online!'));
 app.listen(port, () => console.log(`Web server listening on port ${port}`));
+
 require('dotenv').config();
 const { gamesCommands, handleGamesCommand } = require('./games');
 const labCommand = require('./lab');
@@ -21,7 +22,6 @@ const {
     StringSelectMenuOptionBuilder,
     MessageFlags
 } = require('discord.js');
-const express = require('express');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // ==========================================
@@ -151,14 +151,7 @@ async function handleColorSelect(interaction) {
 }
 
 // ==========================================
-// 1. سيرفر Express لإبقاء البوت حياً
-// ==========================================
-const app = express();
-app.get('/', (req, res) => res.send('Bot is Alive!'));
-app.listen(process.env.PORT || 3000, () => console.log('Web server running'));
-
-// ==========================================
-// 2. إعداد البوت
+// 1. إعداد البوت
 // ==========================================
 const client = new Client({
     intents: [
@@ -170,7 +163,7 @@ const client = new Client({
 });
 
 // ==========================================
-// 3. تسجيل الأوامر
+// 2. تسجيل الأوامر
 // ==========================================
 const commands = [
     ...(gamesCommands || []),
@@ -226,7 +219,7 @@ client.once('clientReady', async () => {
 });
 
 // ==========================================
-// 4. معالجة الرسائل النصية الشات
+// 3. معالجة الرسائل النصية الشات
 // ==========================================
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
@@ -285,7 +278,7 @@ client.on('messageCreate', async message => {
 });
 
 // ==========================================
-// 5. معالجة التفاعلات (أوامر السلاش)
+// 4. معالجة التفاعلات (أوامر السلاش)
 // ==========================================
 client.on('interactionCreate', async interaction => {
     if (interaction.isStringSelectMenu() && interaction.customId === 'select_name_color') {
@@ -391,6 +384,6 @@ client.on('interactionCreate', async interaction => {
 });
 
 // ==========================================
-// 6. تشغيل البوت
+// 5. تشغيل البوت
 // ==========================================
 client.login(process.env.DISCORD_TOKEN);
