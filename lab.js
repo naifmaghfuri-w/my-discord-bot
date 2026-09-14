@@ -204,11 +204,11 @@ function updatePlayerData(userId, data) {
 
 function buildMainMenu(user, player) {
     const embed = new EmbedBuilder()
-        .setTitle(' Lab v1.5')
-        .setDescription(`Welcome **${user.username}** 👋`)
+        .setTitle('🧪 Lab v1.5')
+        .setDescription(`أهلاً بك **${user.username}** 👋`)
         .setColor(0x2ecc71)
         .addFields(
-            { name: '\u200B', value: `\`Level.${player.level}/25\``, inline: true },
+         { name: '\u200B', value: `\`Level.${player.level}/25\``, inline: true },
             { name: '', value: `\`${player.xp} / ${player.level * 100} XP\``, inline: true },
             { name: ' ', value: `\`${player.abilityPoints} AP\``, inline: true },
             { name: '\u200B', value: `${player.coins} <:emoji_40:1548935096768274532>`, inline: true },
@@ -216,14 +216,14 @@ function buildMainMenu(user, player) {
             { name: '📘 الموسوعة', value: `\`${player.codex.length} / ${Object.keys(labData.items).length}\``, inline: true }
         )
         .setThumbnail(user.displayAvatarURL())
-        .setFooter({ text: 'اختر إجراءً سريعاً أو فتح القائمة الإضافية' });
+        .setFooter({ text: 'اختر إجراءً سريعاً أو افتح القائمة الإضافية' });
 
     if (player.pendingQueue && player.pendingQueue.length > 0) {
         embed.addFields({ name: '⏳ تفاعلات جارية', value: `عدد التفاعلات قيد التنفيذ: **${player.pendingQueue.length}**` });
     }
 
     const row1 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('btn_open_lab_hub').setLabel('معمل').setEmoji('🧪').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId('btn_open_lab_hub').setLabel('المعمل').setEmoji('🧪').setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId('btn_open_shop').setLabel('المتجر').setEmoji('🛒').setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId('btn_sell_all').setLabel('بيع النواتج').setEmoji('💵').setStyle(ButtonStyle.Danger)
     );
@@ -915,7 +915,7 @@ async function handleLabSession(context, user) {
 
             try {
                 const submitted = await i.awaitModalSubmit({ time: 30000, filter: sub => sub.user.id === user.id });
-                const targetIdRaw = submitted.fields.getTextInputValue('input_duel_target').replace(/[<@!>]/g, '').trim();
+                const targetIdRaw = submitted.fields.getTextInputValue('input_duel_target').replace(/\D/g, '').trim();
                 const betAmount = parseInt(submitted.fields.getTextInputValue('input_duel_bet'));
 
                 if (isNaN(betAmount) || betAmount <= 0) {
@@ -1047,7 +1047,7 @@ async function handleLabSession(context, user) {
 
             try {
                 const submitted = await i.awaitModalSubmit({ time: 30000, filter: sub => sub.user.id === user.id });
-                const targetIdRaw = submitted.fields.getTextInputValue('input_target_user').replace(/[<@!>]/g, '').trim();
+                const targetIdRaw = submitted.fields.getTextInputValue('input_target_user').replace(/\D/g, '').trim();
                 const amount = parseInt(submitted.fields.getTextInputValue('input_gift_amount'));
 
                 if (isNaN(amount) || amount <= 0) {
@@ -1372,6 +1372,10 @@ async function handleLabSession(context, user) {
             await notifyOnly(`💵 **تمت عملية البيع بنجاح!**\n${soldList.join('\n')}\n\n💰 الإجمالي المضاف لرصيدك: **+${totalEarned} Valence** 🪙`);
             return await updateScreen(buildMainMenu(user, player));
         }
+    });
+
+    collector.on('end', async () => {
+        responseMsg.edit({ components: [] }).catch(() => {});
     });
 }
 
