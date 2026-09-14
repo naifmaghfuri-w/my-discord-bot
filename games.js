@@ -11,6 +11,7 @@ const {
 // استدعاء ملفات الألعاب المستقلة
 const { startOutOfLoopGame } = require('./outOfLoop');
 const { startDetectiveGame } = require('./detective');
+const { executeRouletteGame } = require('./roulette'); // استدعاء لعبة الروليت
 
 const gamesCommands = [
     new SlashCommandBuilder()
@@ -36,6 +37,11 @@ async function handleGamesCommand(context) {
                 .setDescription('لعبة التحقيق واستجواب المشاركين لكشف الجاني')
                 .setValue('detective_game')
                 .setEmoji('🔍'),
+            new StringSelectMenuOptionBuilder()
+                .setLabel('روليت')
+                .setDescription('لعبة العجلة لطرد اللاعبين حتى يتبقى الفائز')
+                .setValue('roulette_game')
+                .setEmoji('🎰'),
             new StringSelectMenuOptionBuilder()
                 .setLabel('HxH')
                 .setDescription('قريباً...')
@@ -75,6 +81,9 @@ async function handleGamesCommand(context) {
         } else if (selectedValue === 'detective_game') {
             menuCollector.stop();
             await startDetectiveGame(selectInteraction, context);
+        } else if (selectedValue === 'roulette_game') {
+            menuCollector.stop();
+            await executeRouletteGame(selectInteraction);
         } else if (selectedValue === 'hxh_game') {
             await selectInteraction.reply({ 
                 content: '⏳ ** قريباً!**  .', 
