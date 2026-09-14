@@ -8,21 +8,20 @@ const {
     MessageFlags,
     AttachmentBuilder
 } = require('discord.js');
-const { createCanvas } = require('@napi-rs/canvas');
+const { createCanvas, loadImage } = require('@napi-rs/canvas');
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// دالة رسم العجلة بألوان رمادية/رصاصية وإطار ذهبي
-function drawWheel(players, rotationAngle = 0) {
+// دالة رسم العجلة وصورة أفياتار اللاعب بالمنتصف
+async function drawWheel(players, rotationAngle = 0, centerAvatarUrl = null) {
     const size = 600;
     const canvas = createCanvas(size, size);
     const ctx = canvas.getContext('2d');
     const center = size / 2;
-    const radius = size / 2 - 40; // مساحة للإطار الذهبي
+    const radius = size / 2 - 40;
     const total = players.length;
     const sliceAngle = (2 * Math.PI) / total;
 
-    // درجات اللون الرمادي والرصاصي للقطاعات
     const grayShades = ['#2B2C30', '#3A3B40', '#1F2023', '#4A4C54'];
 
     ctx.clearRect(0, 0, size, size);
@@ -30,13 +29,13 @@ function drawWheel(players, rotationAngle = 0) {
     // 1. رسم الإطار الخارجي الذهبي
     ctx.beginPath();
     ctx.arc(center, center, radius + 12, 0, 2 * Math.PI);
-    ctx.fillStyle = '#D4AF37'; // ذهبي
+    ctx.fillStyle = '#D4AF37';
     ctx.fill();
     ctx.lineWidth = 4;
-    ctx.strokeStyle = '#FFD700'; // ذهبي لامع
+    ctx.strokeStyle = '#FFD700';
     ctx.stroke();
 
-    // 2. رسم قطاعات العجلة (رمادي / رصاصي)
+    // 2. رسم قطاعات العجلة
     players.forEach((player, index) => {
         const start = rotationAngle + index * sliceAngle;
         const end = start + sliceAngle;
@@ -49,10 +48,9 @@ function drawWheel(players, rotationAngle = 0) {
         ctx.fillStyle = grayShades[index % grayShades.length];
         ctx.fill();
         ctx.lineWidth = 1.5;
-        ctx.strokeStyle = '#D4AF37'; // حدود ذهبية بين القطاعات
+        ctx.strokeStyle = '#D4AF37';
         ctx.stroke();
 
-        // كتابة أرقام وأسماء اللاعبين باللون الأبيض/الذهبي
         ctx.save();
         ctx.translate(center, center);
         ctx.rotate(start + sliceAngle / 2);
@@ -75,20 +73,46 @@ function drawWheel(players, rotationAngle = 0) {
     ctx.strokeStyle = '#996515';
     ctx.stroke();
 
-    // 4. رسم المركز الذهبي
+    // 4. رسم أفياتار اللاعب في الدائرة الوسطية
+    const centerRadius = 50;
+    if (centerAvatarUrl) {
+        try {
+            const img = await loadImage(centerAvatarUrl);
+            
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(center, center, centerRadius, 0, Math.PI * 2, true);
+            ctx.closePath();
+            ctx.clip(); // قص الصورة دائرياً
+
+            ctx.drawImage(img, center - centerRadius, center - centerRadius, centerRadius * 2, centerRadius * 2);
+            ctx.restore();
+        } catch {
+            // صورة احتياطية داكنة في حال تعذر التحميل
+            ctx.beginPath();
+            ctx.arc(center, center, centerRadius, 0, 2 * Math.PI);
+            ctx.fillStyle = '#1A1A1A';
+            ctx.fill();
+        }
+    } else {
+        ctx.beginPath();
+        ctx.arc(center, center, centerRadius, 0, 2 * Math.PI);
+        ctx.fillStyle = '#1A1A1A';
+        ctx.fill();
+    }
+
+    // إطار ذهبي دائري حول الأفياتار في المنتصف
     ctx.beginPath();
-    ctx.arc(center, center, 45, 0, 2 * Math.PI);
-    ctx.fillStyle = '#1A1A1A'; // خلفية المنتصف داكنة
-    ctx.fill();
+    ctx.arc(center, center, centerRadius, 0, 2 * Math.PI);
     ctx.lineWidth = 5;
-    ctx.strokeStyle = '#D4AF37'; // حلقة ذهبية
+    ctx.strokeStyle = '#D4AF37';
     ctx.stroke();
 
     return canvas.toBuffer('image/png');
 }
 
 async function executeRouletteGame(interaction) {
-    const players = []; // { id, number, name }
+    const players = []; // { id, number, name, avatarUrl }
     const maxPlayers = 20;
     let countdown = 60;
 
@@ -173,6 +197,7 @@ async function executeRouletteGame(interaction) {
     collector.on('collect', async (i) => {
         const userId = i.user.id;
         const displayName = i.member?.displayName || i.user.username;
+        const avatarUrl = i.user.displayAvatarURL({ extension: 'png', size: 128 });
 
         if (i.customId === 'leave_game') {
             const playerIndex = players.findIndex(p => p.id === userId);
@@ -209,7 +234,7 @@ async function executeRouletteGame(interaction) {
             }
         }
 
-        players.push({ id: userId, number: chosenNumber, name: displayName });
+        players.push({ id: userId, number: chosenNumber, name: displayName, avatarUrl: avatarUrl });
         await i.reply({ content: `تم دخولك بنجاح بالرقم: **${chosenNumber}**`, flags: MessageFlags.Ephemeral });
         await interaction.editReply({ embeds: [buildEmbed(countdown)], components: buildButtons() });
     });
@@ -241,13 +266,17 @@ async function runGameLoop(interaction, players) {
         const sliceAngle = (2 * Math.PI) / players.length;
         const targetAngle = -(chosenIndex * sliceAngle + sliceAngle / 2);
 
+        // دوران سريع للعجلة مع تغيير الصورة في الوسط تلقائياً بين اللاعبين
         let currentAngle = 0;
-        const frames = 3;
+        const frames = 2;
         let wheelMsg;
 
         for (let f = 0; f < frames; f++) {
-            currentAngle += (Math.PI * 2) / frames;
-            const buffer = drawWheel(players, currentAngle);
+            currentAngle += Math.PI;
+            // اختيار أفياتار لاعب عشوائي أثناء الحركة لمنح انطباع تدوير سريع للصورة
+            const randomAvatar = players[Math.floor(Math.random() * players.length)].avatarUrl;
+            
+            const buffer = await drawWheel(players, currentAngle, randomAvatar);
             const attachment = new AttachmentBuilder(buffer, { name: 'wheel.png' });
 
             const spinEmbed = new EmbedBuilder()
@@ -261,10 +290,11 @@ async function runGameLoop(interaction, players) {
             } else {
                 await wheelMsg.edit({ embeds: [spinEmbed], files: [attachment] }).catch(() => {});
             }
-            await sleep(600);
+            await sleep(250);
         }
 
-        const finalBuffer = drawWheel(players, targetAngle);
+        // إظهار الصورة النهائية لأفياتار الشخص المختار عند توقف العجلة
+        const finalBuffer = await drawWheel(players, targetAngle, chosenPlayer.avatarUrl);
         const finalAttachment = new AttachmentBuilder(finalBuffer, { name: 'wheel_final.png' });
 
         if (players.length === 2) {
