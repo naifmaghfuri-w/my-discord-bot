@@ -8,12 +8,15 @@ const {
     MessageFlags 
 } = require('discord.js');
 
+// دالة تأخير زمني لخلق تأثير دوران العجلة
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 async function executeRouletteGame(interaction) {
     const players = [];
     const maxPlayers = 20;
-    let countdown = 20; // الوقت المتبقي لبدء اللعبة
+    let countdown = 60;
 
-    // 1. بناء واجهة اللعبة المطابقة للصورة
+    // 1. بناء واجهة اللعبة
     const buildEmbed = (secondsLeft) => {
         const playersListText = players.length > 0 
             ? players.map(p => `**${p.number}**- <@${p.id}>`).join('\n')
@@ -35,35 +38,38 @@ async function executeRouletteGame(interaction) {
             .setTimestamp();
     };
 
-    const joinButton = new ActionRowBuilder().addComponents(
+    const joinRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('join_roulette')
             .setLabel('دخول اللعبة 🎲')
-            .setStyle(ButtonStyle.Success)
+            .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+            .setCustomId('leave_roulette')
+            .setLabel('خروج 🚪')
+            .setStyle(ButtonStyle.Danger)
     );
 
-    // الرد على تفاعل القائمة أو إرسال الرسالة
     let response;
     if (interaction.replied || interaction.deferred) {
-        response = await interaction.followUp({ embeds: [buildEmbed(countdown)], components: [joinButton], fetchReply: true });
+        response = await interaction.followUp({ embeds: [buildEmbed(countdown)], components: [joinRow], fetchReply: true });
     } else {
-        response = await interaction.reply({ embeds: [buildEmbed(countdown)], components: [joinButton], fetchReply: true });
+        response = await interaction.reply({ embeds: [buildEmbed(countdown)], components: [joinRow], fetchReply: true });
     }
 
-    // 2. مؤقت تنازلي لتحديث الرسالة
+    // 2. تحديث العداد التنازلي كل 5 ثوانٍ لتفادي Rate Limits
     const interval = setInterval(async () => {
-        countdown--;
+        countdown -= 5;
         if (countdown > 0) {
             await interaction.editReply({ embeds: [buildEmbed(countdown)] }).catch(() => {});
         } else {
             clearInterval(interval);
         }
-    }, 1000);
+    }, 5000);
 
-    // 3. استقبال انضمام اللاعبين
+    // 3. استقبال انضمام وخروج اللاعبين
     const collector = response.createMessageComponentCollector({
         componentType: ComponentType.Button,
-        time: 20_000
+        time: 60_000
     });
 
     collector.on('collect', async (i) => {
@@ -81,6 +87,18 @@ async function executeRouletteGame(interaction) {
 
             await i.reply({ content: `تم انضمامك بنجاح! رقمك في اللعبة هو: **${assignedNumber}**`, flags: MessageFlags.Ephemeral });
             await interaction.editReply({ embeds: [buildEmbed(countdown)] });
+
+        } else if (i.customId === 'leave_roulette') {
+            const playerIndex = players.findIndex(p => p.id === i.user.id);
+            if (playerIndex === -1) {
+                return i.reply({ content: 'أنت لست مشاركاً في اللعبة بالأساس!', flags: MessageFlags.Ephemeral });
+            }
+
+            players.splice(playerIndex, 1);
+            players.forEach((p, idx) => p.number = idx + 1);
+
+            await i.reply({ content: 'تم خروجك من اللعبة بنجاح!', flags: MessageFlags.Ephemeral });
+            await interaction.editReply({ embeds: [buildEmbed(countdown)] });
         }
     });
 
@@ -97,27 +115,46 @@ async function executeRouletteGame(interaction) {
             return;
         }
 
-        // بدء حلقة الجولات
         await runGameLoop(interaction, players);
     });
 }
 
-// 4. حلقة الجولات وطرد اللاعبين
+// 4. دوران العجلة والجولات
 async function runGameLoop(interaction, players) {
     let round = 1;
 
     while (players.length > 1) {
+        const spinEmbed = new EmbedBuilder()
+            .setTitle(`🌀 الجولة ${round} - دوران العجلة`)
+            .setDescription('🎰 **جاري تدوير العجلة الآن...**')
+            .setColor('#E6A100');
+
+        const wheelMessage = await interaction.followUp({ embeds: [spinEmbed] });
+
+        // أنيميشن حركة العجلة
+        const animationFrames = 5;
+        for (let f = 0; f < animationFrames; f++) {
+            const randomPlayer = players[Math.floor(Math.random() * players.length)];
+            const animEmbed = new EmbedBuilder()
+                .setTitle(`🌀 الجولة ${round} - دوران العجلة`)
+                .setDescription(`🎰 العجلة تدور... **[ الرقم ${randomPlayer.number} - <@${randomPlayer.id}> ]** 🔄`)
+                .setColor('#E6A100');
+
+            await wheelMessage.edit({ embeds: [animEmbed] }).catch(() => {});
+            await sleep(500 + (f * 150));
+        }
+
         const chosenIndex = Math.floor(Math.random() * players.length);
         const chosenPlayer = players[chosenIndex];
 
-        // حالة النهائيات (عند متبقي لاعبان فقط)
+        // نهائي اللعبة (لاعبان متبقيان)
         if (players.length === 2) {
             const winnerEmbed = new EmbedBuilder()
                 .setTitle('🏆 الفائز في اللعبة!')
-                .setDescription(`دارت العجلة المتبقية بين الأخيرين، ووقع الاختيار على صاحب الرقم **${chosenPlayer.number}**!\n\n🎉 **الفائز باللعبة هو:** <@${chosenPlayer.id}>`)
+                .setDescription(`توقفت العجلة عند صاحب الرقم **${chosenPlayer.number}**!\n\n🎉 **الفائز باللعبة هو:** <@${chosenPlayer.id}>`)
                 .setColor('#57F287');
 
-            await interaction.followUp({ embeds: [winnerEmbed], components: [] });
+            await wheelMessage.edit({ embeds: [winnerEmbed], components: [] });
             return;
         }
 
@@ -140,18 +177,18 @@ async function runGameLoop(interaction, players) {
         const roundEmbed = new EmbedBuilder()
             .setTitle(`🌀 الجولة ${round}`)
             .setDescription(
-                `دارت العجلة ووقع الاختيار على صاحب الرقم **${chosenPlayer.number}** (<@${chosenPlayer.id}>)!\n\n` +
+                `🎯 **توقفت العجلة على:** الرقم **${chosenPlayer.number}** (<@${chosenPlayer.id}>)!\n\n` +
                 `**يا <@${chosenPlayer.id}>، قم باختيار اللاعب الذي تريد طرده من القائمة أدناه!**`
             )
             .setColor('#E6A100');
 
-        const roundMessage = await interaction.followUp({
+        await wheelMessage.edit({
             embeds: [roundEmbed],
             components: [menuRow]
         });
 
         try {
-            const selectInteraction = await roundMessage.awaitMessageComponent({
+            const selectInteraction = await wheelMessage.awaitMessageComponent({
                 componentType: ComponentType.StringSelect,
                 filter: (i) => {
                     if (i.user.id !== chosenPlayer.id) {
