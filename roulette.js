@@ -5,21 +5,82 @@ const {
     ButtonStyle, 
     StringSelectMenuBuilder, 
     ComponentType,
-    MessageFlags 
+    MessageFlags,
+    AttachmentBuilder
 } = require('discord.js');
+const { createCanvas } = require('@napi-rs/canvas');
 
-// دالة تأخير زمني لخلق تأثير دوران العجلة
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+// دالة رسم العجلة الجرافيكية
+function drawWheel(players, rotationAngle = 0) {
+    const size = 600;
+    const canvas = createCanvas(size, size);
+    const ctx = canvas.getContext('2d');
+    const center = size / 2;
+    const radius = size / 2 - 30;
+    const total = players.length;
+    const sliceAngle = (2 * Math.PI) / total;
+
+    const colors = ['#2C2F33', '#23272A', '#36393F', '#1E1F22'];
+
+    ctx.clearRect(0, 0, size, size);
+
+    players.forEach((player, index) => {
+        const start = rotationAngle + index * sliceAngle;
+        const end = start + sliceAngle;
+
+        ctx.beginPath();
+        ctx.moveTo(center, center);
+        ctx.arc(center, center, radius, start, end);
+        ctx.closePath();
+
+        ctx.fillStyle = colors[index % colors.length];
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.stroke();
+
+        ctx.save();
+        ctx.translate(center, center);
+        ctx.rotate(start + sliceAngle / 2);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 18px sans-serif';
+        ctx.fillText(`${player.number}- ${player.name}`, radius - 20, 5);
+        ctx.restore();
+    });
+
+    // رسم المؤشر الجانبي
+    ctx.beginPath();
+    ctx.moveTo(size - 10, center);
+    ctx.lineTo(size - 35, center - 15);
+    ctx.lineTo(size - 35, center + 15);
+    ctx.closePath();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fill();
+
+    // الدائرة المركزية
+    ctx.beginPath();
+    ctx.arc(center, center, 45, 0, 2 * Math.PI);
+    ctx.fillStyle = '#5865F2';
+    ctx.fill();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.stroke();
+
+    return canvas.toBuffer('image/png');
+}
+
 async function executeRouletteGame(interaction) {
-    const players = [];
+    const players = []; // { id, number, name }
     const maxPlayers = 20;
     let countdown = 60;
 
-    // 1. بناء واجهة اللعبة
+    // بناء الواجهة المطابقة للصورة
     const buildEmbed = (secondsLeft) => {
         const playersListText = players.length > 0 
-            ? players.map(p => `**${p.number}**- <@${p.id}>`).join('\n')
+            ? players.sort((a, b) => a.number - b.number).map(p => `**${p.number}**- <@${p.id}>`).join('\n')
             : "لا يوجد لاعبين مشاركين باللعبة'";
 
         return new EmbedBuilder()
@@ -38,25 +99,53 @@ async function executeRouletteGame(interaction) {
             .setTimestamp();
     };
 
-    const joinRow = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-            .setCustomId('join_roulette')
-            .setLabel('دخول اللعبة 🎲')
-            .setStyle(ButtonStyle.Success),
-        new ButtonBuilder()
-            .setCustomId('leave_roulette')
-            .setLabel('خروج 🚪')
-            .setStyle(ButtonStyle.Danger)
-    );
+    // إنشاء صفوف الأزرار الـ 20 + أزرار التحكم
+    const buildButtons = () => {
+        const rows = [];
+        const takenNumbers = players.map(p => p.number);
+
+        // إنشاء 4 صفوف (كل صف يحوي 5 أرقام)
+        for (let r = 0; r < 4; r++) {
+            const row = new ActionRowBuilder();
+            for (let i = 1; i <= 5; i++) {
+                const num = r * 5 + i;
+                const isTaken = takenNumbers.includes(num);
+
+                row.addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(`num_${num}`)
+                        .setLabel(`${num}`)
+                        .setStyle(isTaken ? ButtonStyle.Secondary : ButtonStyle.Primary)
+                        .setDisabled(isTaken)
+                );
+            }
+            rows.push(row);
+        }
+
+        // الصف الخامس: دخول عشوائي وخروج
+        const controlRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('random_join')
+                .setLabel('دخول عشوائي')
+                .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+                .setCustomId('leave_game')
+                .setLabel('اخرج من اللعبة')
+                .setStyle(ButtonStyle.Danger)
+        );
+        rows.push(controlRow);
+
+        return rows;
+    };
 
     let response;
     if (interaction.replied || interaction.deferred) {
-        response = await interaction.followUp({ embeds: [buildEmbed(countdown)], components: [joinRow], fetchReply: true });
+        response = await interaction.followUp({ embeds: [buildEmbed(countdown)], components: buildButtons(), fetchReply: true });
     } else {
-        response = await interaction.reply({ embeds: [buildEmbed(countdown)], components: [joinRow], fetchReply: true });
+        response = await interaction.reply({ embeds: [buildEmbed(countdown)], components: buildButtons(), fetchReply: true });
     }
 
-    // 2. تحديث العداد التنازلي كل 5 ثوانٍ لتفادي Rate Limits
+    // العداد التنازلي كل 5 ثوانٍ
     const interval = setInterval(async () => {
         countdown -= 5;
         if (countdown > 0) {
@@ -66,40 +155,58 @@ async function executeRouletteGame(interaction) {
         }
     }, 5000);
 
-    // 3. استقبال انضمام وخروج اللاعبين
     const collector = response.createMessageComponentCollector({
         componentType: ComponentType.Button,
         time: 60_000
     });
 
     collector.on('collect', async (i) => {
-        if (i.customId === 'join_roulette') {
-            if (players.some(p => p.id === i.user.id)) {
-                return i.reply({ content: 'أنت مشارك بالفعل في اللعبة!', flags: MessageFlags.Ephemeral });
-            }
+        const userId = i.user.id;
+        const displayName = i.member?.displayName || i.user.username;
 
-            if (players.length >= maxPlayers) {
-                return i.reply({ content: 'اكتمل الحد الأقصى للاعبين!', flags: MessageFlags.Ephemeral });
-            }
-
-            const assignedNumber = players.length + 1;
-            players.push({ id: i.user.id, number: assignedNumber });
-
-            await i.reply({ content: `تم انضمامك بنجاح! رقمك في اللعبة هو: **${assignedNumber}**`, flags: MessageFlags.Ephemeral });
-            await interaction.editReply({ embeds: [buildEmbed(countdown)] });
-
-        } else if (i.customId === 'leave_roulette') {
-            const playerIndex = players.findIndex(p => p.id === i.user.id);
+        // 1. الخروج من اللعبة
+        if (i.customId === 'leave_game') {
+            const playerIndex = players.findIndex(p => p.id === userId);
             if (playerIndex === -1) {
                 return i.reply({ content: 'أنت لست مشاركاً في اللعبة بالأساس!', flags: MessageFlags.Ephemeral });
             }
 
             players.splice(playerIndex, 1);
-            players.forEach((p, idx) => p.number = idx + 1);
-
             await i.reply({ content: 'تم خروجك من اللعبة بنجاح!', flags: MessageFlags.Ephemeral });
-            await interaction.editReply({ embeds: [buildEmbed(countdown)] });
+            await interaction.editReply({ embeds: [buildEmbed(countdown)], components: buildButtons() });
+            return;
         }
+
+        // فحص إذا كان اللاعب منضم مسبقاً
+        if (players.some(p => p.id === userId)) {
+            return i.reply({ content: 'أنت مشارك بالفعل في اللعبة!', flags: MessageFlags.Ephemeral });
+        }
+
+        if (players.length >= maxPlayers) {
+            return i.reply({ content: 'اكتمل الحد الأقصى للاعبين!', flags: MessageFlags.Ephemeral });
+        }
+
+        let chosenNumber;
+
+        // 2. الاختيار العشوائي
+        if (i.customId === 'random_join') {
+            const takenNumbers = players.map(p => p.number);
+            const availableNumbers = Array.from({ length: 20 }, (_, idx) => idx + 1).filter(n => !takenNumbers.includes(n));
+            
+            chosenNumber = availableNumbers[Math.floor(Math.random() * availableNumbers.length)];
+        } 
+        // 3. اختيار رقم محدد من الأزرار
+        else if (i.customId.startsWith('num_')) {
+            chosenNumber = parseInt(i.customId.split('_')[1]);
+            
+            if (players.some(p => p.number === chosenNumber)) {
+                return i.reply({ content: 'هذا الرقم تم اختياره بالفعل من لاعب آخر!', flags: MessageFlags.Ephemeral });
+            }
+        }
+
+        players.push({ id: userId, number: chosenNumber, name: displayName });
+        await i.reply({ content: `تم دخولك بنجاح بالرقم: **${chosenNumber}**`, flags: MessageFlags.Ephemeral });
+        await interaction.editReply({ embeds: [buildEmbed(countdown)], components: buildButtons() });
     });
 
     collector.on('end', async () => {
@@ -119,42 +226,53 @@ async function executeRouletteGame(interaction) {
     });
 }
 
-// 4. دوران العجلة والجولات
+// حلقة دوران العجلة والجولات
 async function runGameLoop(interaction, players) {
     let round = 1;
 
     while (players.length > 1) {
-        const spinEmbed = new EmbedBuilder()
-            .setTitle(`🌀 الجولة ${round} - دوران العجلة`)
-            .setDescription('🎰 **جاري تدوير العجلة الآن...**')
-            .setColor('#E6A100');
-
-        const wheelMessage = await interaction.followUp({ embeds: [spinEmbed] });
-
-        // أنيميشن حركة العجلة
-        const animationFrames = 5;
-        for (let f = 0; f < animationFrames; f++) {
-            const randomPlayer = players[Math.floor(Math.random() * players.length)];
-            const animEmbed = new EmbedBuilder()
-                .setTitle(`🌀 الجولة ${round} - دوران العجلة`)
-                .setDescription(`🎰 العجلة تدور... **[ الرقم ${randomPlayer.number} - <@${randomPlayer.id}> ]** 🔄`)
-                .setColor('#E6A100');
-
-            await wheelMessage.edit({ embeds: [animEmbed] }).catch(() => {});
-            await sleep(500 + (f * 150));
-        }
-
         const chosenIndex = Math.floor(Math.random() * players.length);
         const chosenPlayer = players[chosenIndex];
 
-        // نهائي اللعبة (لاعبان متبقيان)
+        const sliceAngle = (2 * Math.PI) / players.length;
+        const targetAngle = -(chosenIndex * sliceAngle + sliceAngle / 2);
+
+        // أنيميشن العجلة
+        let currentAngle = 0;
+        const frames = 3;
+        let wheelMsg;
+
+        for (let f = 0; f < frames; f++) {
+            currentAngle += (Math.PI * 2) / frames;
+            const buffer = drawWheel(players, currentAngle);
+            const attachment = new AttachmentBuilder(buffer, { name: 'wheel.png' });
+
+            const spinEmbed = new EmbedBuilder()
+                .setTitle(`🌀 الجولة ${round} - دوران العجلة`)
+                .setDescription('🎰 **جاري تدوير العجلة...**')
+                .setImage('attachment://wheel.png')
+                .setColor('#E6A100');
+
+            if (!wheelMsg) {
+                wheelMsg = await interaction.followUp({ embeds: [spinEmbed], files: [attachment] });
+            } else {
+                await wheelMsg.edit({ embeds: [spinEmbed], files: [attachment] }).catch(() => {});
+            }
+            await sleep(600);
+        }
+
+        const finalBuffer = drawWheel(players, targetAngle);
+        const finalAttachment = new AttachmentBuilder(finalBuffer, { name: 'wheel_final.png' });
+
+        // حالة النهائيات
         if (players.length === 2) {
             const winnerEmbed = new EmbedBuilder()
                 .setTitle('🏆 الفائز في اللعبة!')
                 .setDescription(`توقفت العجلة عند صاحب الرقم **${chosenPlayer.number}**!\n\n🎉 **الفائز باللعبة هو:** <@${chosenPlayer.id}>`)
+                .setImage('attachment://wheel_final.png')
                 .setColor('#57F287');
 
-            await wheelMessage.edit({ embeds: [winnerEmbed], components: [] });
+            await wheelMsg.edit({ embeds: [winnerEmbed], files: [finalAttachment], components: [] });
             return;
         }
 
@@ -165,7 +283,7 @@ async function runGameLoop(interaction, players) {
             .setPlaceholder('اختر اللاعب الذي تريد طرده من اللعبة...')
             .addOptions(
                 targets.map(p => ({
-                    label: `اللاعب رقم ${p.number}`,
+                    label: `اللاعب رقم ${p.number} (${p.name})`,
                     value: p.id,
                     description: `طرد صاحب الرقم ${p.number}`,
                     emoji: '❌'
@@ -180,15 +298,17 @@ async function runGameLoop(interaction, players) {
                 `🎯 **توقفت العجلة على:** الرقم **${chosenPlayer.number}** (<@${chosenPlayer.id}>)!\n\n` +
                 `**يا <@${chosenPlayer.id}>، قم باختيار اللاعب الذي تريد طرده من القائمة أدناه!**`
             )
+            .setImage('attachment://wheel_final.png')
             .setColor('#E6A100');
 
-        await wheelMessage.edit({
+        await wheelMsg.edit({
             embeds: [roundEmbed],
+            files: [finalAttachment],
             components: [menuRow]
         });
 
         try {
-            const selectInteraction = await wheelMessage.awaitMessageComponent({
+            const selectInteraction = await wheelMsg.awaitMessageComponent({
                 componentType: ComponentType.StringSelect,
                 filter: (i) => {
                     if (i.user.id !== chosenPlayer.id) {
