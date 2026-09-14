@@ -82,7 +82,7 @@ const labData = {
     },
     achievements: {
         cautious: { id: 'cautious', name: '🧪 الكيميائي الحذر', desc: 'إجراء 10 تفاعلات بدون خطأ معايرة', reward: 300 },
-        trader: { id: 'trader', name: '💵 تاجر المواد', desc: 'بيع نواتج بقيمة 1000 Valence', reward: 500 },
+        trader: { id: 'trader', name: '💵 تاجر المواد', desc: 'بيع نواتج بقيمة 1000', reward: 500 },
         explorer: { id: 'explorer', name: '🔍 المكتشف السري', desc: 'اكتشاف مركب سري ناتج عن الخلط العشوائي', reward: 1000 }
     },
     reactions: [
@@ -272,7 +272,7 @@ function buildMoreMenu(user, player) {
             { name: '📈 البورصة والسوق', value: 'تداول العروض والاستثمار المباشر.', inline: true },
             { name: '📄 الأوراق البحثية', value: 'تقديم الأبحاث لكسب السمعة الأكاديمية.', inline: true },
             { name: '⚔️ تحدي الرموز', value: 'تحدي كيميائي سريع ضد لاعب آخر.', inline: true },
-            { name: '🎁 نظام الإهداء', value: 'إرسال Valence أو المواد للأصدقاء.', inline: true },
+            { name: '🎁 نظام الإهداء', value: 'إرسال النقاط أو المواد للأصدقاء.', inline: true },
             { name: '📋 المهام اليومية', value: 'أهداف متجددة ورصيد مكافآت.', inline: true },
             { name: '📘 الموسوعة الكيميائية', value: 'استعراض المركبات والعناصر المكتشفة.', inline: true }
         );
@@ -362,7 +362,7 @@ function buildShopScreen(player, index) {
 
     const currentItem = shopList[index];
     let buyBtnDisabled = false;
-    let buyBtnLabel = `🛒 شراء بـ ${currentItem.price} Valence`;
+    let buyBtnLabel = `🛒 شراء بـ ${currentItem.price}`;
 
     if (currentItem.type === 'upgrade') {
         const isOwned = player.upgrades[currentItem.id.replace('up_', '')];
@@ -371,7 +371,7 @@ function buildShopScreen(player, index) {
             buyBtnLabel = '✅ تمتلك هذه الترقية';
         } else if (player.coins < currentItem.price) {
             buyBtnDisabled = true;
-            buyBtnLabel = `❌ الرصيد غير كافي (${currentItem.price} Valence)`;
+            buyBtnLabel = `❌ الرصيد غير كافي (${currentItem.price})`;
         }
     } else if (currentItem.type === 'equipment') {
         const isOwned = player.ownedEquipment && player.ownedEquipment[currentItem.id];
@@ -380,12 +380,12 @@ function buildShopScreen(player, index) {
             buyBtnLabel = '✅ تمتلك هذا الجهاز بالفعل';
         } else if (player.coins < currentItem.price) {
             buyBtnDisabled = true;
-            buyBtnLabel = `❌ الرصيد غير كافي (${currentItem.price} Valence)`;
+            buyBtnLabel = `❌ الرصيد غير كافي (${currentItem.price})`;
         }
     } else {
         if (player.coins < currentItem.price) {
             buyBtnDisabled = true;
-            buyBtnLabel = `❌ الرصيد غير كافي (${currentItem.price} Valence)`;
+            buyBtnLabel = `❌ الرصيد غير كافي (${currentItem.price})`;
         }
     }
 
@@ -394,10 +394,10 @@ function buildShopScreen(player, index) {
         .setDescription(currentItem.desc || `عنصر كيميائي أو جهاز مخبري متقدم.\n**الحالة الفيزيائية/المستوى:** ${currentItem.state || 'مستوى ' + (currentItem.reqLevel || 1)}`)
         .setColor(0xf1c40f)
         .addFields(
-            { name: '💵 السعر', value: `\`${currentItem.price} Valence 🪙\``, inline: true },
+            { name: '💵 السعر', value: `\`${currentItem.price} <:emoji_40:1548935096768274532>\``, inline: true },
             { name: '🎒 الكمية / الحالة لديك', value: currentItem.type === 'item' ? `\`${player.inv[currentItem.id] || 0}\`` : (currentItem.type === 'equipment' ? (player.ownedEquipment[currentItem.id] ? '`مملوك`' : '`غير مملوك`') : (player.upgrades[currentItem.id.replace('up_', '')] ? '`مفعّل`' : '`غير مفعّل`')), inline: true }
         )
-        .setFooter({ text: `رصيدك الحالي: ${player.coins} Valence 🪙 | عنصر ${index + 1} من ${shopList.length}` });
+        .setFooter({ text: `رصيدك الحالي: ${player.coins} <:emoji_40:1548935096768274532> | عنصر ${index + 1} من ${shopList.length}` });
 
     const navRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('btn_shop_prev').setLabel('⬅️ السابق').setStyle(ButtonStyle.Secondary).setDisabled(index === 0),
@@ -532,7 +532,7 @@ function buildEquipUpgradeScreen(player) {
         if (owned[id]) {
             const currentLv = player.equipmentLevels[id] || 1;
             const upgradeCost = currentLv * 250;
-            equipList += `⚙️ **${eq.name}** (مستوى Lv.${currentLv})\n• كفاءة الجهاز: \`+${currentLv * 10}%\` | تكلفة الترقية التالية: \`${upgradeCost} Valence\`\n\n`;
+            equipList += `⚙️ **${eq.name}** (مستوى Lv.${currentLv})\n• كفاءة الجهاز: \`+${currentLv * 10}%\` | تكلفة الترقية التالية: \`${upgradeCost}\`\n\n`;
         }
     });
 
@@ -555,7 +555,7 @@ function buildAchievementsScreen(player) {
 
     Object.entries(labData.achievements).forEach(([id, ach]) => {
         const isUnlocked = player.unlockedBadges.includes(id);
-        achList += `${isUnlocked ? '✅' : '🔒'} **${ach.name}**\n_${ach.desc}_\n💰 المكافأة: \`${ach.reward} Valence\` ${isUnlocked ? '(تمت المطالبة)' : ''}\n\n`;
+        achList += `${isUnlocked ? '✅' : '🔒'} **${ach.name}**\n_${ach.desc}_\n💰 المكافأة: \`${ach.reward}\` ${isUnlocked ? '(تمت المطالبة)' : ''}\n\n`;
     });
 
     const embed = new EmbedBuilder()
@@ -740,14 +740,14 @@ async function handleLabSession(context, user) {
                 const baseP = labData.items[id].price;
                 const diff = p - baseP;
                 const status = diff >= 0 ? `📈 (+${diff})` : `📉 (${diff})`;
-                return `• **${labData.items[id].name}**: \`${p} Valence\` ${status}`;
+                return `• **${labData.items[id].name}**: \`${p}\` ${status}`;
             }).join('\n');
 
             const marketEmbed = new EmbedBuilder()
                 .setTitle('📈 البورصة الكيميائية للمضاربة')
                 .setDescription(`تتغير أسعار البورصة تلقائياً كل 5 دقائق بناءً على حركة العرض والطلب!\n\n**أسعار التداول الحالية:**\n${priceListStr}`)
                 .setColor(0xf1c40f)
-                .addFields({ name: '💰 رصيدك الحالي', value: `\`${player.coins} Valence🪙\`` });
+                .addFields({ name: '💰 رصيدك الحالي', value: `\`${player.coins} <:emoji_40:1548935096768274532>\`` });
 
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('btn_market_trade_modal').setLabel('📊 تداول مادة الآن').setStyle(ButtonStyle.Success),
@@ -815,13 +815,13 @@ async function handleLabSession(context, user) {
 
                 if (typeStr.includes('شراء') || typeStr.toLowerCase() === 'buy') {
                     if (player.coins < totalCost) {
-                        return await submitted.reply({ content: `❌ رصيدك غير كافٍ! التكلفة الإجمالية: \`${totalCost}\` Valence.`, flags: MessageFlags.Ephemeral });
+                        return await submitted.reply({ content: `❌ رصيدك غير كافٍ! التكلفة الإجمالية: \`${totalCost}\`.`, flags: MessageFlags.Ephemeral });
                     }
                     player.coins -= totalCost;
                     player.inv[itemId] = (player.inv[itemId] || 0) + qty;
                     updatePlayerData(user.id, player);
 
-                    await submitted.reply({ content: `📈 **تم شراء ${qty}x من ${itemInfo.name} بسعر البورصة (${currentPrice} Valence/وحدة) بنجاح!**`, flags: MessageFlags.Ephemeral });
+                    await submitted.reply({ content: `📈 **تم شراء ${qty}x من ${itemInfo.name} بسعر البورصة (${currentPrice}/وحدة) بنجاح!**`, flags: MessageFlags.Ephemeral });
                 } else if (typeStr.includes('بيع') || typeStr.toLowerCase() === 'sell') {
                     if (!player.inv[itemId] || player.inv[itemId] < qty) {
                         return await submitted.reply({ content: `❌ لا تملك هذه الكمية من المادة في مستودعك!`, flags: MessageFlags.Ephemeral });
@@ -831,7 +831,7 @@ async function handleLabSession(context, user) {
                     player.coins += totalCost;
                     updatePlayerData(user.id, player);
 
-                    await submitted.reply({ content: `📉 **تم بيع ${qty}x من ${itemInfo.name} بسعر البورصة (${currentPrice} Valence/وحدة) بربح +${totalCost} Valence!**`, flags: MessageFlags.Ephemeral });
+                    await submitted.reply({ content: `📉 **تم بيع ${qty}x من ${itemInfo.name} بسعر البورصة (${currentPrice}/وحدة) بربح +${totalCost}!**`, flags: MessageFlags.Ephemeral });
                 } else {
                     return await submitted.reply({ content: '❌ يرجى تحديد العملية بشكل صحيح (شراء أو بيع)!', flags: MessageFlags.Ephemeral });
                 }
@@ -873,10 +873,10 @@ async function handleLabSession(context, user) {
         if (i.customId === 'btn_open_duels') {
             const duelEmbed = new EmbedBuilder()
                 .setTitle('⚔️ تحدي الرموز الكيميائية (لاعب ضد لاعب)')
-                .setDescription('تحدى صديقك في جولة كتابة الرموز الكيميائية! من يكتب الرمز الصحيح أولاً يربح رهان Valence.')
+                .setDescription('تحدى صديقك في جولة كتابة الرموز الكيميائية! من يكتب الرمز الصحيح أولاً يربح رهان.')
                 .setColor(0xe74c3c)
                 .addFields(
-                    { name: '💰 رصيدك الحالي', value: `\`${player.coins} Valence 🪙\`` }
+                    { name: '💰 رصيدك الحالي', value: `\`${player.coins} <:emoji_40:1548935096768274532>\`` }
                 );
 
             const row = new ActionRowBuilder().addComponents(
@@ -901,7 +901,7 @@ async function handleLabSession(context, user) {
 
             const betInput = new TextInputBuilder()
                 .setCustomId('input_duel_bet')
-                .setLabel('مبلغ الرهان (Valence)')
+                .setLabel('مبلغ الرهان')
                 .setStyle(TextInputStyle.Short)
                 .setPlaceholder('مثال: 50')
                 .setRequired(true);
@@ -923,7 +923,7 @@ async function handleLabSession(context, user) {
                 }
 
                 if (player.coins < betAmount) {
-                    return await submitted.reply({ content: `❌ رصيدك غير كافٍ! تملك \`${player.coins}\` Valence فقط.`, flags: MessageFlags.Ephemeral });
+                    return await submitted.reply({ content: `❌ رصيدك غير كافٍ! تملك \`${player.coins}\` فقط.`, flags: MessageFlags.Ephemeral });
                 }
 
                 if (targetIdRaw === user.id) {
@@ -932,14 +932,14 @@ async function handleLabSession(context, user) {
 
                 let opponent = getPlayerData(targetIdRaw);
                 if (opponent.coins < betAmount) {
-                    return await submitted.reply({ content: `❌ الخصم لا يملك رصيد كافي للرهان (${betAmount} Valence)!`, flags: MessageFlags.Ephemeral });
+                    return await submitted.reply({ content: `❌ الخصم لا يملك رصيد كافي للرهان (${betAmount})!`, flags: MessageFlags.Ephemeral });
                 }
 
                 const validItems = Object.values(labData.items).filter(item => item.symbol && item.symbol !== 'X' && item.symbol !== 'WASTE');
                 const randomItem = validItems[Math.floor(Math.random() * validItems.length)];
 
                 await submitted.reply({ 
-                    content: `⚔️ **تحدي الرموز قائمة الآن!**\n<@${user.id}> 🆚 <@${targetIdRaw}>\n💰 **مبلغ الرهان:** \`${betAmount} Valence\`\n\n🧪 **ما هو الرمز الكيميائي لـ:** **${randomItem.name}**؟\n_اكتبوا الرمز في الشات فورا! (أول شخص يكتبه صح يربح)_` 
+                    content: `⚔️ **تحدي الرموز قائمة الآن!**\n<@${user.id}> 🆚 <@${targetIdRaw}>\n💰 **مبلغ الرهان:** \`${betAmount}\`\n\n🧪 **ما هو الرمز الكيميائي لـ:** **${randomItem.name}**؟\n_اكتبوا الرمز في الشات فورا! (أول شخص يكتبه صح يربح)_` 
                 });
 
                 const channel = i.channel;
@@ -960,7 +960,7 @@ async function handleLabSession(context, user) {
                     updatePlayerData(winnerId, winnerPlayer);
                     updatePlayerData(loserId, loserPlayer);
 
-                    await channel.send({ content: `🎉 **مبروك <@${winnerId}>!** كتبت الرمز الصحيح \`${randomItem.symbol}\` بسرعة وفزت بالتحدي وبمبلغ **+${betAmount} Valence** 🪙!` });
+                    await channel.send({ content: `🎉 **مبروك <@${winnerId}>!** كتبت الرمز الصحيح \`${randomItem.symbol}\` بسرعة وفزت بالتحدي وبمبلغ **+${betAmount}** <:emoji_40:1548935096768274532>!` });
                 });
 
                 duelCollector.on('end', collected => {
@@ -991,7 +991,7 @@ async function handleLabSession(context, user) {
         }
 
         if (i.customId === 'btn_clean_waste') {
-            if (player.coins < 100) return await notifyOnly('❌ لا تملك Valence كافي!');
+            if (player.coins < 100) return await notifyOnly('❌ لا تملك رصيد كافي!');
             player.coins -= 100;
             player.inv['toxic_waste'] = 0;
             updatePlayerData(user.id, player);
@@ -1005,14 +1005,14 @@ async function handleLabSession(context, user) {
         if (i.customId === 'btn_open_gift') {
             const giftEmbed = new EmbedBuilder()
                 .setTitle('🎁 نظام إهداء الأصدقاء')
-                .setDescription('يمكنك تحويل رصيد Valence مباشرة لأي لاعب عبر معرف ديسكورد (ID) أو المنشن.')
+                .setDescription('يمكنك تحويل الرصيد مباشرة لأي لاعب عبر معرف ديسكورد (ID) أو المنشن.')
                 .setColor(0xf39c12)
                 .addFields(
-                    { name: '💰 رصيدك الحالي', value: `\`${player.coins} Valence🪙\`` }
+                    { name: '💰 رصيدك الحالي', value: `\`${player.coins} <:emoji_40:1548935096768274532>\`` }
                 );
 
             const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('btn_gift_coins_modal').setLabel('إهداء Valence 🪙').setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId('btn_gift_coins_modal').setLabel('إهداء رصيد <:emoji_40:1548935096768274532>').setStyle(ButtonStyle.Success),
                 backMoreBtnRow.components[0]
             );
 
@@ -1022,7 +1022,7 @@ async function handleLabSession(context, user) {
         if (i.customId === 'btn_gift_coins_modal') {
             const modal = new ModalBuilder()
                 .setCustomId('modal_gift_coins')
-                .setTitle('🎁 إهداء Valence لصديق');
+                .setTitle('🎁 إهداء رصيد لصديق');
 
             const targetInput = new TextInputBuilder()
                 .setCustomId('input_target_user')
@@ -1055,7 +1055,7 @@ async function handleLabSession(context, user) {
                 }
 
                 if (player.coins < amount) {
-                    return await submitted.reply({ content: `❌ رصيدك غير كافٍ! تملك حالياً \`${player.coins}\` Valence فقط.`, flags: MessageFlags.Ephemeral });
+                    return await submitted.reply({ content: `❌ رصيدك غير كافٍ! تملك حالياً \`${player.coins}\` فقط.`, flags: MessageFlags.Ephemeral });
                 }
 
                 if (targetIdRaw === user.id) {
@@ -1069,7 +1069,7 @@ async function handleLabSession(context, user) {
                 updatePlayerData(user.id, player);
                 updatePlayerData(targetIdRaw, targetPlayer);
 
-                await submitted.reply({ content: `🎁 **تم إهداء ${amount} Valence بنجاح إلى <@${targetIdRaw}>!**`, flags: MessageFlags.Ephemeral });
+                await submitted.reply({ content: `🎁 **تم إهداء ${amount} بنجاح إلى <@${targetIdRaw}>!**`, flags: MessageFlags.Ephemeral });
                 return await responseMsg.edit(buildMainMenu(user, player)).catch(() => {});
             } catch (err) {
                 return;
@@ -1317,7 +1317,7 @@ async function handleLabSession(context, user) {
                 .addFields(
                     { name: '🎯 المطلوب', value: `إنتاج **${q.count}x ${itemNeeded?.name || q.item}**`, inline: true },
                     { name: '📊 التقدم الحالي', value: `\`${q.progress} / ${q.count}\``, inline: true },
-                    { name: '🎁 المكافأة', value: `\`+${q.rewardCoins} Valence\` | \`+${q.rewardXp} XP\``, inline: true }
+                    { name: '🎁 المكافأة', value: `\`+${q.rewardCoins}\` | \`+${q.rewardXp} XP\``, inline: true }
                 )
                 .setColor(0xe67e22);
 
@@ -1352,7 +1352,7 @@ async function handleLabSession(context, user) {
                     const qty = player.inv[id];
                     const price = itemInfo.price * qty;
                     totalEarned += price;
-                    soldList.push(`• **${itemInfo.name}** (x${qty}) ➔ \`+${price} Valence\``);
+                    soldList.push(`• **${itemInfo.name}** (x${qty}) ➔ \`+${price}\``);
                     delete player.inv[id];
                 }
             });
@@ -1369,7 +1369,7 @@ async function handleLabSession(context, user) {
             }
 
             updatePlayerData(user.id, player);
-            await notifyOnly(`💵 **تمت عملية البيع بنجاح!**\n${soldList.join('\n')}\n\n💰 الإجمالي المضاف لرصيدك: **+${totalEarned} Valence** 🪙`);
+            await notifyOnly(`💵 **تمت عملية البيع بنجاح!**\n${soldList.join('\n')}\n\n💰 الإجمالي المضاف لرصيدك: **+${totalEarned}** <:emoji_40:1548935096768274532>`);
             return await updateScreen(buildMainMenu(user, player));
         }
     });
