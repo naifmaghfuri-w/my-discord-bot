@@ -12,20 +12,31 @@ const { createCanvas } = require('@napi-rs/canvas');
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// دالة رسم العجلة الجرافيكية
+// دالة رسم العجلة بألوان رمادية/رصاصية وإطار ذهبي
 function drawWheel(players, rotationAngle = 0) {
     const size = 600;
     const canvas = createCanvas(size, size);
     const ctx = canvas.getContext('2d');
     const center = size / 2;
-    const radius = size / 2 - 30;
+    const radius = size / 2 - 40; // مساحة للإطار الذهبي
     const total = players.length;
     const sliceAngle = (2 * Math.PI) / total;
 
-    const colors = ['#2C2F33', '#23272A', '#36393F', '#1E1F22'];
+    // درجات اللون الرمادي والرصاصي للقطاعات
+    const grayShades = ['#2B2C30', '#3A3B40', '#1F2023', '#4A4C54'];
 
     ctx.clearRect(0, 0, size, size);
 
+    // 1. رسم الإطار الخارجي الذهبي
+    ctx.beginPath();
+    ctx.arc(center, center, radius + 12, 0, 2 * Math.PI);
+    ctx.fillStyle = '#D4AF37'; // ذهبي
+    ctx.fill();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#FFD700'; // ذهبي لامع
+    ctx.stroke();
+
+    // 2. رسم قطاعات العجلة (رمادي / رصاصي)
     players.forEach((player, index) => {
         const start = rotationAngle + index * sliceAngle;
         const end = start + sliceAngle;
@@ -35,38 +46,42 @@ function drawWheel(players, rotationAngle = 0) {
         ctx.arc(center, center, radius, start, end);
         ctx.closePath();
 
-        ctx.fillStyle = colors[index % colors.length];
+        ctx.fillStyle = grayShades[index % grayShades.length];
         ctx.fill();
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = '#D4AF37'; // حدود ذهبية بين القطاعات
         ctx.stroke();
 
+        // كتابة أرقام وأسماء اللاعبين باللون الأبيض/الذهبي
         ctx.save();
         ctx.translate(center, center);
         ctx.rotate(start + sliceAngle / 2);
         ctx.textAlign = 'right';
         ctx.fillStyle = '#FFFFFF';
-        ctx.font = 'bold 18px sans-serif';
+        ctx.font = 'bold 17px sans-serif';
         ctx.fillText(`${player.number}- ${player.name}`, radius - 20, 5);
         ctx.restore();
     });
 
-    // رسم المؤشر الجانبي
+    // 3. رسم المؤشر الذهبي على اليمين
     ctx.beginPath();
     ctx.moveTo(size - 10, center);
-    ctx.lineTo(size - 35, center - 15);
-    ctx.lineTo(size - 35, center + 15);
+    ctx.lineTo(size - 38, center - 16);
+    ctx.lineTo(size - 38, center + 16);
     ctx.closePath();
-    ctx.fillStyle = '#FFFFFF';
+    ctx.fillStyle = '#FFD700';
     ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#996515';
+    ctx.stroke();
 
-    // الدائرة المركزية
+    // 4. رسم المركز الذهبي
     ctx.beginPath();
     ctx.arc(center, center, 45, 0, 2 * Math.PI);
-    ctx.fillStyle = '#5865F2';
+    ctx.fillStyle = '#1A1A1A'; // خلفية المنتصف داكنة
     ctx.fill();
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = '#D4AF37'; // حلقة ذهبية
     ctx.stroke();
 
     return canvas.toBuffer('image/png');
@@ -77,14 +92,13 @@ async function executeRouletteGame(interaction) {
     const maxPlayers = 20;
     let countdown = 60;
 
-    // بناء الواجهة المطابقة للصورة
     const buildEmbed = (secondsLeft) => {
         const playersListText = players.length > 0 
             ? players.sort((a, b) => a.number - b.number).map(p => `**${p.number}**- <@${p.id}>`).join('\n')
             : "لا يوجد لاعبين مشاركين باللعبة'";
 
         return new EmbedBuilder()
-            .setTitle('روليت')
+            .setTitle('روليت 🎲')
             .setDescription(
                 `**طريقة اللعب:**\n` +
                 `1- اختر الرقم الذي سيمثلك في اللعبة\n` +
@@ -94,17 +108,15 @@ async function executeRouletteGame(interaction) {
                 `**أرقام اللاعبين: (${players.length}/${maxPlayers})**\n` +
                 `${playersListText}`
             )
-            .setColor('#E6A100')
+            .setColor('#D4AF37')
             .setFooter({ text: `ستبدأ اللعبة بعد ${secondsLeft} ثانية` })
             .setTimestamp();
     };
 
-    // إنشاء صفوف الأزرار الـ 20 + أزرار التحكم
     const buildButtons = () => {
         const rows = [];
         const takenNumbers = players.map(p => p.number);
 
-        // إنشاء 4 صفوف (كل صف يحوي 5 أرقام)
         for (let r = 0; r < 4; r++) {
             const row = new ActionRowBuilder();
             for (let i = 1; i <= 5; i++) {
@@ -122,7 +134,6 @@ async function executeRouletteGame(interaction) {
             rows.push(row);
         }
 
-        // الصف الخامس: دخول عشوائي وخروج
         const controlRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId('random_join')
@@ -145,7 +156,6 @@ async function executeRouletteGame(interaction) {
         response = await interaction.reply({ embeds: [buildEmbed(countdown)], components: buildButtons(), fetchReply: true });
     }
 
-    // العداد التنازلي كل 5 ثوانٍ
     const interval = setInterval(async () => {
         countdown -= 5;
         if (countdown > 0) {
@@ -164,7 +174,6 @@ async function executeRouletteGame(interaction) {
         const userId = i.user.id;
         const displayName = i.member?.displayName || i.user.username;
 
-        // 1. الخروج من اللعبة
         if (i.customId === 'leave_game') {
             const playerIndex = players.findIndex(p => p.id === userId);
             if (playerIndex === -1) {
@@ -177,7 +186,6 @@ async function executeRouletteGame(interaction) {
             return;
         }
 
-        // فحص إذا كان اللاعب منضم مسبقاً
         if (players.some(p => p.id === userId)) {
             return i.reply({ content: 'أنت مشارك بالفعل في اللعبة!', flags: MessageFlags.Ephemeral });
         }
@@ -188,15 +196,12 @@ async function executeRouletteGame(interaction) {
 
         let chosenNumber;
 
-        // 2. الاختيار العشوائي
         if (i.customId === 'random_join') {
             const takenNumbers = players.map(p => p.number);
             const availableNumbers = Array.from({ length: 20 }, (_, idx) => idx + 1).filter(n => !takenNumbers.includes(n));
             
             chosenNumber = availableNumbers[Math.floor(Math.random() * availableNumbers.length)];
-        } 
-        // 3. اختيار رقم محدد من الأزرار
-        else if (i.customId.startsWith('num_')) {
+        } else if (i.customId.startsWith('num_')) {
             chosenNumber = parseInt(i.customId.split('_')[1]);
             
             if (players.some(p => p.number === chosenNumber)) {
@@ -226,7 +231,6 @@ async function executeRouletteGame(interaction) {
     });
 }
 
-// حلقة دوران العجلة والجولات
 async function runGameLoop(interaction, players) {
     let round = 1;
 
@@ -237,7 +241,6 @@ async function runGameLoop(interaction, players) {
         const sliceAngle = (2 * Math.PI) / players.length;
         const targetAngle = -(chosenIndex * sliceAngle + sliceAngle / 2);
 
-        // أنيميشن العجلة
         let currentAngle = 0;
         const frames = 3;
         let wheelMsg;
@@ -251,7 +254,7 @@ async function runGameLoop(interaction, players) {
                 .setTitle(`🌀 الجولة ${round} - دوران العجلة`)
                 .setDescription('🎰 **جاري تدوير العجلة...**')
                 .setImage('attachment://wheel.png')
-                .setColor('#E6A100');
+                .setColor('#D4AF37');
 
             if (!wheelMsg) {
                 wheelMsg = await interaction.followUp({ embeds: [spinEmbed], files: [attachment] });
@@ -264,7 +267,6 @@ async function runGameLoop(interaction, players) {
         const finalBuffer = drawWheel(players, targetAngle);
         const finalAttachment = new AttachmentBuilder(finalBuffer, { name: 'wheel_final.png' });
 
-        // حالة النهائيات
         if (players.length === 2) {
             const winnerEmbed = new EmbedBuilder()
                 .setTitle('🏆 الفائز في اللعبة!')
@@ -299,7 +301,7 @@ async function runGameLoop(interaction, players) {
                 `**يا <@${chosenPlayer.id}>، قم باختيار اللاعب الذي تريد طرده من القائمة أدناه!**`
             )
             .setImage('attachment://wheel_final.png')
-            .setColor('#E6A100');
+            .setColor('#D4AF37');
 
         await wheelMsg.edit({
             embeds: [roundEmbed],
