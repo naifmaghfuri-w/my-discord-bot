@@ -1,4 +1,4 @@
-        const { createCanvas, loadImage } = require('@napi-rs/canvas');
+const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const { 
     SlashCommandBuilder, 
     AttachmentBuilder, 
@@ -8,8 +8,6 @@ const {
     MessageFlags
 } = require('discord.js');
 const { QuickDB } = require('quick.db');
-const path = require('path');
-const fs = require('fs');
 
 const db = new QuickDB();
 
@@ -28,20 +26,9 @@ async function generateCanvas(user, data) {
     const canvas = createCanvas(800, 450);
     const ctx = canvas.getContext('2d');
 
-    // 1. الخلفية
-    try {
-        const bgPath = path.join(__dirname, 'assets', data.equippedBg || 'bg_tower.png');
-        if (fs.existsSync(bgPath)) {
-            const bg = await loadImage(bgPath);
-            ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
-        } else {
-            ctx.fillStyle = '#0a0f1d';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-        }
-    } catch (e) {
-        ctx.fillStyle = '#0a0f1d';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
+    // 1. خلفية داكنة ثابتة (تم إلغاء قراءة الصور مؤقتاً لضمان عمل البوت)
+    ctx.fillStyle = '#0a0f1d';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // 2. طبقة معتمة وإطار خارجي
     ctx.fillStyle = 'rgba(10, 15, 25, 0.8)';
