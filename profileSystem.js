@@ -1,10 +1,11 @@
-const { createCanvas, loadImage } = require('@napi-rs/canvas');
+        const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const { 
     SlashCommandBuilder, 
     AttachmentBuilder, 
     ActionRowBuilder, 
     StringSelectMenuBuilder, 
-    EmbedBuilder 
+    EmbedBuilder,
+    MessageFlags
 } = require('discord.js');
 const { QuickDB } = require('quick.db');
 const path = require('path');
@@ -28,11 +29,16 @@ async function generateCanvas(user, data) {
     const ctx = canvas.getContext('2d');
 
     // 1. الخلفية
-    const bgPath = path.join(__dirname, 'assets', data.equippedBg || 'bg_tower.png');
-    if (fs.existsSync(bgPath)) {
-        const bg = await loadImage(bgPath);
-        ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
-    } else {
+    try {
+        const bgPath = path.join(__dirname, 'assets', data.equippedBg || 'bg_tower.png');
+        if (fs.existsSync(bgPath)) {
+            const bg = await loadImage(bgPath);
+            ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
+        } else {
+            ctx.fillStyle = '#0a0f1d';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+    } catch (e) {
         ctx.fillStyle = '#0a0f1d';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
@@ -47,14 +53,18 @@ async function generateCanvas(user, data) {
     ctx.strokeRect(20, 20, 760, 410);
 
     // 3. Avatar
-    const avatarUrl = user.displayAvatarURL({ extension: 'png', size: 256 });
-    const avatar = await loadImage(avatarUrl);
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(120, 120, 60, 0, Math.PI * 2);
-    ctx.clip();
-    ctx.drawImage(avatar, 60, 60, 120, 120);
-    ctx.restore();
+    try {
+        const avatarUrl = user.displayAvatarURL({ extension: 'png', size: 256 });
+        const avatar = await loadImage(avatarUrl);
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(120, 120, 60, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.drawImage(avatar, 60, 60, 120, 120);
+        ctx.restore();
+    } catch (e) {
+        console.error("خطأ في تحميل الصورة الشخصية:", e);
+    }
 
     ctx.beginPath();
     ctx.arc(120, 120, 60, 0, Math.PI * 2);
@@ -76,7 +86,7 @@ async function generateCanvas(user, data) {
         { label: 'نوع النين (Nen)', value: data.nenType },
         { label: 'الانتماء (Affiliation)', value: data.affiliation },
         { label: 'المستوى (Level)', value: `Lvl ${data.level}` },
-        { label: 'الثروة (Wealth)', value: `${data.wealth.toLocaleString()} Jenny` }
+        { label: 'الثروة (Wealth)', value: `${Number(data.wealth).toLocaleString()} Jenny` }
     ];
 
     fields.forEach((field, index) => {
@@ -106,14 +116,14 @@ async function generateCanvas(user, data) {
 // جلب بيانات العضو
 async function getUserData(userId) {
     return {
-        title: await db.get(`user_${userId}.title`) || 'صياد مبتدئ',
-        nenType: await db.get(`user_${userId}.nen`) || 'تعزيز (Enhancer)',
-        affiliation: await db.get(`user_${userId}.affiliation`) || 'جمعية الصيادين',
-        level: await db.get(`user_${userId}.level`) || 1,
-        wealth: await db.get(`user_${userId}.jenny`) || 50000,
-        equippedBg: await db.get(`user_${userId}.equippedBg`) || 'bg_tower.png',
-        frameColor: await db.get(`user_${userId}.frameColor`) || '#00ffcc',
-        inventory: await db.get(`user_${userId}.inventory`) || ['bg_tower.png', '#00ffcc']
+        title: (await db.get(`user_${userId}.title`)) || 'صياد مبتدئ',
+        nenType: (await db.get(`user_${userId}.nen`)) || 'تعزيز (Enhancer)',
+        affiliation: (await db.get(`user_${userId}.affiliation`)) || 'جمعية الصيادين',
+        level: (await db.get(`user_${userId}.level`)) || 1,
+        wealth: (await db.get(`user_${userId}.jenny`)) || 50000,
+        equippedBg: (await db.get(`user_${userId}.equippedBg`)) || 'bg_tower.png',
+        frameColor: (await db.get(`user_${userId}.frameColor`)) || '#00ffcc',
+        inventory: (await db.get(`user_${userId}.inventory`)) || ['bg_tower.png', '#00ffcc']
     };
 }
 
@@ -182,21 +192,23 @@ async function handleProfileEvents(interaction) {
         const selectedId = interaction.values[0];
         const item = STORE_ITEMS.find(x => x.id === selectedId);
         
-        let jenny = await db.get(`user_${userId}.jenny`) || 50000;
-        let inventory = await db.get(`user_${userId}.inventory`) || ['bg_tower.png', '#00ffcc'];
+        if (!item) return false;
+
+        let jenny = (await db.get(`user_${userId}.jenny`)) || 50000;
+        let inventory = (await db.get(`user_${userId}.inventory`)) || ['bg_tower.png', '#00ffcc'];
 
         // تجهيز إذا كان مملوكاً
         if (inventory.includes(item.id)) {
             if (item.type === 'bg') await db.set(`user_${userId}.equippedBg`, item.id);
             if (item.type === 'frame') await db.set(`user_${userId}.frameColor`, item.id);
 
-            await interaction.reply({ content: `✅ تم تجهيز **${item.name}** على بطاقتك الشخصية!`, ephemeral: true });
+            await interaction.reply({ content: `✅ تم تجهيز **${item.name}** على بطاقتك الشخصية!`, flags: MessageFlags.Ephemeral });
             return true;
         }
 
         // شراء إذا لم يكن مملوكاً
         if (jenny < item.price) {
-            await interaction.reply({ content: '❌ لا تملك رصيد كافٍ من عملة Jenny!', ephemeral: true });
+            await interaction.reply({ content: '❌ لا تملك رصيد كافٍ من عملة Jenny!', flags: MessageFlags.Ephemeral });
             return true;
         }
 
@@ -206,10 +218,14 @@ async function handleProfileEvents(interaction) {
         if (item.type === 'bg') await db.set(`user_${userId}.equippedBg`, item.id);
         if (item.type === 'frame') await db.set(`user_${userId}.frameColor`, item.id);
 
-        await interaction.reply({ content: `🎉 تم شراء وتجهيز **${item.name}** بنجاح!`, ephemeral: true });
+        await interaction.reply({ content: `🎉 تم شراء وتجهيز **${item.name}** بنجاح!`, flags: MessageFlags.Ephemeral });
         return true;
     }
     return false;
 }
 
-module.exports = { profileCommand, shopCommand, handleProfileEvents };
+module.exports = {
+    profileCommand,
+    shopCommand,
+    handleProfileEvents
+};
