@@ -8,6 +8,7 @@ app.listen(port, () => console.log(`Web server listening on port ${port}`));
 require('dotenv').config();
 const { gamesCommands, handleGamesCommand } = require('./games');
 const labCommand = require('./lab');
+const { profileCommand, shopCommand, handleProfileEvents } = require('./profileSystem');
 
 const { 
     Client, 
@@ -45,7 +46,6 @@ const model = genAI.getGenerativeModel({
 // 🎨 إعدادات نظام الألوان للسيرفرات المتعددة
 // ==========================================
 const COLOR_ROLES = {
-    // 🏢 السيرفر الأول
     '1398466078346317914': { 
         'red': '1547536586487365683',
         'blue': 'ID_رتبة_الأزرق_سيرفر_1',
@@ -55,7 +55,6 @@ const COLOR_ROLES = {
         'grey': 'ID_رتبة_الرمادي_سيرفر_1',
         'black': 'ID_رتبة_الأسود_سيرفر_1'
     },
-    // 🏢 السيرفر الثاني
     '1519745057505153186': { 
         'red': 'ID_رتبة_الأحمر_سيرفر_2',
         'blue': 'ID_رتبة_الأزرق_سيرفر_2',
@@ -169,6 +168,8 @@ const commands = [
     ...(gamesCommands || []),
     labCommand.data,
     colorCommandData,
+    profileCommand.data,
+    shopCommand.data,
     new SlashCommandBuilder()
         .setName('ban')
         .setDescription('حظر عضو من السيرفر')
@@ -226,7 +227,16 @@ client.on('messageCreate', async message => {
 
     const content = message.content.trim().toLowerCase();
     
-    // 1. تشغيل المختبر عند كتابة: مختبر أو lab أو the lab
+    // تشغيل البروفايل نصياً
+    if (content === 'بروفايل' || content === 'بروفايلي' || content === 'profile') {
+        try {
+            await profileCommand.executeText(message);
+            return;
+        } catch (error) {
+            console.error('❌ خطأ أثناء تشغيل أمر البروفايل النصي:', error);
+        }
+    }
+
     if (content === 'lab' || content === 'the lab' || content === 'مختبر') {
         try {
             await labCommand.handleLabSession(message, message.author);
@@ -236,7 +246,6 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // 2. تشغيل الألعاب عند كتابة: العاب أو ألعاب أو games بالرسائل العادية
     if (content === 'العاب' || content === 'ألعاب' || content === 'games') {
         try {
             await handleGamesCommand(message);
@@ -253,7 +262,7 @@ client.on('messageCreate', async message => {
     }
 
     // ==========================================
-    // 🤖 3. نظام الذكاء الاصطناعي (شخصية مارش بـ Gemini)
+    // 🤖 نظام الذكاء الاصطناعي (مارش)
     // ==========================================
     const isMentioned = message.mentions.has(client.user);
     const isDots = content === '..' || content === '...';
@@ -278,15 +287,33 @@ client.on('messageCreate', async message => {
 });
 
 // ==========================================
-// 4. معالجة التفاعلات (أوامر السلاش)
+// 4. معالجة التفاعلات (أوامر السلاش والمكونات)
 // ==========================================
 client.on('interactionCreate', async interaction => {
+    // معالجة تفاعلات متجر ومستودع البروفايل أولاً
+    if (interaction.isStringSelectMenu()) {
+        const handled = await handleProfileEvents(interaction);
+        if (handled) return;
+    }
+
     if (interaction.isStringSelectMenu() && interaction.customId === 'select_name_color') {
         await handleColorSelect(interaction);
         return;
     }
 
-    if (interaction.isChatInputCommand() && interaction.commandName === 'lab') {
+    if (!interaction.isChatInputCommand()) return;
+
+    if (interaction.commandName === 'profile') {
+        await profileCommand.execute(interaction);
+        return;
+    }
+
+    if (interaction.commandName === 'shop') {
+        await shopCommand.execute(interaction);
+        return;
+    }
+
+    if (interaction.commandName === 'lab') {
         try {
             await labCommand.execute(interaction);
         } catch (error) {
@@ -295,14 +322,11 @@ client.on('interactionCreate', async interaction => {
         return;
     }
 
-    if (interaction.isChatInputCommand() && interaction.commandName === 'colors') {
+    if (interaction.commandName === 'colors') {
         await sendColorMenu(interaction);
         return;
     }
 
-    if (!interaction.isChatInputCommand()) return;
-
-    // استجابة أمر السلاش بالإنجليزية حصراً /games
     if (interaction.commandName === 'games') {
         await handleGamesCommand(interaction);
     }
