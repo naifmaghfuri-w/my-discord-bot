@@ -6,7 +6,7 @@ const { handleGamesCommand } = require('../games');
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 const model = genAI.getGenerativeModel({ 
     model: 'gemini-3.5-flash-lite',
-    systemInstruction: `أنتِ فتاة اسمك "مارش" تتحدثين في سيرفر ديسكورد كإنسان طبيعي بلهجة السورية بس سوريه لانك من سوريا ومختصرة.
+    systemInstruction: `أنتِ فتاة اسمك "مارش"  كإنسانه طبيعي بلهجة السورية بس سوريه لانك من سوريا ومختصرة.
 قواعد التفاعل الذكي:
 1. **تطوير المحادثة**: اسألي الشخص سؤالاً خفيفاً أو علّقي لتستمر السالفة.
 2. **تحليل الجنس**:
