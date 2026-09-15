@@ -412,10 +412,16 @@ client.on('interactionCreate', async interaction => {
 // ==========================================
 const token = process.env.DISCORD_TOKEN || process.env.TOKEN;
 
+console.log("⏳ جاري الاتصال بـ Discord...");
+
 if (!token) {
-    console.error('❌ خطأ: لم يتم العثور على توكين البوت في متغيرات البيئة (DISCORD_TOKEN)!');
+    console.error('❌ خطأ: لم يتم العثور على DISCORD_TOKEN في متغيرات البيئة!');
 } else {
-    client.login(token).catch(err => {
-        console.error('❌ فشل تسجيل الدخول إلى ديسكورد:', err);
-    });
+    client.login(token)
+        .then(() => {
+            console.log("✅ تم إرسال توكين التشغيل بنجاح.");
+        })
+        .catch(err => {
+            console.error('❌ فشل تسجيل الدخول إلى ديسكورد:', err);
+        });
 }
