@@ -1,11 +1,12 @@
+require('dotenv').config({ override: false });
+
 const express = require('express');
 const app = express();
 const port = process.env.PORT || 3000;
 
 app.get('/', (req, res) => res.send('Bot is online!'));
-app.listen(port, () => console.log(`Web server listening on port ${port}`));
+app.listen(port, () => console.log(`🌐 Web server listening on port ${port}`));
 
-require('dotenv').config();
 const { gamesCommands, handleGamesCommand } = require('./games');
 const labCommand = require('./lab');
 const { profileCommand, shopCommand, handleProfileEvents } = require('./profileSystem');
@@ -28,7 +29,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 // ==========================================
 // 🤖 إعداد الذكاء الاصطناعي (Google Gemini)
 // ==========================================
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 const model = genAI.getGenerativeModel({ 
     model: 'gemini-3.5-flash-lite',
     systemInstruction: `أنتِ فتاة اسمك "مارش" تتحدثين في سيرفر ديسكورد كإنسان طبيعي بلهجة عامية السورية ومختصرة.
@@ -37,8 +38,8 @@ const model = genAI.getGenerativeModel({
 1. **تحليل الجنس تلقائياً**: حليلي اسم العرض الخاص بالمستخدم (Display Name) والزخارف المرافقة له (مثل وجود اسم أنثوي "Valentine/إيما / سارة"، أو ألقاب أنثوية مثل "هيلدا /Valentine/ عيدالحب/ اسيل/Aseel").
    - إذا كان الاسم يدل على أنثى: خاطبيها بصيغة المؤنث فوريًا (مثال: "هلا إيما، وش فيك ساكته؟ ").
    - إذا كان الاسم يدل على مذكر أو غير واضح: خاطبه بصيغة المذكر (مثال: "هلا أحمد، وش فيك ساكت؟ اسمائي اولاد زي ساي و sae و فلورد و ماجد").
-2. **  شخصية العضو**: ذكيه تفهم وبأسلوب عفوي وطبيعي وبدون تكلف.
-3. **الإيموجيات**: استخدمي إيموجيات تعبيرية مناسبة للسياق جداً (مثل: <:emoji_35:1548377823100674058>,<:emoji_37:1548377953942110348>,1549131519648604303 ,<:emoji_38:1548378007339794472>, <:emoji_33:1548343801683378176>,<:emoji_39:1548378179566174348>,<:emoji_36:1548377886917001338>, <:emoji_34:1548377780100796646> ).
+2. ** شخصية العضو**: ذكيه تفهم وبأسلوب عفوي وطبيعي وبدون تكلف.
+3. **الإيموجيات**: استخدمي إيموجيات تعبيرية مناسبة للسياق جداً.
 4. **الاختصار**: اجعلي الردود قصيرة ومباشرة كأنك عضوة حقيقية تفاعلية داخل السيرفر.`
 });
 
@@ -208,7 +209,7 @@ const commands = [
 ];
 
 client.once('ready', async () => {
-    console.log(`🚀 تم تسجيل الدخول باسم: ${client.user.tag}`);
+    console.log(`🚀 تم تسجيل الدخول بنجاح باسم: ${client.user.tag}`);
     const token = process.env.DISCORD_TOKEN || process.env.TOKEN;
     const rest = new REST({ version: '10' }).setToken(token);
     try {
@@ -227,7 +228,6 @@ client.on('messageCreate', async message => {
 
     const content = message.content.trim().toLowerCase();
     
-    // تشغيل البروفايل نصياً
     if (content === 'بروفايل' || content === 'بروفايلي' || content === 'profile') {
         try {
             await profileCommand.executeText(message);
@@ -255,7 +255,7 @@ client.on('messageCreate', async message => {
         }
     }
 
-    if (content === '!colors' && message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+    if (content === '!colors' && message.member?.permissions.has(PermissionFlagsBits.Administrator)) {
         await sendColorMenu(message.channel);
         await message.delete().catch(() => {});
         return;
@@ -290,7 +290,6 @@ client.on('messageCreate', async message => {
 // 4. معالجة التفاعلات (أوامر السلاش والمكونات)
 // ==========================================
 client.on('interactionCreate', async interaction => {
-    // معالجة تفاعلات متجر ومستودع البروفايل أولاً
     if (interaction.isStringSelectMenu()) {
         const handled = await handleProfileEvents(interaction);
         if (handled) return;
@@ -408,20 +407,20 @@ client.on('interactionCreate', async interaction => {
 });
 
 // ==========================================
-// 5. تشغيل البوت
+// 5. تشغيل البوت مع التقاط الأخطاء
 // ==========================================
 const token = process.env.DISCORD_TOKEN || process.env.TOKEN;
 
-console.log("⏳ جاري الاتصال بـ Discord...");
+console.log("⏳ جاري محاولة الاتصال بـ Discord...");
 
 if (!token) {
     console.error('❌ خطأ: لم يتم العثور على DISCORD_TOKEN في متغيرات البيئة!');
 } else {
     client.login(token)
-        .then(() => {
-            console.log("✅ تم إرسال توكين التشغيل بنجاح.");
-        })
-        .catch(err => {
-            console.error('❌ فشل تسجيل الدخول إلى ديسكورد:', err);
-        });
+        .then(() => console.log("✅ تم إرسال التوكين بنجاح."))
+        .catch(err => console.error('❌ فشل تسجيل الدخول إلى ديسكورد:', err));
 }
+
+process.on('unhandledRejection', error => {
+    console.error('❌ خطأ غير معالج (Unhandled Rejection):', error);
+});
