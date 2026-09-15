@@ -12,7 +12,36 @@ const { createCanvas, loadImage } = require('@napi-rs/canvas');
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// دالة رسم العجلة (تم تقليل الحجم إلى 350 لحماية الـ RAM)
+// ايقونة العملة
+const CURRENCY_EMOJI = '<:J_:1548935096768274532>';
+
+// قاعدة بيانات وهمية لرصيد اللاعبين (يمكنك ربطها بقاعدة البيانات الخاصة بك Quick.db / SQLite)
+const balances = new Map(); // userId => amount
+
+function getBalance(userId) {
+    if (!balances.has(userId)) balances.set(userId, 500); // رصيد مجاني ابتدائي للجميع للتجربة 500 Jenny
+    return balances.get(userId);
+}
+
+function addBalance(userId, amount) {
+    balances.set(userId, getBalance(userId) + amount);
+}
+
+function removeBalance(userId, amount) {
+    const current = getBalance(userId);
+    if (current < amount) return false;
+    balances.set(userId, current - amount);
+    return true;
+}
+
+// أسعار عناصر المتجر
+const SHOP_ITEMS = {
+    DOUBLE_ELIMINATE: { id: 'double_eliminate', name: 'طرد مزدوج ✌️', price: 150, desc: 'طرد اثنين في نفس الجولة' },
+    SHIELD: { id: 'shield', name: 'درع الحماية 🛡️', price: 100, desc: 'حماية لمرة واحدة من الطرد' },
+    REVIVE: { id: 'revive', name: 'إحياء لاعب 🧟', price: 200, desc: 'إعادة لاعب خرج من اللعبة' }
+};
+
+// دالة رسم العجلة (مصححة الذاكرة 350x350)
 async function drawWheel(players, rotationAngle = 0, centerAvatarUrl = null) {
     const size = 350;
     const canvas = createCanvas(size, size);
@@ -26,7 +55,7 @@ async function drawWheel(players, rotationAngle = 0, centerAvatarUrl = null) {
 
     ctx.clearRect(0, 0, size, size);
 
-    // 1. الإطار الخارجي الذهبي
+    // 1. الإطار الخارجي
     ctx.beginPath();
     ctx.arc(center, center, radius + 8, 0, 2 * Math.PI);
     ctx.fillStyle = '#D4AF37';
@@ -35,7 +64,7 @@ async function drawWheel(players, rotationAngle = 0, centerAvatarUrl = null) {
     ctx.strokeStyle = '#FFD700';
     ctx.stroke();
 
-    // 2. قطاعات العجلة
+    // 2. القطاعات
     players.forEach((player, index) => {
         const start = rotationAngle + index * sliceAngle;
         const end = start + sliceAngle;
@@ -57,11 +86,14 @@ async function drawWheel(players, rotationAngle = 0, centerAvatarUrl = null) {
         ctx.textAlign = 'right';
         ctx.fillStyle = '#FFFFFF';
         ctx.font = 'bold 12px sans-serif';
-        ctx.fillText(`${player.number}- ${player.username}`, radius - 15, 4);
+        
+        // إضافة أيقونة الدرع بجانب الاسم إذا كان لديه درع
+        const shieldIcon = player.hasShield ? ' 🛡️' : '';
+        ctx.fillText(`${player.number}- ${player.username}${shieldIcon}`, radius - 15, 4);
         ctx.restore();
     });
 
-    // 3. المؤشر الذهبي
+    // 3. المؤشر
     ctx.beginPath();
     ctx.moveTo(size - 5, center);
     ctx.lineTo(size - 25, center - 10);
@@ -107,14 +139,86 @@ async function drawWheel(players, rotationAngle = 0, centerAvatarUrl = null) {
     return canvas.toBuffer('image/png');
 }
 
+// دالة فتح نافذة المتجر التفاعلية
+async function openShopModal(i, player) {
+    const userBal = getBalance(i.user.id);
+
+    const shopEmbed = new EmbedBuilder()
+        .setTitle(`🏪 متجر اللعبة (عملتك: ${userBal} ${CURRENCY_EMOJI})`)
+        .setDescription(
+            `اختر العناصر التي تريد شراءها باستخدام عملة Jenny:\n\n` +
+            `1️⃣ **${SHOP_ITEMS.DOUBLE_ELIMINATE.name}** - ${SHOP_ITEMS.DOUBLE_ELIMINATE.price} ${CURRENCY_EMOJI}\n└ ${SHOP_ITEMS.DOUBLE_ELIMINATE.desc}\n\n` +
+            `2️⃣ **${SHOP_ITEMS.SHIELD.name}** - ${SHOP_ITEMS.SHIELD.price} ${CURRENCY_EMOJI}\n└ ${SHOP_ITEMS.SHIELD.desc}\n\n` +
+            `3️⃣ **${SHOP_ITEMS.REVIVE.name}** - ${SHOP_ITEMS.REVIVE.price} ${CURRENCY_EMOJI}\n└ ${SHOP_ITEMS.REVIVE.desc}`
+        )
+        .setColor('#F1C40F');
+
+    const shopMenu = new StringSelectMenuBuilder()
+        .setCustomId('buy_item_select')
+        .setPlaceholder('اختر عنصراً لشرائه...')
+        .addOptions([
+            { label: SHOP_ITEMS.DOUBLE_ELIMINATE.name, value: SHOP_ITEMS.DOUBLE_ELIMINATE.id, description: `${SHOP_ITEMS.DOUBLE_ELIMINATE.price} Jenny` },
+            { label: SHOP_ITEMS.SHIELD.name, value: SHOP_ITEMS.SHIELD.id, description: `${SHOP_ITEMS.SHIELD.price} Jenny` },
+            { label: SHOP_ITEMS.REVIVE.name, value: SHOP_ITEMS.REVIVE.id, description: `${SHOP_ITEMS.REVIVE.price} Jenny` }
+        ]);
+
+    const row = new ActionRowBuilder().addComponents(shopMenu);
+
+    const shopReply = await i.reply({ embeds: [shopEmbed], components: [row], flags: MessageFlags.Ephemeral, withResponse: true });
+
+    const collector = shopReply.resource ? shopReply.resource.message.createMessageComponentCollector({
+        componentType: ComponentType.StringSelect,
+        time: 20_000
+    }) : shopReply.createMessageComponentCollector({
+        componentType: ComponentType.StringSelect,
+        time: 20_000
+    });
+
+    collector.on('collect', async (selectInt) => {
+        const itemKey = selectInt.values[0];
+
+        if (itemKey === SHOP_ITEMS.DOUBLE_ELIMINATE.id) {
+            if (player.hasDouble) {
+                return selectInt.reply({ content: '❌ لديك ميزة الطرد المزدوج بالفعل!', flags: MessageFlags.Ephemeral });
+            }
+            if (!removeBalance(i.user.id, SHOP_ITEMS.DOUBLE_ELIMINATE.price)) {
+                return selectInt.reply({ content: `❌ لا تملك رصيداً كافياً من ${CURRENCY_EMOJI}!`, flags: MessageFlags.Ephemeral });
+            }
+            player.hasDouble = true;
+            await selectInt.reply({ content: `✅ تم شراء **${SHOP_ITEMS.DOUBLE_ELIMINATE.name}** بنجاح!`, flags: MessageFlags.Ephemeral });
+
+        } else if (itemKey === SHOP_ITEMS.SHIELD.id) {
+            if (player.hasShield) {
+                return selectInt.reply({ content: '❌ لديك درع حماية مفعل بالفعل!', flags: MessageFlags.Ephemeral });
+            }
+            if (!removeBalance(i.user.id, SHOP_ITEMS.SHIELD.price)) {
+                return selectInt.reply({ content: `❌ لا تملك رصيداً كافياً من ${CURRENCY_EMOJI}!`, flags: MessageFlags.Ephemeral });
+            }
+            player.hasShield = true;
+            await selectInt.reply({ content: `✅ تم شراء **${SHOP_ITEMS.SHIELD.name}** بنجاح! يمكنك استخدامه لحمايتك من الطرد.`, flags: MessageFlags.Ephemeral });
+
+        } else if (itemKey === SHOP_ITEMS.REVIVE.id) {
+            if (player.hasRevive) {
+                return selectInt.reply({ content: '❌ لديك جرعة إحياء بالفعل!', flags: MessageFlags.Ephemeral });
+            }
+            if (!removeBalance(i.user.id, SHOP_ITEMS.REVIVE.price)) {
+                return selectInt.reply({ content: `❌ لا تملك رصيداً كافياً من ${CURRENCY_EMOJI}!`, flags: MessageFlags.Ephemeral });
+            }
+            player.hasRevive = true;
+            await selectInt.reply({ content: `✅ تم شراء **${SHOP_ITEMS.REVIVE.name}** بنجاح! يمكنك استخدامه لإعادة لاعب مفقود.`, flags: MessageFlags.Ephemeral });
+        }
+    });
+}
+
 async function executeRouletteGame(interaction) {
-    const players = []; // { id, number, username, avatarUrl }
+    const players = []; // { id, number, username, avatarUrl, hasShield, hasDouble, hasRevive }
+    const eliminatedPlayers = []; // لتتبع اللاعبين المطرودين للاستفادة من الإحياء
     const maxPlayers = 20;
     let countdown = 60;
 
     const buildEmbed = (secondsLeft) => {
         const playersListText = players.length > 0 
-            ? players.sort((a, b) => a.number - b.number).map(p => `**${p.number}**- <@${p.id}>`).join('\n')
+            ? players.sort((a, b) => a.number - b.number).map(p => `**${p.number}**- <@${p.id}> ${p.hasShield ? '🛡️' : ''}`).join('\n')
             : "لا يوجد لاعبين مشاركين باللعبة";
 
         return new EmbedBuilder()
@@ -124,7 +228,8 @@ async function executeRouletteGame(interaction) {
                 `1- اختر الرقم الذي سيمثلك في اللعبة\n` +
                 `2- ستبدأ الجولة الأولى وسيتم تدوير العجلة واختيار لاعب عشوائي\n` +
                 `3- إذا كنت اللاعب المختار ، فستختار لاعباً من اختيارك ليتم طرده من اللعبة\n` +
-                `4- يُطرد اللاعب وتبدأ جولة جديدة ، عندما يُطرد جميع اللاعبين ويبقى لاعبان فقط ، ستدور العجلة ويكون اللاعب المختار هو الفائز باللعبة\n\n` +
+                `4- يُطرد اللاعب وتبدأ جولة جديدة حتى يتبقى الفائز النهائي\n\n` +
+                `🛒 **المتجر متوفر!** يمكنك شراء درع أو طرد مزدوج أو إحياء باستخدام عملة ${CURRENCY_EMOJI}\n\n` +
                 `**أرقام اللاعبين: (${players.length}/${maxPlayers})**\n` +
                 `${playersListText}`
             )
@@ -160,6 +265,10 @@ async function executeRouletteGame(interaction) {
                 .setLabel('دخول عشوائي')
                 .setStyle(ButtonStyle.Success),
             new ButtonBuilder()
+                .setCustomId('open_shop')
+                .setLabel('المتجر 🛒')
+                .setStyle(ButtonStyle.Primary),
+            new ButtonBuilder()
                 .setCustomId('leave_game')
                 .setLabel('اخرج من اللعبة')
                 .setStyle(ButtonStyle.Danger)
@@ -170,7 +279,6 @@ async function executeRouletteGame(interaction) {
     };
 
     let response;
-    // استخدام withResponse: true بدلاً من fetchReply: true
     if (interaction.replied || interaction.deferred) {
         response = await interaction.followUp({ embeds: [buildEmbed(countdown)], components: buildButtons(), withResponse: true });
     } else {
@@ -198,6 +306,15 @@ async function executeRouletteGame(interaction) {
         const userId = i.user.id;
         const username = i.user.username;
         const avatarUrl = i.user.displayAvatarURL({ extension: 'png', size: 128 });
+
+        if (i.customId === 'open_shop') {
+            let player = players.find(p => p.id === userId);
+            if (!player) {
+                // لاعب زائر في المتجر
+                player = { id: userId, username, avatarUrl, hasShield: false, hasDouble: false, hasRevive: false };
+            }
+            return await openShopModal(i, player);
+        }
 
         if (i.customId === 'leave_game') {
             const playerIndex = players.findIndex(p => p.id === userId);
@@ -234,7 +351,16 @@ async function executeRouletteGame(interaction) {
             }
         }
 
-        players.push({ id: userId, number: chosenNumber, username: username, avatarUrl: avatarUrl });
+        players.push({ 
+            id: userId, 
+            number: chosenNumber, 
+            username: username, 
+            avatarUrl: avatarUrl,
+            hasShield: false,
+            hasDouble: false,
+            hasRevive: false
+        });
+        
         await i.reply({ content: `تم دخولك بنجاح بالرقم: **${chosenNumber}**`, flags: MessageFlags.Ephemeral });
         await interaction.editReply({ embeds: [buildEmbed(countdown)], components: buildButtons() });
     });
@@ -252,11 +378,11 @@ async function executeRouletteGame(interaction) {
             return;
         }
 
-        await runGameLoop(interaction, players);
+        await runGameLoop(interaction, players, eliminatedPlayers);
     });
 }
 
-async function runGameLoop(interaction, players) {
+async function runGameLoop(interaction, players, eliminatedPlayers) {
     let round = 1;
 
     while (players.length > 1) {
@@ -266,42 +392,25 @@ async function runGameLoop(interaction, players) {
         const sliceAngle = (2 * Math.PI) / players.length;
         const targetAngle = -(chosenIndex * sliceAngle + sliceAngle / 2);
 
-        let currentAngle = 0;
-        const frames = 1; // تقليل الإطارات لتجنب الحظر ولحماية الذاكرة
         let wheelMsg;
-
-        for (let f = 0; f < frames; f++) {
-            currentAngle += Math.PI;
-            const randomAvatar = players[Math.floor(Math.random() * players.length)].avatarUrl;
-            
-            const buffer = await drawWheel(players, currentAngle, randomAvatar);
-            const attachment = new AttachmentBuilder(buffer, { name: 'wheel.png' });
-
-            const spinEmbed = new EmbedBuilder()
-                .setTitle(`🌀 الجولة ${round} - دوران العجلة`)
-                .setDescription('🎰 **جاري تدوير العجلة...**')
-                .setImage('attachment://wheel.png')
-                .setColor('#D4AF37');
-
-            if (!wheelMsg) {
-                wheelMsg = await interaction.followUp({ embeds: [spinEmbed], files: [attachment] });
-            } else {
-                await wheelMsg.edit({ embeds: [spinEmbed], files: [attachment] }).catch(() => {});
-            }
-            await sleep(500);
-        }
-
-        const finalBuffer = await drawWheel(players, targetAngle, chosenPlayer.avatarUrl);
-        const finalAttachment = new AttachmentBuilder(finalBuffer, { name: 'wheel_final.png' });
+        const buffer = await drawWheel(players, targetAngle, chosenPlayer.avatarUrl);
+        const attachment = new AttachmentBuilder(buffer, { name: 'wheel.png' });
 
         if (players.length === 2) {
             const winnerEmbed = new EmbedBuilder()
                 .setTitle('🏆 الفائز في اللعبة!')
                 .setDescription(`توقفت العجلة عند صاحب الرقم **${chosenPlayer.number}**!\n\n🎉 **الفائز باللعبة هو:** <@${chosenPlayer.id}>`)
-                .setImage('attachment://wheel_final.png')
+                .setImage('attachment://wheel.png')
                 .setColor('#57F287');
 
-            await wheelMsg.edit({ embeds: [winnerEmbed], files: [finalAttachment], components: [] });
+            // مكافأة الفائز 100 Jenny
+            addBalance(chosenPlayer.id, 100);
+
+            if (wheelMsg) {
+                await wheelMsg.edit({ embeds: [winnerEmbed], files: [attachment], components: [] });
+            } else {
+                await interaction.followUp({ embeds: [winnerEmbed], files: [attachment] });
+            }
             return;
         }
 
@@ -309,36 +418,52 @@ async function runGameLoop(interaction, players) {
 
         const selectMenu = new StringSelectMenuBuilder()
             .setCustomId('eliminate_select')
-            .setPlaceholder('اختر اللاعب الذي تريد طرده من اللعبة...')
+            .setPlaceholder(`اختر اللاعب الذي تريد طرده... ${chosenPlayer.hasDouble ? '(طرد مزدوج مفعل!)' : ''}`)
             .addOptions(
                 targets.map(p => ({
-                    label: `اللاعب رقم ${p.number} (${p.username})`,
+                    label: `اللاعب رقم ${p.number} (${p.username}) ${p.hasShield ? '🛡️' : ''}`,
                     value: p.id,
                     description: `طرد صاحب الرقم ${p.number}`,
                     emoji: '❌'
                 }))
             );
 
+        if (chosenPlayer.hasDouble && targets.length >= 2) {
+            selectMenu.setMinValues(2).setMaxValues(2);
+        }
+
         const menuRow = new ActionRowBuilder().addComponents(selectMenu);
+        const actionButtons = new ActionRowBuilder();
+
+        if (chosenPlayer.hasRevive && eliminatedPlayers.length > 0) {
+            actionButtons.addComponents(
+                new ButtonBuilder()
+                    .setCustomId('use_revive')
+                    .setLabel('استخدام إحياء لاعب 🧟')
+                    .setStyle(ButtonStyle.Success)
+            );
+        }
+
+        const components = actionButtons.components.length > 0 ? [menuRow, actionButtons] : [menuRow];
 
         const roundEmbed = new EmbedBuilder()
             .setTitle(`🌀 الجولة ${round}`)
             .setDescription(
                 `🎯 **توقفت العجلة على:** الرقم **${chosenPlayer.number}** (<@${chosenPlayer.id}>)!\n\n` +
-                `**يا <@${chosenPlayer.id}>، قم باختيار اللاعب الذي تريد طرده من القائمة أدناه!**`
+                `**يا <@${chosenPlayer.id}>، قم باختيار اللاعب الذي تريد طرده من القائمة أدناه!**` +
+                (chosenPlayer.hasDouble ? `\n\n⚡ **تنويه:** لديك ميزة **طرد مزدوج**، قم باختيار لاعبين اثنين!` : '')
             )
-            .setImage('attachment://wheel_final.png')
+            .setImage('attachment://wheel.png')
             .setColor('#D4AF37');
 
-        await wheelMsg.edit({
+        wheelMsg = await interaction.followUp({
             embeds: [roundEmbed],
-            files: [finalAttachment],
-            components: [menuRow]
+            files: [attachment],
+            components: components
         });
 
         try {
             const selectInteraction = await wheelMsg.awaitMessageComponent({
-                componentType: ComponentType.StringSelect,
                 filter: (i) => {
                     if (i.user.id !== chosenPlayer.id) {
                         i.reply({ content: '❌ أنت لست اللاعب المختار للقيام بالطرد!', flags: MessageFlags.Ephemeral });
@@ -349,15 +474,45 @@ async function runGameLoop(interaction, players) {
                 time: 30_000
             });
 
-            const eliminatedId = selectInteraction.values[0];
-            const eliminatedIndex = players.findIndex(p => p.id === eliminatedId);
-            const eliminatedPlayer = players[eliminatedIndex];
+            if (selectInteraction.customId === 'use_revive') {
+                // خيار الإحياء
+                chosenPlayer.hasRevive = false;
+                const revivedPlayer = eliminatedPlayers.pop();
+                players.push(revivedPlayer);
 
-            players.splice(eliminatedIndex, 1);
+                const reviveEmbed = new EmbedBuilder()
+                    .setTitle('🧟 إحياء لاعب!')
+                    .setDescription(`قام <@${chosenPlayer.id}> بإعادة اللاعب الرقم **${revivedPlayer.number}** (<@${revivedPlayer.id}>) إلى اللعبة مرة أخرى!`)
+                    .setColor('#2ECC71');
+
+                await selectInteraction.update({ embeds: [reviveEmbed], components: [] });
+                round++;
+                continue;
+            }
+
+            const selectedIds = selectInteraction.values;
+            let statusText = '';
+
+            for (const eliminatedId of selectedIds) {
+                const targetIndex = players.findIndex(p => p.id === eliminatedId);
+                const targetPlayer = players[targetIndex];
+
+                // التحقق من وجود درع حماية
+                if (targetPlayer.hasShield) {
+                    targetPlayer.hasShield = false; // استهلاك الدرع
+                    statusText += `🛡️ **الرقم ${targetPlayer.number}** (<@${targetPlayer.id}>) استخدم **درع الحماية** وتم إلغاء طرده!\n`;
+                } else {
+                    eliminatedPlayers.push(targetPlayer);
+                    players.splice(targetIndex, 1);
+                    statusText += `💥 تم طرد الرقم **${targetPlayer.number}** (<@${targetPlayer.id}>)!\n`;
+                }
+            }
+
+            if (chosenPlayer.hasDouble) chosenPlayer.hasDouble = false; // استهلاك الميزة
 
             const eliminatedEmbed = new EmbedBuilder()
-                .setTitle('💥 تم طرد لاعب!')
-                .setDescription(`قام صاحب الرقم **${chosenPlayer.number}** بطرد الرقم **${eliminatedPlayer.number}** (<@${eliminatedPlayer.id}>)!\n\nاللاعبون المتبقون: **${players.length}**`)
+                .setTitle(`💥 نتائج الجولة ${round}`)
+                .setDescription(`${statusText}\nاللاعبون المتبقون: **${players.length}**`)
                 .setColor('#ED4245');
 
             await selectInteraction.update({
@@ -371,8 +526,9 @@ async function runGameLoop(interaction, players) {
             await interaction.followUp({
                 content: `⏰ انتهى الوقت ولم يقم الرقم **${chosenPlayer.number}** باختيار أحد، تم تخطي دور هذه الجولة!`
             });
+            round++;
         }
     }
 }
 
-module.exports = { executeRouletteGame };
+module.exports = { executeRouletteGame, getBalance, addBalance };
