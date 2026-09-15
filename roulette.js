@@ -12,13 +12,13 @@ const { createCanvas, loadImage } = require('@napi-rs/canvas');
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// دالة رسم العجلة وصورة أفياتار اللاعب بالمنتصف
+// دالة رسم العجلة (تم تقليل الحجم إلى 350 لحماية الـ RAM)
 async function drawWheel(players, rotationAngle = 0, centerAvatarUrl = null) {
-    const size = 600;
+    const size = 350;
     const canvas = createCanvas(size, size);
     const ctx = canvas.getContext('2d');
     const center = size / 2;
-    const radius = size / 2 - 40;
+    const radius = size / 2 - 25;
     const total = players.length;
     const sliceAngle = (2 * Math.PI) / total;
 
@@ -26,16 +26,16 @@ async function drawWheel(players, rotationAngle = 0, centerAvatarUrl = null) {
 
     ctx.clearRect(0, 0, size, size);
 
-    // 1. رسم الإطار الخارجي الذهبي
+    // 1. الإطار الخارجي الذهبي
     ctx.beginPath();
-    ctx.arc(center, center, radius + 12, 0, 2 * Math.PI);
+    ctx.arc(center, center, radius + 8, 0, 2 * Math.PI);
     ctx.fillStyle = '#D4AF37';
     ctx.fill();
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 3;
     ctx.strokeStyle = '#FFD700';
     ctx.stroke();
 
-    // 2. رسم قطاعات العجلة
+    // 2. قطاعات العجلة
     players.forEach((player, index) => {
         const start = rotationAngle + index * sliceAngle;
         const end = start + sliceAngle;
@@ -47,7 +47,7 @@ async function drawWheel(players, rotationAngle = 0, centerAvatarUrl = null) {
 
         ctx.fillStyle = grayShades[index % grayShades.length];
         ctx.fill();
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 1;
         ctx.strokeStyle = '#D4AF37';
         ctx.stroke();
 
@@ -56,36 +56,33 @@ async function drawWheel(players, rotationAngle = 0, centerAvatarUrl = null) {
         ctx.rotate(start + sliceAngle / 2);
         ctx.textAlign = 'right';
         ctx.fillStyle = '#FFFFFF';
-        ctx.font = 'bold 17px sans-serif';
-        // يظهر هنا الرقم اسم المستخدم (Username) بدلاً من Display Name
-        ctx.fillText(`${player.number}- ${player.username}`, radius - 20, 5);
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText(`${player.number}- ${player.username}`, radius - 15, 4);
         ctx.restore();
     });
 
-    // 3. رسم المؤشر الذهبي على اليمين
+    // 3. المؤشر الذهبي
     ctx.beginPath();
-    ctx.moveTo(size - 10, center);
-    ctx.lineTo(size - 38, center - 16);
-    ctx.lineTo(size - 38, center + 16);
+    ctx.moveTo(size - 5, center);
+    ctx.lineTo(size - 25, center - 10);
+    ctx.lineTo(size - 25, center + 10);
     ctx.closePath();
     ctx.fillStyle = '#FFD700';
     ctx.fill();
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.5;
     ctx.strokeStyle = '#996515';
     ctx.stroke();
 
-    // 4. رسم أفياتار اللاعب في الدائرة الوسطية
-    const centerRadius = 50;
+    // 4. أفياتار المنتصف
+    const centerRadius = 30;
     if (centerAvatarUrl) {
         try {
             const img = await loadImage(centerAvatarUrl);
-            
             ctx.save();
             ctx.beginPath();
             ctx.arc(center, center, centerRadius, 0, Math.PI * 2, true);
             ctx.closePath();
             ctx.clip();
-
             ctx.drawImage(img, center - centerRadius, center - centerRadius, centerRadius * 2, centerRadius * 2);
             ctx.restore();
         } catch {
@@ -101,10 +98,9 @@ async function drawWheel(players, rotationAngle = 0, centerAvatarUrl = null) {
         ctx.fill();
     }
 
-    // إطار ذهبي دائري حول الأفياتار في المنتصف
     ctx.beginPath();
     ctx.arc(center, center, centerRadius, 0, 2 * Math.PI);
-    ctx.lineWidth = 5;
+    ctx.lineWidth = 3;
     ctx.strokeStyle = '#D4AF37';
     ctx.stroke();
 
@@ -174,10 +170,11 @@ async function executeRouletteGame(interaction) {
     };
 
     let response;
+    // استخدام withResponse: true بدلاً من fetchReply: true
     if (interaction.replied || interaction.deferred) {
-        response = await interaction.followUp({ embeds: [buildEmbed(countdown)], components: buildButtons(), fetchReply: true });
+        response = await interaction.followUp({ embeds: [buildEmbed(countdown)], components: buildButtons(), withResponse: true });
     } else {
-        response = await interaction.reply({ embeds: [buildEmbed(countdown)], components: buildButtons(), fetchReply: true });
+        response = await interaction.reply({ embeds: [buildEmbed(countdown)], components: buildButtons(), withResponse: true });
     }
 
     const interval = setInterval(async () => {
@@ -189,14 +186,17 @@ async function executeRouletteGame(interaction) {
         }
     }, 5000);
 
-    const collector = response.createMessageComponentCollector({
+    const collector = response.resource ? response.resource.message.createMessageComponentCollector({
+        componentType: ComponentType.Button,
+        time: 60_000
+    }) : response.createMessageComponentCollector({
         componentType: ComponentType.Button,
         time: 60_000
     });
 
     collector.on('collect', async (i) => {
         const userId = i.user.id;
-        const username = i.user.username; // جلب اسم المستخدم بدلاً من Display Name
+        const username = i.user.username;
         const avatarUrl = i.user.displayAvatarURL({ extension: 'png', size: 128 });
 
         if (i.customId === 'leave_game') {
@@ -267,7 +267,7 @@ async function runGameLoop(interaction, players) {
         const targetAngle = -(chosenIndex * sliceAngle + sliceAngle / 2);
 
         let currentAngle = 0;
-        const frames = 2;
+        const frames = 1; // تقليل الإطارات لتجنب الحظر ولحماية الذاكرة
         let wheelMsg;
 
         for (let f = 0; f < frames; f++) {
@@ -288,7 +288,7 @@ async function runGameLoop(interaction, players) {
             } else {
                 await wheelMsg.edit({ embeds: [spinEmbed], files: [attachment] }).catch(() => {});
             }
-            await sleep(250);
+            await sleep(500);
         }
 
         const finalBuffer = await drawWheel(players, targetAngle, chosenPlayer.avatarUrl);
