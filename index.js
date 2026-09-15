@@ -1,4 +1,4 @@
-const express = require('express');
+Const express = require('express');
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -207,9 +207,9 @@ const commands = [
         )
 ];
 
-client.once('clientReady', async () => {
+client.once('ready', async () => {
     console.log(`🚀 تم تسجيل الدخول باسم: ${client.user.tag}`);
-    const token = process.env.TOKEN || process.env.DISCORD_TOKEN;
+    const token = process.env.DISCORD_TOKEN || process.env.TOKEN;
     const rest = new REST({ version: '10' }).setToken(token);
     try {
         await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
@@ -410,4 +410,12 @@ client.on('interactionCreate', async interaction => {
 // ==========================================
 // 5. تشغيل البوت
 // ==========================================
-client.login(process.env.DISCORD_TOKEN);
+const token = process.env.DISCORD_TOKEN || process.env.TOKEN;
+
+if (!token) {
+    console.error('❌ خطأ: لم يتم العثور على توكين البوت في متغيرات البيئة (DISCORD_TOKEN)!');
+} else {
+    client.login(token).catch(err => {
+        console.error('❌ فشل تسجيل الدخول إلى ديسكورد:', err);
+    });
+}
