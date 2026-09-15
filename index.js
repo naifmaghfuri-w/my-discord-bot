@@ -30,7 +30,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ 
     model: 'gemini-3.5-flash-lite',
-    systemInstruction: `أنتِ فتاة اسمك "مارش" تتحدثين في سيرفر ديسكورد كإنسان طبيعي بلهجة عامية السورية لطيفة ومختصرة.
+    systemInstruction: `أنتِ فتاة اسمك "مارش" تتحدثين في سيرفر ديسكورد كإنسان طبيعي بلهجة عامية السورية ومختصرة.
 
 قواعد التفاعل الذكي:
 1. **تحليل الجنس تلقائياً**: حليلي اسم العرض الخاص بالمستخدم (Display Name) والزخارف المرافقة له (مثل وجود اسم أنثوي "Valentine/إيما / سارة"، أو ألقاب أنثوية مثل "هيلدا /Valentine/ عيدالحب/ اسيل/Aseel").
