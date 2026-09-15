@@ -89,7 +89,7 @@ async function handleGamesCommand(context) {
                 .setColor('#ff0000')
                 .setTitle('🎯 لعبة Hunter x Hunter')
                 .setDescription('⏳ **قريباً جداً...**\nجارٍ العمل على تجهيز اللعبة وإضافة النظام الخاص بها!')
-                .setImage('https://cdn.discordapp.com/attachments/1522782977472462898/1549380413150072842/Screenshot_20260915-140351.png?ex=6aaa7c74&is=6aa92af4&hm=92057bf6f55262466303e0d609182b179162009ac86943e8840c61c5a1fce8a4&'); // يمكنك استبدال الرابط برابط صورتك المباشر
+                .setImage('https://cdn.discordapp.com/attachments/1522782977472462898/1549384767714238484/C9B94D06-CB0E-4B26-9FE4-924489C72322.jpg?ex=6aaa8082&is=6aa92f02&hm=3c993a6a52705c0c3488009bab122bd1c63732b24042da4b7d4292b5021eea8a&'); // يمكنك استبدال الرابط برابط صورتك المباشر
 
             await selectInteraction.reply({ 
                 embeds: [hxhEmbed], 
