@@ -85,8 +85,14 @@ async function handleGamesCommand(context) {
             menuCollector.stop();
             await executeRouletteGame(selectInteraction);
         } else if (selectedValue === 'hxh_game') {
+            const hxhEmbed = new EmbedBuilder()
+                .setColor('#ff0000')
+                .setTitle('🎯 لعبة Hunter x Hunter')
+                .setDescription('⏳ **قريباً جداً...**\nجارٍ العمل على تجهيز اللعبة وإضافة النظام الخاص بها!')
+                .setImage('https://media.discordapp.net/attachments/1098670830154625075/1242372480373418105/image_23.png'); // يمكنك استبدال الرابط برابط صورتك المباشر
+
             await selectInteraction.reply({ 
-                content: '⏳ ** قريباً!**  .', 
+                embeds: [hxhEmbed], 
                 flags: MessageFlags.Ephemeral 
             });
         }
