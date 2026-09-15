@@ -2,8 +2,24 @@ const express = require('express');
 const app = express();
 const port = process.env.PORT || 3000;
 
+// ==========================================
+// 🌐 خادم Express لمعالجة الطلبات والحفاظ على النشاط
+// ==========================================
 app.get('/', (req, res) => res.send('Bot is online!'));
-app.listen(port, () => console.log(`🌐 Web server listening on port ${port}`));
+
+app.listen(port, () => {
+    console.log(`🌐 Web server listening on port ${port}`);
+    
+    // إرسال Ping تلقائي للخدمة كل 5 دقائق لمنع خمول Render
+    setInterval(() => {
+        const renderUrl = process.env.RENDER_EXTERNAL_URL;
+        if (renderUrl) {
+            fetch(renderUrl)
+                .then(() => console.log('🔄 Keep-alive ping sent successfully.'))
+                .catch(err => console.error('⚠️ Keep-alive ping failed:', err.message));
+        }
+    }, 5 * 60 * 1000);
+});
 
 const { gamesCommands, handleGamesCommand } = require('./games');
 const labCommand = require('./lab');
@@ -326,6 +342,7 @@ client.on('interactionCreate', async interaction => {
 
     if (interaction.commandName === 'games') {
         await handleGamesCommand(interaction);
+        return;
     }
 
     if (interaction.commandName === 'clear') {
@@ -363,6 +380,7 @@ client.on('interactionCreate', async interaction => {
                 console.error(err);
                 interaction.reply({ content: 'حدث خطأ أثناء الحذف (قد تكون الرسائل أقدم من 14 يوماً).', flags: MessageFlags.Ephemeral });
             });
+        return;
     }
 
     if (interaction.commandName === 'ban') {
@@ -375,6 +393,7 @@ client.on('interactionCreate', async interaction => {
 
         await member.ban({ reason });
         await interaction.reply({ content: `🔨 تم حظر ${user.tag} بنجاح!\n**السبب:** ${reason}` });
+        return;
     }
 
     if (interaction.commandName === 'kick') {
@@ -387,6 +406,7 @@ client.on('interactionCreate', async interaction => {
 
         await member.kick(reason);
         await interaction.reply({ content: `👞 تم طرد ${user.tag} بنجاح!\n**السبب:** ${reason}` });
+        return;
     }
 
     if (interaction.commandName === 'timeout') {
@@ -401,11 +421,12 @@ client.on('interactionCreate', async interaction => {
         const durationMs = minutes * 60 * 1000;
         await member.timeout(durationMs, reason);
         await interaction.reply({ content: `🔇 تم إعطاء تايم أوت لـ ${user.tag} لمدة **${minutes}** دقيقة.\n**السبب:** ${reason}` });
+        return;
     }
 });
 
 // ==========================================
-// 5. تشغيل البوت مع التقاط الأخطاء
+// 5. تشغيل البوت وإدارة الأخطاء الشاملة
 // ==========================================
 const token = process.env.DISCORD_TOKEN || process.env.TOKEN;
 
@@ -419,6 +440,11 @@ if (!token) {
         .catch(err => console.error('❌ فشل تسجيل الدخول إلى ديسكورد:', err));
 }
 
+// التقاط الأخطاء غير المعالجة لمنع توقف البوت أو انهياره (Crash Prevention)
 process.on('unhandledRejection', error => {
     console.error('❌ خطأ غير معالج (Unhandled Rejection):', error);
+});
+
+process.on('uncaughtException', error => {
+    console.error('❌ خطأ غير متوقع (Uncaught Exception):', error);
 });
