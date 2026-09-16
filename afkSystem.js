@@ -89,7 +89,7 @@ module.exports = {
 
                     const embed = new EmbedBuilder()
                         .setColor('#ff0055')
-                        .setTitle(`🧐 ${user.displayName}`)
+                        .setTitle(` ${user.displayName}`)
                         .setDescription(`💤 **في وضع الغياب المؤقت(AFK)**\n📝 **السبب:** ${afkData.reason}\n⏳ **منذ:** <t:${afkTime}:R>`)
                         .setThumbnail(user.displayAvatarURL({ dynamic: true }));
 
