@@ -67,7 +67,8 @@ const messageCreateHandler = require('./events/messageCreate');
 const interactionCreateHandler = require('./events/interactionCreate');
 
 client.on('messageCreate', message => messageCreateHandler(client, message));
-client.on('interactionCreate', interaction => interactionCreateHandler(interaction => interactionCreateHandler(client, interaction)));
+// ✅ التمرير الصحيح للحدث
+client.on('interactionCreate', interaction => interactionCreateHandler(client, interaction));
 
 client.once('ready', async () => {
     console.log(`🚀 تم تسجيل الدخول بنجاح باسم: ${client.user.tag}`);
