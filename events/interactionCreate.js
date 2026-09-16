@@ -1,7 +1,7 @@
 const colorsCmd = require('../commands/colors');
 const clearCmd = require('../commands/clear');
 const moderationCmds = require('../commands/moderation');
-const labCommand = require('../lab');
+const labCommand = require('../commands/lab');
 const { profileCommand, shopCommand, handleProfileEvents } = require('../profileSystem');
 const { handleGamesCommand } = require('../games');
 
