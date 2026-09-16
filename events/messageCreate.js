@@ -1,7 +1,11 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const labCommand = require('../commands/lab'); // تصحيح المسار إلى مجلد commands
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const labCommand = require('../commands/lab');
 const { profileCommand } = require('../profileSystem');
 const { handleGamesCommand } = require('../games');
+
+// تخزين بيانات الـ AFK: key=userId, value={ reason, timestamp, oldNickname }
+const afkUsers = new Map();
 
 // إعداد النموذج بالاسم المطلوب
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
@@ -20,11 +24,102 @@ const model = genAI.getGenerativeModel({
 });
 
 module.exports = async (client, message) => {
-    if (message.author.bot) return;
+    if (message.author.bot || !message.guild) return;
 
-    const content = message.content.trim().toLowerCase();
+    const rawContent = message.content.trim();
+    const content = rawContent.toLowerCase();
 
-    // أوامر الرسائل النصية المباشرة
+    // ==========================================
+    // 1. إلغاء الـ AFK عند كتابة العضو لأي رسالة
+    // ==========================================
+    if (afkUsers.has(message.author.id)) {
+        const userData = afkUsers.get(message.author.id);
+        afkUsers.delete(message.author.id);
+
+        try {
+            if (message.member.manageable && userData.oldNickname !== undefined) {
+                await message.member.setNickname(userData.oldNickname);
+            }
+        } catch (err) {
+            console.error('❌ تعذر تغيير الاسم:', err.message);
+        }
+
+        const welcomeEmbed = new EmbedBuilder()
+            .setColor('#2b2d31')
+            .setDescription(`أهلاً بك مجدداً **${message.author.displayName}**، تم إزالة وضع الغياب المؤقت.`);
+        
+        const msg = await message.reply({ embeds: [welcomeEmbed] });
+        setTimeout(() => msg.delete().catch(() => {}), 5000);
+    }
+
+    // ==========================================
+    // 2. تفعيل وضع الـ AFK
+    // ==========================================
+    const args = rawContent.split(/ +/);
+    const commandName = args[0].toLowerCase();
+
+    if (commandName === 'afk') {
+        const reason = args.slice(1).join(' ') || 'مشغول حالياً';
+        const currentNickname = message.member.nickname || message.author.username;
+        const newNickname = `[AFK] ${currentNickname}`.slice(0, 32);
+
+        afkUsers.set(message.author.id, {
+            reason: reason,
+            timestamp: Date.now(),
+            oldNickname: message.member.nickname || null
+        });
+
+        try {
+            if (message.member.manageable) {
+                await message.member.setNickname(newNickname);
+            }
+        } catch (err) {
+            console.error('❌ تعذر تغيير اللقب:', err.message);
+        }
+
+        const embed = new EmbedBuilder()
+            .setColor('#2b2d31')
+            .setTitle('💤 غياب مؤقت')
+            .setDescription(`تم تفعيل وضع الغياب المؤقت بنجاح\n\n📝 **السبب:** ${reason}`)
+            .setThumbnail(message.author.displayAvatarURL({ dynamic: true }));
+
+        return message.reply({ embeds: [embed] });
+    }
+
+    // ==========================================
+    // 3. التنبيه عند منشن شخص في وضع الـ AFK
+    // ==========================================
+    if (message.mentions.users.size > 0) {
+        message.mentions.users.forEach(async (user) => {
+            if (afkUsers.has(user.id)) {
+                const afkData = afkUsers.get(user.id);
+                const afkTime = Math.floor(afkData.timestamp / 1000);
+
+                const embed = new EmbedBuilder()
+                    .setColor('#ff0055')
+                    .setTitle(`🧐 ${user.displayName}`)
+                    .setDescription(`💤 **في وضع الغياب المؤقت(AFK)**\n📝 **السبب:** ${afkData.reason}\n⏳ **منذ:** <t:${afkTime}:R>`)
+                    .setThumbnail(user.displayAvatarURL({ dynamic: true }));
+
+                const row = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(`afk_notify_${user.id}`)
+                        .setLabel('نبهني عندعودته 🔔')
+                        .setStyle(ButtonStyle.Primary),
+                    new ButtonBuilder()
+                        .setCustomId(`afk_message_${user.id}`)
+                        .setLabel('اترك رسالة 📨')
+                        .setStyle(ButtonStyle.Primary)
+                );
+
+                await message.reply({ embeds: [embed], components: [row] });
+            }
+        });
+    }
+
+    // ==========================================
+    // 4. أوامر الرسائل النصية المباشرة
+    // ==========================================
     if (content === 'بروفايل' || content === 'بروفايلي' || content === 'profile') {
         if (profileCommand.execute) {
             return profileCommand.execute(message).catch(console.error);
@@ -39,7 +134,9 @@ module.exports = async (client, message) => {
         return handleGamesCommand(message).catch(console.error);
     }
 
-    // معالجة رد الذكاء الاصطناعي
+    // ==========================================
+    // 5. معالجة رد الذكاء الاصطناعي (Gemini)
+    // ==========================================
     const isMentioned = message.mentions.has(client.user);
     const isDots = content === '..' || content === '...';
     const isCalledByName = content.includes('مارش') || content.includes('marsh');
@@ -58,3 +155,4 @@ module.exports = async (client, message) => {
         }
     }
 };
+
