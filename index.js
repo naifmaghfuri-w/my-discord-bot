@@ -1,5 +1,5 @@
 const express = require('express');
-const { Client, GatewayIntentBits, REST, Routes } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, ActivityType } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -67,10 +67,23 @@ const messageCreateHandler = require('./events/messageCreate');
 const interactionCreateHandler = require('./events/interactionCreate');
 
 client.on('messageCreate', message => messageCreateHandler(client, message));
-client.on('interactionCreate', interaction => interactionCreateHandler(client, interaction));
+client.on('interactionCreate', interaction => interactionCreateHandler(interaction => interactionCreateHandler(client, interaction)));
 
 client.once('ready', async () => {
     console.log(`🚀 تم تسجيل الدخول بنجاح باسم: ${client.user.tag}`);
+
+    // 🎯 تعيين الحالة المخصصة للبوت (gg/EMM)
+    client.user.setPresence({
+        activities: [
+            {
+                name: 'custom',
+                state: 'gg/SR',
+                type: ActivityType.Custom,
+            },
+        ],
+        status: 'online',
+    });
+
     const token = process.env.DISCORD_TOKEN || process.env.TOKEN;
     const rest = new REST({ version: '10' }).setToken(token);
     try {
@@ -96,3 +109,4 @@ if (!token) {
 
 process.on('unhandledRejection', error => console.error('❌ Unhandled Rejection:', error));
 process.on('uncaughtException', error => console.error('❌ Uncaught Exception:', error));
+
