@@ -2,6 +2,7 @@ const colorsCmd = require('../commands/colors');
 const clearCmd = require('../commands/clear');
 const moderationCmds = require('../commands/moderation');
 const labCommand = require('../commands/lab');
+const serversCmd = require('../commands/servers'); // 👈 استدعاء أمر السيرفرات
 const { profileCommand, shopCommand, handleProfileEvents } = require('../profileSystem');
 const { handleGamesCommand } = require('../games');
 
@@ -10,7 +11,6 @@ module.exports = async (client, interaction) => {
     // 🔘 معالجة القوائم المنسدلة والأزرار (Components)
     // ==========================================
     if (interaction.isStringSelectMenu() || interaction.isButton()) {
-        // تجربة معالجة أحداث نظام البروفايل أولاً
         if (interaction.isStringSelectMenu()) {
             const handled = await handleProfileEvents(interaction);
             if (handled) return;
@@ -19,9 +19,6 @@ module.exports = async (client, interaction) => {
                 return colorsCmd.handleColorSelect(interaction);
             }
         }
-
-        // ملاحظة: تفاعلات أمر /lab يتم معالجتها تلقائياً داخل Collector الملف نفسه
-        // لذلك لا نحتاج لتوجيه أزرار وقوائم المعمل هنا طالما أن الـ Collector يعالجها.
     }
 
     // ==========================================
@@ -32,6 +29,8 @@ module.exports = async (client, interaction) => {
     const { commandName } = interaction;
 
     try {
+        // الأوامر الثابتة
+        if (commandName === 'servers') return await serversCmd.execute(interaction); // 👈 إضافة معالجة الأمر هنا
         if (commandName === 'colors') return await colorsCmd.execute(interaction);
         if (commandName === 'clear') return await clearCmd.execute(interaction);
         if (commandName === 'profile') return await profileCommand.execute(interaction);
