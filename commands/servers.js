@@ -1,23 +1,26 @@
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 
-// ⚠️ ضع الآيدي الخاص بحسابك هنا لضمان عدم استخدام الأمر من قبل غيرك
+// ⚠️ ضع الآيدي الخاص بحسابك هنا
 const OWNER_ID = '1391517806193017023';
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('servers')
-        .setDescription('عرض السيرفرات التي يتواجد فيها البوت وإمكانية الخروج منها'),
+        .setDescription('عرض السيرفرات التي يتواجد فيها البوت'),
 
     async execute(interaction) {
-        // التحقق من أن المستخدم هو صاحب البوت فقط
+        // 1. تأجيل الرد فوراً لتجنب خطأ The application did not respond
+        await interaction.deferReply({ ephemeral: true });
+
+        // التحقق من أن المستخدم هو صاحب البوت
         if (interaction.user.id !== OWNER_ID) {
-            return interaction.reply({ content: '❌ هذا الأمر مخصص لصاحب البوت فقط!', ephemeral: true });
+            return interaction.editReply({ content: '❌ هذا الأمر مخصص لصاحب البوت فقط!' });
         }
 
         const guilds = interaction.client.guilds.cache;
 
         if (guilds.size === 0) {
-            return interaction.reply({ content: 'البوت غير متواجد في أي سيرفر حالياً.', ephemeral: true });
+            return interaction.editReply({ content: 'البوت غير متواجد في أي سيرفر حالياً.' });
         }
 
         // إنشاء قائمة السيرفرات
@@ -30,6 +33,7 @@ module.exports = {
             .setDescription(description.length > 4000 ? description.substring(0, 4000) + '...' : description)
             .setColor('#2b2d31');
 
-        await interaction.reply({ embeds: [embed], ephemeral: true });
+        // 2. إرسال النتيجة عبر editReply
+        await interaction.editReply({ embeds: [embed] });
     },
 };
