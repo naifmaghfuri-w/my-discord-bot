@@ -97,14 +97,14 @@ module.exports = async (client, message) => {
 
                 const embed = new EmbedBuilder()
                     .setColor('#ff0055')
-                    .setTitle(`🧐 ${user.displayName}`)
+                    .setTitle(` ${user.displayName}`)
                     .setDescription(`💤 **في وضع الغياب المؤقت(AFK)**\n📝 **السبب:** ${afkData.reason}\n⏳ **منذ:** <t:${afkTime}:R>`)
                     .setThumbnail(user.displayAvatarURL({ dynamic: true }));
 
                 const row = new ActionRowBuilder().addComponents(
                     new ButtonBuilder()
                         .setCustomId(`afk_notify_${user.id}`)
-                        .setLabel('نبهني عندعودته 🔔')
+                        .setLabel('نبهني عند عودته 🔔')
                         .setStyle(ButtonStyle.Primary),
                     new ButtonBuilder()
                         .setCustomId(`afk_message_${user.id}`)
