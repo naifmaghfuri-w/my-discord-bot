@@ -4,7 +4,7 @@ const labCommand = require('../commands/lab');
 const { profileCommand } = require('../profileSystem');
 const { handleGamesCommand } = require('../games');
 
-// تخزين بيانات الـ AFK: key=userId, value={ reason, timestamp, oldNickname }
+// تخزين بيانات الـ AFK: key=userId, value={ reason, timestamp, oldNickname, mentionsCount }
 const afkUsers = new Map();
 
 // إعداد النموذج بالاسم المطلوب
@@ -30,7 +30,7 @@ module.exports = async (client, message) => {
     const content = rawContent.toLowerCase();
 
     // ==========================================
-    // 1. إلغاء الـ AFK عند كتابة العضو لأي رسالة
+    // 1. إلغاء الـ AFK ورسالة الترحيب المطابقة للصورة
     // ==========================================
     if (afkUsers.has(message.author.id)) {
         const userData = afkUsers.get(message.author.id);
@@ -44,12 +44,10 @@ module.exports = async (client, message) => {
             console.error('❌ تعذر تغيير الاسم:', err.message);
         }
 
-        const welcomeEmbed = new EmbedBuilder()
-            .setColor('#2b2d31')
-            .setDescription(`أهلاً بك مجدداً **${message.author.displayName}**، تم إزالة وضع الغياب المؤقت.`);
-        
-        const msg = await message.reply({ embeds: [welcomeEmbed] });
-        setTimeout(() => msg.delete().catch(() => {}), 5000);
+        const afkTime = Math.floor(userData.timestamp / 1000);
+        const welcomeText = `👋*أهلاً بعودتك يا ${message.author}!*\n⏱️*مدة الغياب: <t:${afkTime}:R>*\n🔔*تم منشنتك: ${userData.mentionsCount} مرة أثناء غيابك*`;
+
+        await message.reply({ content: welcomeText });
     }
 
     // ==========================================
@@ -66,7 +64,8 @@ module.exports = async (client, message) => {
         afkUsers.set(message.author.id, {
             reason: reason,
             timestamp: Date.now(),
-            oldNickname: message.member.nickname || null
+            oldNickname: message.member.nickname || null,
+            mentionsCount: 0 // العداد يبدأ من صفر
         });
 
         try {
@@ -87,24 +86,29 @@ module.exports = async (client, message) => {
     }
 
     // ==========================================
-    // 3. التنبيه عند منشن شخص في وضع الـ AFK
+    // 3. التنبيه وزيادة عداد المنشن لشخص غائب
     // ==========================================
     if (message.mentions.users.size > 0) {
         message.mentions.users.forEach(async (user) => {
             if (afkUsers.has(user.id)) {
                 const afkData = afkUsers.get(user.id);
+                
+                // زيادة عدد المنشنات المستلمة
+                afkData.mentionsCount += 1;
+                afkUsers.set(user.id, afkData);
+
                 const afkTime = Math.floor(afkData.timestamp / 1000);
 
                 const embed = new EmbedBuilder()
                     .setColor('#ff0055')
-                    .setTitle(` ${user.displayName}`)
+                    .setTitle(`🧐 ${user.displayName}`)
                     .setDescription(`💤 **في وضع الغياب المؤقت(AFK)**\n📝 **السبب:** ${afkData.reason}\n⏳ **منذ:** <t:${afkTime}:R>`)
                     .setThumbnail(user.displayAvatarURL({ dynamic: true }));
 
                 const row = new ActionRowBuilder().addComponents(
                     new ButtonBuilder()
                         .setCustomId(`afk_notify_${user.id}`)
-                        .setLabel('نبهني عند عودته 🔔')
+                        .setLabel('نبهني عندعودته 🔔')
                         .setStyle(ButtonStyle.Primary),
                     new ButtonBuilder()
                         .setCustomId(`afk_message_${user.id}`)
@@ -155,4 +159,3 @@ module.exports = async (client, message) => {
         }
     }
 };
-
