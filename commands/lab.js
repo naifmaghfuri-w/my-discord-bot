@@ -5,10 +5,9 @@ const {
     ButtonStyle,
     StringSelectMenuBuilder,
     StringSelectMenuOptionBuilder,
-    AttachmentBuilder,
+    EmbedBuilder,
     MessageFlags
 } = require('discord.js');
-const { createCanvas } = require('@napi-rs/canvas');
 const fs = require('fs');
 const path = require('path');
 
@@ -73,213 +72,69 @@ function updatePlayerData(userId, data) {
 }
 
 // ==========================================
-// 🎨 CANVAS ENGINE (رسام الواجهة الموسعة)
+// 🎨 EMBED ENGINE (واجهات تفاعلية خفيفة)
 // ==========================================
-async function renderLabCanvas(user, player, screenType, extraData = {}) {
-    const canvas = createCanvas(800, 480);
-    const ctx = canvas.getContext('2d');
+function renderLabEmbed(user, player, screenType, extraData = {}) {
+    const embed = new EmbedBuilder().setTimestamp();
 
-    // الخلفية العامة
-    ctx.fillStyle = '#0B0C10';
-    ctx.fillRect(0, 0, 800, 480);
-
-    // شبكة خلفية
-    ctx.strokeStyle = '#1F2833';
-    ctx.lineWidth = 1;
-    for (let x = 0; x < 800; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 480); ctx.stroke(); }
-    for (let y = 0; y < 480; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(800, y); ctx.stroke(); }
-
-    // Header Status Bar
-    ctx.fillStyle = '#1F2833';
-    ctx.roundRect(20, 15, 760, 60, 10);
-    ctx.fill();
-
-    ctx.fillStyle = '#66FCF1';
-    ctx.font = 'bold 18px Sans';
-    ctx.fillText(`🧪 ${user.username}`, 40, 50);
-
-    ctx.fillStyle = '#45A29E';
-    ctx.font = '15px Sans';
-    ctx.fillText(`LVL ${player.level}`, 480, 50);
-
-    ctx.fillStyle = '#F1C40F';
-    ctx.fillText(`🪙 ${player.coins}`, 570, 50);
-
-    ctx.fillStyle = '#E74C3C';
-    ctx.fillText(`⚡ ${player.abilityPoints} AP`, 670, 50);
-
-    // XP Bar
-    const xpPercent = Math.min(player.xp / (player.level * 100), 1);
-    ctx.fillStyle = '#0B0C10';
-    ctx.roundRect(180, 38, 270, 8, 4);
-    ctx.fill();
-    ctx.fillStyle = '#66FCF1';
-    ctx.roundRect(180, 38, 270 * xpPercent, 8, 4);
-    ctx.fill();
-
-    // ================= SHOT: MAIN =================
     if (screenType === 'main') {
-        ctx.fillStyle = '#1F2833';
-        ctx.roundRect(20, 90, 760, 370, 12);
-        ctx.fill();
+        let queueText = player.pendingQueue.length === 0 ? 'لا يوجد تفاعل شغال حالياً.' : '';
+        player.pendingQueue.forEach((q, idx) => {
+            const r = labData.reactions.find(x => x.id === q.reactionId);
+            const left = Math.max(0, Math.ceil((q.finishAt - Date.now()) / 1000));
+            queueText += `${idx + 1}. **${r?.name}**: ${left === 0 ? 'مكتمل! ✅' : left + ' ثانية ⏳'}\n`;
+        });
 
-        ctx.fillStyle = '#66FCF1';
-        ctx.font = 'bold 24px Sans';
-        ctx.fillText('مرحباً بك في مركز التحكم بالمعمل ⚗️', 40, 135);
-
-        ctx.fillStyle = '#C5C6C7';
-        ctx.font = '15px Sans';
-        ctx.fillText(`• الإنجاز بالموسوعة الكيميائية: ${player.codex.length} / ${Object.keys(labData.items).length}`, 40, 185);
-        ctx.fillText(`• التفاعلات المتاحة: ${player.unlockedReactions.length}`, 40, 220);
-        ctx.fillText(`• الأجهزة التي تمتلكها: ${Object.keys(player.ownedEquipment).length}`, 40, 255);
-        ctx.fillText(`• النقاط المتاحة للتفاعل (AP): ${player.abilityPoints}`, 40, 290);
-
-        // لوحة طابور العمليات
-        ctx.fillStyle = '#0B0C10';
-        ctx.roundRect(430, 120, 330, 310, 10);
-        ctx.fill();
-
-        ctx.fillStyle = '#F1C40F';
-        ctx.font = 'bold 16px Sans';
-        ctx.fillText('⏳ قائمة التفاعلات الحالية (Queue)', 450, 155);
-
-        let qY = 195;
-        if (player.pendingQueue.length === 0) {
-            ctx.fillStyle = '#C5C6C7';
-            ctx.font = '14px Sans';
-            ctx.fillText('لا يوجد تفاعل شغال حالياً.', 450, qY);
-        } else {
-            player.pendingQueue.forEach((q, idx) => {
-                const r = labData.reactions.find(x => x.id === q.reactionId);
-                const left = Math.max(0, Math.ceil((q.finishAt - Date.now()) / 1000));
-                ctx.fillStyle = left === 0 ? '#2ECC71' : '#E67E22';
-                ctx.font = '13px Sans';
-                ctx.fillText(`${idx + 1}. ${r?.name}: ${left === 0 ? 'مكتمل! ✅' : left + ' ثانية ⏳'}`, 450, qY);
-                qY += 35;
-            });
-        }
-    }
-
-    // ================= SHOT: INVENTORY =================
+        embed
+            .setTitle('⚗️ مركز التحكم بالمعمل الكيميائي')
+            .setColor(0x66FCF1)
+            .setDescription(`مرحباً بك **${user.username}** في معملك الخاص!`)
+            .addFields(
+                { name: '📊 الإحصائيات العامة', value: `👤 **المستوى:** ${player.level} (${player.xp} XP)\n🪙 **العملات:** ${player.coins}\n⚡ **نقاط AP:** ${player.abilityPoints}`, inline: true },
+                { name: '📖 التقدم', value: `🧪 **الموسوعة:** ${player.codex.length}/${Object.keys(labData.items).length}\n🔬 **التفاعلات:** ${player.unlockedReactions.length}\n⚙️ **الأجهزة:** ${Object.keys(player.ownedEquipment).length}`, inline: true },
+                { name: '⏳ طابور العمليات (Queue)', value: queueText, inline: false }
+            );
+    } 
     else if (screenType === 'inv') {
-        ctx.fillStyle = '#1F2833';
-        ctx.roundRect(20, 90, 760, 370, 12);
-        ctx.fill();
-
-        ctx.fillStyle = '#66FCF1';
-        ctx.font = 'bold 22px Sans';
-        ctx.fillText('🎒 مستودع المواد والمعدات', 40, 130);
-
-        let xPos = 40, yPos = 160, count = 0;
+        let invText = '';
         for (const [id, qty] of Object.entries(player.inv)) {
             const item = labData.items[id];
-            ctx.fillStyle = '#0B0C10';
-            ctx.roundRect(xPos, yPos, 170, 70, 8);
-            ctx.fill();
-
-            ctx.fillStyle = '#E74C3C';
-            ctx.font = 'bold 14px Sans';
-            ctx.fillText(item?.symbol || 'Chem', xPos + 10, yPos + 25);
-
-            ctx.fillStyle = '#FFFFFF';
-            ctx.font = '12px Sans';
-            ctx.fillText(item?.name || id, xPos + 10, yPos + 45);
-
-            ctx.fillStyle = '#F1C40F';
-            ctx.font = 'bold 14px Sans';
-            ctx.fillText(`x${qty}`, xPos + 130, yPos + 60);
-
-            xPos += 185; count++;
-            if (count % 4 === 0) { xPos = 40; yPos += 80; }
+            invText += `• **${item?.name || id}** (${item?.symbol || 'Chem'}): x${qty}\n`;
         }
-    }
-
-    // ================= SHOT: CODEX =================
+        embed
+            .setTitle('🎒 مستودع المواد والمعدات')
+            .setColor(0x3498DB)
+            .setDescription(invText || 'المستودع فارغ حالياً.');
+    } 
     else if (screenType === 'codex') {
-        ctx.fillStyle = '#1F2833';
-        ctx.roundRect(20, 90, 760, 370, 12);
-        ctx.fill();
-
-        ctx.fillStyle = '#66FCF1';
-        ctx.font = 'bold 22px Sans';
-        ctx.fillText('📖 موسوعة العناصر والتفاعلات الكيميائية', 40, 130);
-
-        let xPos = 40, yPos = 160, count = 0;
+        let codexText = '';
         for (const [id, item] of Object.entries(labData.items)) {
             const isUnlocked = player.codex.includes(id);
-
-            ctx.fillStyle = isUnlocked ? '#0B0C10' : '#15171C';
-            ctx.roundRect(xPos, yPos, 170, 70, 8);
-            ctx.fill();
-
             if (isUnlocked) {
-                ctx.fillStyle = '#2ECC71';
-                ctx.font = 'bold 14px Sans';
-                ctx.fillText(item.symbol, xPos + 10, yPos + 25);
-
-                ctx.fillStyle = '#FFFFFF';
-                ctx.font = '12px Sans';
-                ctx.fillText(item.name, xPos + 10, yPos + 45);
-
-                ctx.fillStyle = '#C5C6C7';
-                ctx.font = '11px Sans';
-                ctx.fillText(item.state, xPos + 10, yPos + 60);
+                codexText += `🟢 **${item.name}** [${item.symbol}] - ${item.state}\n`;
             } else {
-                ctx.fillStyle = '#7F8C8D';
-                ctx.font = 'bold 15px Sans';
-                ctx.fillText('❓ غير مكتشف', xPos + 25, yPos + 42);
+                codexText += `🔒 **غير مكتشف** (???)\n`;
             }
-
-            xPos += 185; count++;
-            if (count % 4 === 0) { xPos = 40; yPos += 80; }
         }
-    }
-
-    // ================= SHOT: CALIBRATION =================
+        embed
+            .setTitle('📖 موسوعة العناصر الكيميائية')
+            .setColor(0x9B59B6)
+            .setDescription(codexText);
+    } 
     else if (screenType === 'calib') {
         const { reaction, currentTemp, currentPress } = extraData;
-
-        ctx.fillStyle = '#1F2833';
-        ctx.roundRect(20, 90, 760, 370, 12);
-        ctx.fill();
-
-        ctx.fillStyle = '#E74C3C';
-        ctx.font = 'bold 22px Sans';
-        ctx.fillText(`🎛️ معايرة التفاعل: ${reaction.name}`, 40, 130);
-
-        // الحرارة
-        ctx.fillStyle = '#0B0C10';
-        ctx.roundRect(50, 160, 330, 210, 10);
-        ctx.fill();
-
-        ctx.fillStyle = '#E74C3C';
-        ctx.font = 'bold 18px Sans';
-        ctx.fillText(`🔥 الحرارة الحالية: ${currentTemp} °C`, 70, 200);
-
-        const tempPercent = currentTemp / 900;
-        ctx.fillStyle = '#1F2833';
-        ctx.fillRect(70, 230, 290, 20);
-        ctx.fillStyle = '#E74C3C';
-        ctx.fillRect(70, 230, 290 * tempPercent, 20);
-
-        // الضغط
-        ctx.fillStyle = '#0B0C10';
-        ctx.roundRect(420, 160, 330, 210, 10);
-        ctx.fill();
-
-        ctx.fillStyle = '#3498DB';
-        ctx.font = 'bold 18px Sans';
-        ctx.fillText(`💨 الضغط الحالي: ${currentPress} atm`, 440, 200);
-
-        const pressPercent = currentPress / 3;
-        ctx.fillStyle = '#1F2833';
-        ctx.fillRect(440, 230, 290, 20);
-        ctx.fillStyle = '#3498DB';
-        ctx.fillRect(440, 230, 290 * pressPercent, 20);
+        embed
+            .setTitle(`🎛️ معايرة التفاعل: ${reaction.name}`)
+            .setColor(0xE74C3C)
+            .addFields(
+                { name: '🔥 الحرارة الحالية', value: `\`${currentTemp} °C\``, inline: true },
+                { name: '💨 الضغط الحالي', value: `\`${currentPress} atm\``, inline: true },
+                { name: '⚙️ الجهاز المطلوب', value: `${labData.equipment[reaction.tool]?.name || reaction.tool}`, inline: true },
+                { name: '⚡ تكلفة AP', value: `${reaction.costAbility}`, inline: true }
+            );
     }
 
-    const buffer = await canvas.encode('png');
-    return new AttachmentBuilder(buffer, { name: 'lab-screen.png' });
+    return embed;
 }
 
 // ==========================================
@@ -289,7 +144,7 @@ async function handleLabSession(context, user) {
     let player = getPlayerData(user.id);
     let selectedReaction = labData.reactions[0];
 
-    const imageAttachment = await renderLabCanvas(user, player, 'main');
+    const embed = renderLabEmbed(user, player, 'main');
 
     const rowNav = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('btn_open_lab').setLabel('المختبر والتفاعلات').setEmoji('🧪').setStyle(ButtonStyle.Primary),
@@ -298,7 +153,7 @@ async function handleLabSession(context, user) {
         new ButtonBuilder().setCustomId('btn_claim_queue').setLabel('استلام التفاعلات').setEmoji('✅').setStyle(ButtonStyle.Success)
     );
 
-    const initialMsg = { files: [imageAttachment], components: [rowNav] };
+    const initialMsg = { embeds: [embed], components: [rowNav] };
 
     let responseMsg = context.replied || context.deferred 
         ? await context.followUp({ ...initialMsg, fetchReply: true })
@@ -317,35 +172,33 @@ async function handleLabSession(context, user) {
         player = getPlayerData(user.id);
 
         if (i.customId === 'btn_back_main') {
-            const img = await renderLabCanvas(user, player, 'main');
-            return await i.update({ files: [img], components: [rowNav] });
+            const emb = renderLabEmbed(user, player, 'main');
+            return await i.update({ embeds: [emb], components: [rowNav] });
         }
 
         if (i.customId === 'btn_open_inv') {
-            const img = await renderLabCanvas(user, player, 'inv');
+            const emb = renderLabEmbed(user, player, 'inv');
             const backRow = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('btn_back_main').setLabel('↩️ العودة للرئيسية').setStyle(ButtonStyle.Danger)
             );
-            return await i.update({ files: [img], components: [backRow] });
+            return await i.update({ embeds: [emb], components: [backRow] });
         }
 
         if (i.customId === 'btn_open_codex') {
-            const img = await renderLabCanvas(user, player, 'codex');
+            const emb = renderLabEmbed(user, player, 'codex');
             const backRow = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('btn_back_main').setLabel('↩️ العودة للرئيسية').setStyle(ButtonStyle.Danger)
             );
-            return await i.update({ files: [img], components: [backRow] });
+            return await i.update({ embeds: [emb], components: [backRow] });
         }
 
-        // --- فتح المعمل مع قائمة اختيار التفاعل (Reaction Selector) ---
         if (i.customId === 'btn_open_lab') {
-            const img = await renderLabCanvas(user, player, 'calib', {
+            const emb = renderLabEmbed(user, player, 'calib', {
                 reaction: selectedReaction,
                 currentTemp: TEMP_STEPS[tempIndex],
                 currentPress: PRESS_STEPS[pressIndex]
             });
 
-            // إنشاء قائمة الاختيار من التفاعلات المفتوحة للاعب
             const selectOptions = player.unlockedReactions.map(rId => {
                 const r = labData.reactions.find(x => x.id === rId);
                 return new StringSelectMenuOptionBuilder()
@@ -368,44 +221,41 @@ async function handleLabSession(context, user) {
                 new ButtonBuilder().setCustomId('btn_back_main').setLabel('↩️ إلغاء').setStyle(ButtonStyle.Danger)
             );
 
-            return await i.update({ files: [img], components: [selectRow, calibRow] });
+            return await i.update({ embeds: [emb], components: [selectRow, calibRow] });
         }
 
-        // --- اختيار تفاعل من القائمة ---
         if (i.customId === 'select_reaction') {
             const chosenId = i.values[0];
             selectedReaction = labData.reactions.find(r => r.id === chosenId);
 
-            const img = await renderLabCanvas(user, player, 'calib', {
+            const emb = renderLabEmbed(user, player, 'calib', {
                 reaction: selectedReaction,
                 currentTemp: TEMP_STEPS[tempIndex],
                 currentPress: PRESS_STEPS[pressIndex]
             });
-            return await i.update({ files: [img] });
+            return await i.update({ embeds: [emb] });
         }
 
-        // --- التحكم في المعايرة ---
         if (i.customId === 'btn_temp_up') {
             tempIndex = (tempIndex + 1) % TEMP_STEPS.length;
-            const img = await renderLabCanvas(user, player, 'calib', {
+            const emb = renderLabEmbed(user, player, 'calib', {
                 reaction: selectedReaction,
                 currentTemp: TEMP_STEPS[tempIndex],
                 currentPress: PRESS_STEPS[pressIndex]
             });
-            return await i.update({ files: [img] });
+            return await i.update({ embeds: [emb] });
         }
 
         if (i.customId === 'btn_press_up') {
             pressIndex = (pressIndex + 1) % PRESS_STEPS.length;
-            const img = await renderLabCanvas(user, player, 'calib', {
+            const emb = renderLabEmbed(user, player, 'calib', {
                 reaction: selectedReaction,
                 currentTemp: TEMP_STEPS[tempIndex],
                 currentPress: PRESS_STEPS[pressIndex]
             });
-            return await i.update({ files: [img] });
+            return await i.update({ embeds: [emb] });
         }
 
-        // --- بدء التفاعل ---
         if (i.customId === 'btn_start_mix') {
             if (player.abilityPoints < selectedReaction.costAbility) {
                 return i.reply({ content: '❌ لا تملك نقاط قدرة (AP) كافية!', flags: MessageFlags.Ephemeral });
@@ -417,7 +267,6 @@ async function handleLabSession(context, user) {
                 }
             }
 
-            // تخصيم المواد والـ AP
             for (const [mat, qty] of Object.entries(selectedReaction.req)) {
                 player.inv[mat] -= qty;
                 if (player.inv[mat] <= 0) delete player.inv[mat];
@@ -434,12 +283,11 @@ async function handleLabSession(context, user) {
 
             updatePlayerData(user.id, player);
 
-            const img = await renderLabCanvas(user, player, 'main');
+            const emb = renderLabEmbed(user, player, 'main');
             await i.reply({ content: `✅ تم بدء تفاعل **${selectedReaction.name}** بنجاح!`, flags: MessageFlags.Ephemeral });
-            return await responseMsg.edit({ files: [img], components: [rowNav] });
+            return await responseMsg.edit({ embeds: [emb], components: [rowNav] });
         }
 
-        // --- استلام التفاعلات الجاهزة ---
         if (i.customId === 'btn_claim_queue') {
             const now = Date.now();
             const readyItems = player.pendingQueue.filter(q => q.finishAt <= now);
@@ -465,9 +313,9 @@ async function handleLabSession(context, user) {
             player.pendingQueue = player.pendingQueue.filter(q => q.finishAt > now);
             updatePlayerData(user.id, player);
 
-            const img = await renderLabCanvas(user, player, 'main');
+            const emb = renderLabEmbed(user, player, 'main');
             await i.reply({ content: summaryMsg, flags: MessageFlags.Ephemeral });
-            return await responseMsg.edit({ files: [img], components: [rowNav] });
+            return await responseMsg.edit({ embeds: [emb], components: [rowNav] });
         }
     });
 }
@@ -475,7 +323,7 @@ async function handleLabSession(context, user) {
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('lab')
-        .setDescription('نظام المعمل الكيميائي المتكامل بالصور والقوائم العريضة'),
+        .setDescription('نظام المعمل الكيميائي المتكامل (نسخة Embeds السريعة الخفيفة)'),
 
     async execute(interaction) {
         await handleLabSession(interaction, interaction.user);
