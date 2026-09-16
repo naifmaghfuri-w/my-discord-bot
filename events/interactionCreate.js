@@ -3,13 +3,23 @@ const clearCmd = require('../commands/clear');
 const moderationCmds = require('../commands/moderation');
 const labCommand = require('../commands/lab');
 const serversCmd = require('../commands/servers');
-const getInviteCmd = require('../commands/get-invite'); // 👈 استدعاء أمر رابط الدعوة
+const getInviteCmd = require('../commands/get-invite');
 const { profileCommand, shopCommand, handleProfileEvents } = require('../profileSystem');
 const { handleGamesCommand } = require('../games');
+const afkSystem = require('../afkSystem'); // 👈 استدعاء نظام AFK
 
 module.exports = async (client, interaction) => {
     // ==========================================
-    // 🔘 معالجة القوائم المنسدلة والأزرار (Components)
+    // 🔘 معالجة تفاعلات الـ AFK (أزرار و Modal)
+    // ==========================================
+    if (interaction.isButton() || interaction.isModalSubmit()) {
+        if (interaction.customId.startsWith('afk_')) {
+            return await afkSystem.handleInteraction(interaction);
+        }
+    }
+
+    // ==========================================
+    // 🔘 معالجة القوائم المنسدلة والأزرار الأخرى
     // ==========================================
     if (interaction.isStringSelectMenu() || interaction.isButton()) {
         if (interaction.isStringSelectMenu()) {
@@ -30,9 +40,8 @@ module.exports = async (client, interaction) => {
     const { commandName } = interaction;
 
     try {
-        // الأوامر الثابتة
         if (commandName === 'servers') return await serversCmd.execute(interaction);
-        if (commandName === 'get-invite') return await getInviteCmd.execute(interaction); // 👈 ربط أمر رابط الدعوة
+        if (commandName === 'get-invite') return await getInviteCmd.execute(interaction);
         if (commandName === 'colors') return await colorsCmd.execute(interaction);
         if (commandName === 'clear') return await clearCmd.execute(interaction);
         if (commandName === 'profile') return await profileCommand.execute(interaction);
@@ -40,7 +49,6 @@ module.exports = async (client, interaction) => {
         if (commandName === 'lab') return await labCommand.execute(interaction);
         if (commandName === 'games') return await handleGamesCommand(interaction);
 
-        // معالجة أوامر الإدارة (Moderation)
         if (Array.isArray(moderationCmds)) {
             const modCommand = moderationCmds.find(c => c.data?.name === commandName);
             if (modCommand) return await modCommand.execute(interaction);
