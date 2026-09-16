@@ -2,7 +2,8 @@ const colorsCmd = require('../commands/colors');
 const clearCmd = require('../commands/clear');
 const moderationCmds = require('../commands/moderation');
 const labCommand = require('../commands/lab');
-const serversCmd = require('../commands/servers'); // 👈 استدعاء أمر السيرفرات
+const serversCmd = require('../commands/servers');
+const getInviteCmd = require('../commands/get-invite'); // 👈 استدعاء أمر رابط الدعوة
 const { profileCommand, shopCommand, handleProfileEvents } = require('../profileSystem');
 const { handleGamesCommand } = require('../games');
 
@@ -30,7 +31,8 @@ module.exports = async (client, interaction) => {
 
     try {
         // الأوامر الثابتة
-        if (commandName === 'servers') return await serversCmd.execute(interaction); // 👈 إضافة معالجة الأمر هنا
+        if (commandName === 'servers') return await serversCmd.execute(interaction);
+        if (commandName === 'get-invite') return await getInviteCmd.execute(interaction); // 👈 ربط أمر رابط الدعوة
         if (commandName === 'colors') return await colorsCmd.execute(interaction);
         if (commandName === 'clear') return await clearCmd.execute(interaction);
         if (commandName === 'profile') return await profileCommand.execute(interaction);
