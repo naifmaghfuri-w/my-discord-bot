@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 
 // ⚠️ ضع الآيدي الخاص بحسابك لضمان استخدام الأمر منك فقط
-const OWNER_ID = 'YOUR_DISCORD_ID';
+const OWNER_ID = '1391517806193017023';
 
 module.exports = {
     data: new SlashCommandBuilder()
