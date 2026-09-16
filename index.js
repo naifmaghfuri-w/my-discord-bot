@@ -52,15 +52,13 @@ if (fs.existsSync(commandsPath)) {
     }
 }
 
-// إضافة أوامر الملفات الخارجية الأخرى
+// إضافة أوامر الملفات الخارجية الأخرى (الموجودة خارج مجلد commands)
 const { gamesCommands } = require('./games');
-const labCommand = require('/commands./lab');
 const { profileCommand, shopCommand } = require('./profileSystem');
 
 if (gamesCommands) gamesCommands.forEach(cmd => commands.push(cmd));
-if (labCommand?.data) commands.push(labCommand.data);
-if (profileCommand?.data) commands.push(profileCommand.data);
-if (shopCommand?.data) commands.push(shopCommand.data);
+if (profileCommand?.data) commands.push(profileCommand.data.toJSON ? profileCommand.data.toJSON() : profileCommand.data);
+if (shopCommand?.data) commands.push(shopCommand.data.toJSON ? shopCommand.data.toJSON() : shopCommand.data);
 
 // ==========================================
 // 📡 ربط الأحداث (Events)
