@@ -54,7 +54,7 @@ if (fs.existsSync(commandsPath)) {
 
 // إضافة أوامر الملفات الخارجية الأخرى
 const { gamesCommands } = require('./games');
-const labCommand = require('./lab');
+const labCommand = require('/commands./lab');
 const { profileCommand, shopCommand } = require('./profileSystem');
 
 if (gamesCommands) gamesCommands.forEach(cmd => commands.push(cmd));
