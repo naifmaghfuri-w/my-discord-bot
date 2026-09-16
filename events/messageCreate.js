@@ -2,7 +2,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const labCommand = require('../commands/lab');
 const { profileCommand } = require('../profileSystem');
 const { handleGamesCommand } = require('../games');
-const afkSystem = require('../afkSystem'); // 👈 استدعاء نظام AFK
+const afkSystem = require('../afkSystem');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 const model = genAI.getGenerativeModel({ 
@@ -22,28 +22,38 @@ const model = genAI.getGenerativeModel({
 module.exports = async (client, message) => {
     if (message.author.bot || !message.guild) return;
 
-    // 1. معالجة نظام الـ AFK أولاً
-    await afkSystem.handleMessage(client, message);
-
     const rawContent = message.content.trim();
     const content = rawContent.toLowerCase();
 
-    // 2. أوامر الرسائل النصية المباشرة
-    if (content === 'بروفايل' || content === 'بروفايلي' || content === 'profile') {
-        if (profileCommand.execute) {
-            return profileCommand.execute(message).catch(console.error);
+    // ==========================================
+    // 1. الأوامر النصية المباشرة (مثل: مختبر، بروفايل، العاب)
+    // ==========================================
+    if (content === 'lab' || content === 'the lab' || content === 'مختبر' || content === 'المختبر') {
+        if (labCommand && labCommand.execute) {
+            return await labCommand.execute(message).catch(console.error);
         }
     }
 
-    if (content === 'lab' || content === 'the lab' || content === 'مختبر') {
-        return labCommand.execute(message).catch(console.error);
+    if (content === 'بروفايل' || content === 'بروفايلي' || content === 'profile') {
+        if (profileCommand && profileCommand.execute) {
+            return await profileCommand.execute(message).catch(console.error);
+        }
     }
 
     if (content === 'العاب' || content === 'ألعاب' || content === 'games') {
-        return handleGamesCommand(message).catch(console.error);
+        if (typeof handleGamesCommand === 'function') {
+            return await handleGamesCommand(message).catch(console.error);
+        }
     }
 
+    // ==========================================
+    // 2. معالجة نظام الـ AFK (إزالة الـ AFK، تفعيله، أو تنبيه المنشن)
+    // ==========================================
+    await afkSystem.handleMessage(client, message);
+
+    // ==========================================
     // 3. معالجة رد الذكاء الاصطناعي (Gemini)
+    // ==========================================
     const isMentioned = message.mentions.has(client.user);
     const isDots = content === '..' || content === '...';
     const isCalledByName = content.includes('مارش') || content.includes('marsh');
