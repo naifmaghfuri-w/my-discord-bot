@@ -13,7 +13,7 @@ const {
 } = require('discord.js');
 
 // 🔴 املأ هذا المتغير بـ ID الكاتيجوري (القسم) الذي تريد إنشاء الرومات فيه
-const PRIVATE_CHAT_CATEGORY_ID = 'ضع_هنا_ID_الكاتيجوري';
+const PRIVATE_CHAT_CATEGORY_ID = '1406728181456830524';
 
 // 1. بناء لوحة التحكم الرئيسية
 function getPrivateChatPanel() {
