@@ -7,7 +7,7 @@ const getInviteCmd = require('../commands/get-invite');
 const { profileCommand, shopCommand, handleProfileEvents } = require('../profileSystem');
 const { handleGamesCommand } = require('../games');
 const afkSystem = require('../afkSystem');
-const { handlePrivateChatInteraction } = require('../privateChat'); // 👈 1. تم إضافة استدعاء ملف الدردشات الخاصة
+const { handlePrivateChatInteraction } = require('../privateChat');
 
 module.exports = async (client, interaction) => {
     // ==========================================
@@ -20,11 +20,18 @@ module.exports = async (client, interaction) => {
     }
 
     // ==========================================
-    // 🔘 معالجة تفاعلات الدردشات الخاصة (أزرار، قوائم الأعضاء، القوائم المنسدلة)
+    // 🔘 معالجة تفاعلات الدردشات الخاصة (تغطي السيرفر والـ DM)
     // ==========================================
-    if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isUserSelectMenu()) { // 👈 2. دعم القوائم المنسدلة للأعضاء
-        if (interaction.customId.startsWith('pc_')) {
-            return await handlePrivateChatInteraction(interaction); // 👈 3. توجيه جميع تفاعلات الرومات الخاصة
+    if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isUserSelectMenu()) {
+        const id = interaction.customId;
+        // ✅ إضافة كل البادئات الخاصة بنظام الدردشة والدعوات
+        if (
+            id.startsWith('pc_') || 
+            id.startsWith('room_') || 
+            id.startsWith('invite_') || 
+            id.startsWith('knock_')
+        ) {
+            return await handlePrivateChatInteraction(interaction);
         }
     }
 
@@ -74,4 +81,3 @@ module.exports = async (client, interaction) => {
         }
     }
 };
-
