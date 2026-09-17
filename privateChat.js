@@ -9,13 +9,10 @@ const {
     EmbedBuilder
 } = require('discord.js');
 
-// 🔴 ضع هنا ID الكاتيجوري (القسم) الذي تريد إنشاء الرومات فيه
-const PRIVATE_CHAT_CATEGORY_ID = '1406728181456830524';
-
-// 🖼️ رابط صورة شغال بديل (يمكنك استبداله بأي رابط مباشر)
+const PRIVATE_CHAT_CATEGORY_ID = 'ضع_هنا_ID_الكاتيجوري';
 const BANNER_URL = 'https://i.imgur.com/G5gE334.png';
 
-// 1. بناء لوحة التحكم الرئيسية (الخارجية)
+// 1. لوحة التحكم الرئيسية
 function getPrivateChatPanel() {
     const embed = new EmbedBuilder()
         .setColor('#2b2d31')
@@ -45,7 +42,7 @@ function getPrivateChatPanel() {
     return { embeds: [embed], components: [row1, row2, row3] };
 }
 
-// 2. بناء لوحة التحكم داخل الروم الخاص
+// 2. لوحة التحكم داخل الروم الخاص
 function getRoomControlPanel(owner) {
     const embed = new EmbedBuilder()
         .setColor('#2b2d31')
@@ -56,7 +53,7 @@ function getRoomControlPanel(owner) {
             '✦ أي دردشة خاصة تبقى خاملة 3 أيام ستُمحى تلقائياً.\n\n' +
             '✦ استعمل الأزرار التالية للتحكم الكامل بدردشتك الخاصة.'
         )
-        .setFooter({ text: 'SunRise' })
+        .setFooter({ text: 'الامبراطورية | Empire' })
         .setImage(BANNER_URL);
 
     const row1 = new ActionRowBuilder().addComponents(
@@ -86,64 +83,107 @@ function getRoomControlPanel(owner) {
     return { content: `${owner}`, embeds: [embed], components: [row1, row2, row3, row4, row5] };
 }
 
-// 3. بناء لوحة الإعدادات الخاصة بالإشعارات (المطابقة للصورة الثانية)
-function getSettingsPanel() {
-    const embed = new EmbedBuilder()
-        .setColor('#2b2d31')
-        .setTitle('✱ لوحة التحكم بالاشعارات والدعوات')
-        .setDescription(
-            'هنا يمكنك التحكم بـ الاشعارات والدعوات التي تتلقاها\n' +
-            'اختار الزر المناسب للتفعيل او التعطيل\n\n' +
-            '✉️ **زاجل:** استقبال رسائل زاجل من الاعضاء\n' +
-            '🚪 **الدعوات:** استقبال دعوات الانضمام للدردشات الخاصة'
-        )
-        .setFooter({ text: 'SunRise' });
-
-    const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('toggle_invites').setLabel('الدعوات: مفعل').setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId('toggle_zajel').setLabel('زاجل: مفعل').setStyle(ButtonStyle.Success)
-    );
-
-    return { embeds: [embed], components: [row], ephemeral: true };
-}
-
-// 4. معالجة التفاعلات
+// 3. معالجة التفاعلات
 async function handlePrivateChatInteraction(interaction) {
-    if (!interaction.guild) return;
+    if (!interaction.guild && !interaction.isButton()) return;
 
     const { customId, guild, member, user } = interaction;
 
-    // --- 🔔 زر الإعدادات ---
-    if (customId === 'pc_settings') {
-        const settingsData = getSettingsPanel();
-        return interaction.reply(settingsData);
+    // --- ✉️ فتح قائمة اختيار العضو للدعوة ---
+    if (customId === 'pc_invite') {
+        const userSelect = new UserSelectMenuBuilder()
+            .setCustomId('pc_select_invite_user')
+            .setPlaceholder('اختر العضو لإرسال الدعوة');
+
+        const row = new ActionRowBuilder().addComponents(userSelect);
+        return interaction.reply({ content: 'من تريد دعوته؟', components: [row], ephemeral: true });
     }
 
-    // --- 💬 إنشاء دردشة جديدة ---
+    // --- 📩 إرسال الدعوة إلى الخاص (DM) عند اختيار العضو ---
+    if (interaction.isUserSelectMenu() && customId === 'pc_select_invite_user') {
+        await interaction.deferReply({ ephemeral: true });
+
+        const targetUser = interaction.users.first();
+        const userChannel = guild.channels.cache.find(ch => ch.topic === `PC_OWNER_${user.id}`);
+
+        if (!userChannel) {
+            return interaction.editReply({ content: '⚠️ يجب أن تمتلك غرفة خاصة أولاً لإرسال دعوة!' });
+        }
+
+        // إنشاء إمبد الدعوة للخاص المطابق للصورة الأولى
+        const inviteEmbed = new EmbedBuilder()
+            .setColor('#2b2d31')
+            .setDescription(
+                `✦ **تلقيت دعوة مراسلة**\n` +
+                `✦ **من:** ${user}`
+            )
+            .setImage(BANNER_URL);
+
+        const inviteButtons = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`invite_accept_${userChannel.id}_${user.id}`).setLabel('قبول').setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId(`invite_reject_${userChannel.id}`).setLabel('رفض').setStyle(ButtonStyle.Danger),
+            new ButtonBuilder().setCustomId('invite_disable').setLabel('ايقاف تلقي الدعوات').setStyle(ButtonStyle.Secondary)
+        );
+
+        try {
+            await targetUser.send({ embeds: [inviteEmbed], components: [inviteButtons] });
+            return interaction.editReply({ content: `✦ تم ارسال دعوة المراسلة لـ ${targetUser} بنجاح` });
+        } catch (err) {
+            return interaction.editReply({ content: `❌ تعذر إرسال الدعوة لـ ${targetUser}، قد تكون رسائله الخاصة مغلقة.` });
+        }
+    }
+
+    // --- 🟢 قبول الدعوة من الخاص (DM) ---
+    if (customId && customId.startsWith('invite_accept_')) {
+        const [, , channelId, inviterId] = customId.split('_');
+        const channel = interaction.client.channels.cache.get(channelId);
+
+        if (!channel) {
+            return interaction.reply({ content: '❌ هذه الدردشة لم تعد متاحة.', ephemeral: true });
+        }
+
+        // إعطاء العضو صلاحية الدخول
+        await channel.permissionOverwrites.edit(user.id, {
+            ViewChannel: true,
+            SendMessages: true,
+            ReadMessageHistory: true
+        });
+
+        // تحديث رسالة الخاص بالقبول (مطابق للصورة الثانية)
+        await interaction.update({ components: [] });
+        await interaction.followUp({
+            content: `✦ تم قبول دعوة المراسلة !\n✦ للمراسلة توجه الى الدردشة الخاصة:\n\n${channel}`
+        });
+
+        // إرسال إشعار داخل الغرفة الخاصة (مطابق للصورة الرابعة)
+        return channel.send({
+            content: `قام ${user} بقبول دعوتك، هذه مساحة خاصة جديدة بينكما!`
+        });
+    }
+
+    // --- 🔴 رفض الدعوة من الخاص (DM) ---
+    if (customId && customId.startsWith('invite_reject_')) {
+        await interaction.update({ components: [] });
+        return interaction.followUp({ content: '❌ تم رفض الدعوة.' });
+    }
+
+    // --- ⚙️ باقي التفاعلات (إنشاء غرفة، طرق الباب، إلخ) ---
     if (customId === 'pc_create') {
         await interaction.deferReply({ ephemeral: true });
 
-        const existingChannel = guild.channels.cache.find(
-            ch => ch.topic === `PC_OWNER_${user.id}`
-        );
-
+        const existingChannel = guild.channels.cache.find(ch => ch.topic === `PC_OWNER_${user.id}`);
         if (existingChannel) {
             return interaction.editReply({ content: `⚠️ لديك بالفعل غرفة خاصة مفتوحة: ${existingChannel}` });
         }
 
-        const channelName = `✧||💬・${member.displayName}`;
-
         try {
             const channel = await guild.channels.create({
-                name: channelName,
+                name: `✧||💬・${member.displayName}`,
                 type: ChannelType.GuildText,
-                parent: PRIVATE_CHAT_CATEGORY_ID !== '1406728181456830524' ? PRIVATE_CHAT_CATEGORY_ID : null,
+                parent: PRIVATE_CHAT_CATEGORY_ID !== 'ضع_هنا_ID_الكاتيجوري' ? PRIVATE_CHAT_CATEGORY_ID : null,
                 topic: `PC_OWNER_${user.id}`,
                 permissionOverwrites: [
-                    {
-                        id: guild.roles.everyone.id,
-                        deny: [PermissionFlagsBits.ViewChannel],
-                    },
+                    { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
                     {
                         id: user.id,
                         allow: [
@@ -152,9 +192,9 @@ async function handlePrivateChatInteraction(interaction) {
                             PermissionFlagsBits.ManageMessages,
                             PermissionFlagsBits.ManageChannels,
                             PermissionFlagsBits.ReadMessageHistory
-                        ],
-                    },
-                ],
+                        ]
+                    }
+                ]
             });
 
             const roomPanelData = getRoomControlPanel(user);
@@ -165,49 +205,6 @@ async function handlePrivateChatInteraction(interaction) {
             console.error(error);
             return interaction.editReply({ content: '❌ حدث خطأ أثناء إنشاء الغرفة.' });
         }
-    }
-
-    // --- ✉️ باقي التفاعلات ---
-    if (customId === 'pc_invite') {
-        const userSelect = new UserSelectMenuBuilder()
-            .setCustomId('pc_select_invite_user')
-            .setPlaceholder('اختر العضو لإرسال الدعوة');
-
-        const row = new ActionRowBuilder().addComponents(userSelect);
-        return interaction.reply({ content: 'من تريد دعوته؟', components: [row], ephemeral: true });
-    }
-
-    if (customId === 'pc_knock') {
-        const privateChannels = guild.channels.cache.filter(
-            ch => ch.type === ChannelType.GuildText && ch.topic && ch.topic.startsWith('PC_OWNER_')
-        );
-
-        if (privateChannels.size === 0) {
-            return interaction.reply({ content: 'لا توجد غرف دردشة خاصة متاحة حالياً.', ephemeral: true });
-        }
-
-        const options = privateChannels.map(ch => ({
-            label: ch.name.replace('✧||💬・', ''),
-            value: ch.id,
-            emoji: '🚪'
-        })).slice(0, 25);
-
-        const selectMenu = new StringSelectMenuBuilder()
-            .setCustomId('pc_select_knock_channel')
-            .setPlaceholder('اختر غرفة الدردشة لطرق بابها')
-            .addOptions(options);
-
-        const row = new ActionRowBuilder().addComponents(selectMenu);
-        return interaction.reply({ content: 'اختر الغرفة التي تريد طرق بابها:', components: [row], ephemeral: true });
-    }
-
-    if (customId === 'pc_zajel') {
-        const userSelect = new UserSelectMenuBuilder()
-            .setCustomId('pc_select_zajel_user')
-            .setPlaceholder('اختر الشخص الذي تريد مراسلته');
-
-        const row = new ActionRowBuilder().addComponents(userSelect);
-        return interaction.reply({ content: '✉️ اختر الشخص الذي تريد إرسال رسالة زاجل له:', components: [row], ephemeral: true });
     }
 }
 
