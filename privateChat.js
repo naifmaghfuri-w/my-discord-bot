@@ -5,10 +5,8 @@ const {
     ChannelType, 
     PermissionFlagsBits, 
     UserSelectMenuBuilder,
-    EmbedBuilder,
-    ModalBuilder,
-    TextInputBuilder,
-    TextInputStyle
+    StringSelectMenuBuilder,
+    EmbedBuilder
 } = require('discord.js');
 
 const PRIVATE_CHAT_CATEGORY_ID = 'ضع_هنا_ID_الكاتيجوري';
@@ -85,11 +83,11 @@ function getRoomControlPanel(owner) {
     return { content: `${owner}`, embeds: [embed], components: [row1, row2, row3, row4, row5] };
 }
 
-// 3. معالج تفاعلات الأزرار والقوائم
+// 3. معالج التفاعلات المحدث
 async function handlePrivateChatInteraction(interaction) {
     const { customId, user } = interaction;
 
-    // --- 🟢 تفاعلات الخاص (DM) ---
+    // --- 🟢 قبول / رفض الدعوة في الـ DM ---
     if (customId && customId.startsWith('invite_accept_')) {
         await interaction.deferUpdate();
         const channelId = customId.split('_')[2];
@@ -125,12 +123,115 @@ async function handlePrivateChatInteraction(interaction) {
         return interaction.followUp({ content: '🔕 تم إيقاف تلقي الدعوات.' });
     }
 
+    // --- 🚪 قبول/رفض طرق الباب (تصل للمالك) ---
+    if (customId && customId.startsWith('knock_accept_')) {
+        await interaction.deferUpdate();
+        const [, , targetUserId, channelId] = customId.split('_');
+        const channel = interaction.guild?.channels.cache.get(channelId) || interaction.client.channels.cache.get(channelId);
+
+        if (!channel) return interaction.followUp({ content: '❌ الغرفة لم تعد موجودة.', ephemeral: true });
+
+        try {
+            await channel.permissionOverwrites.edit(targetUserId, {
+                ViewChannel: true,
+                SendMessages: true,
+                ReadMessageHistory: true
+            });
+
+            await interaction.editReply({ components: [] });
+            await interaction.followUp({ content: `✅ تم قبول طرق الباب وإدخال <@${targetUserId}> إلى الدردشة.` });
+            return channel.send({ content: `🔔 تم قبول طلب الانضمام! مرحباً بك <@${targetUserId}> في الدردشة.` });
+        } catch (err) {
+            console.error(err);
+            return interaction.followUp({ content: '❌ حدث خطأ أثناء إضافة العضو للغرفة.' });
+        }
+    }
+
+    if (customId && customId.startsWith('knock_reject_')) {
+        await interaction.update({ components: [] });
+        return interaction.followUp({ content: '❌ تم رفض طرق الباب.' });
+    }
+
     // يتطلب وجود السيرفر لباقي الأوامر
     if (!interaction.guild) return;
 
     const { guild, channel, member } = interaction;
 
-    // --- 💬 إنشاء غرفة جديدة ---
+    // --- 🚪1. إظهار قائمة الرومات عند ضغط "طرق الباب" ---
+    if (customId === 'pc_knock') {
+        const privateChannels = guild.channels.cache.filter(ch => ch.topic && ch.topic.startsWith('PC_OWNER_'));
+
+        if (privateChannels.size === 0) {
+            return interaction.reply({ content: '⚠️ لا توجد أي دردشات خاصة مفتوحة حالياً لطرق بابها.', ephemeral: true });
+        }
+
+        const options = privateChannels.first(25).map(ch => {
+            const ownerId = ch.topic.replace('PC_OWNER_', '');
+            const ownerUser = guild.members.cache.get(ownerId)?.displayName || 'عضو';
+            return {
+                label: ch.name.replace('✧||💬・', ''),
+                description: `المالك: ${ownerUser}`,
+                value: ch.id
+            };
+        });
+
+        const selectMenu = new StringSelectMenuBuilder()
+            .setCustomId('pc_select_knock_channel')
+            .setPlaceholder('اختر الغرفة التي تريد طرق بابها')
+            .addOptions(options);
+
+        return interaction.reply({
+            content: '🚪 اختر الدردشة الخاصة التي ترغب في استئذان صاحبها للدخول:',
+            components: [new ActionRowBuilder().addComponents(selectMenu)],
+            ephemeral: true
+        });
+    }
+
+    // --- 🚪2. إرسال طلب طرق الباب لمالك الغرفة المختارة ---
+    if (interaction.isStringSelectMenu() && customId === 'pc_select_knock_channel') {
+        await interaction.deferReply({ ephemeral: true });
+
+        const selectedChannelId = interaction.values[0];
+        const targetChannel = guild.channels.cache.get(selectedChannelId);
+
+        if (!targetChannel) {
+            return interaction.editReply({ content: '❌ هذه الغرفة لم تعد موجودة.' });
+        }
+
+        const ownerId = targetChannel.topic?.replace('PC_OWNER_', '');
+        const ownerMember = guild.members.cache.get(ownerId);
+
+        if (!ownerMember) {
+            return interaction.editReply({ content: '❌ مالك الغرفة غير متواجد حالياً.' });
+        }
+
+        if (ownerId === user.id) {
+            return interaction.editReply({ content: '⚠️ هذه الغرفة ملكك بالفعل!' });
+        }
+
+        // إرسال تنبيه في الخاص لمالك الغرفة أو داخل الغرفة نفسها
+        const knockEmbed = new EmbedBuilder()
+            .setColor('#2b2d31')
+            .setTitle('🚪 طرق باب!')
+            .setDescription(`✦ يقف **${user}** عند باب دردشتك الخاصة (${targetChannel}) ويريد الدخول.`)
+            .setImage(BANNER_URL);
+
+        const knockButtons = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`knock_accept_${user.id}_${targetChannel.id}`).setLabel('السماح بالدخول').setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId(`knock_reject_${user.id}_${targetChannel.id}`).setLabel('رفض').setStyle(ButtonStyle.Danger)
+        );
+
+        try {
+            await ownerMember.send({ embeds: [knockEmbed], components: [knockButtons] });
+            return interaction.editReply({ content: `✦ تم طرق باب دردشة ${ownerMember} بنجاح! يرجى انتظار موافقته.` });
+        } catch (err) {
+            // إذا كان الخاص مغلقاً يتم إرسال التنبيه في الغرفة الخاصة مباشرة
+            await targetChannel.send({ content: `${ownerMember}`, embeds: [knockEmbed], components: [knockButtons] });
+            return interaction.editReply({ content: `✦ تم إرسال إشعار طرق الباب لمالك الدردشة بنجاح!` });
+        }
+    }
+
+    // --- 💬 إنشاء غرفة خاصة ---
     if (customId === 'pc_create') {
         await interaction.deferReply({ ephemeral: true });
         const existingChannel = guild.channels.cache.find(ch => ch.topic === `PC_OWNER_${user.id}`);
@@ -203,9 +304,8 @@ async function handlePrivateChatInteraction(interaction) {
         }
     }
 
-    // --- 🗑️ حذف الدردشة (تأكد من مطابقة customId) ---
+    // --- 🗑️ حذف الدردشة ---
     if (customId === 'room_delete') {
-        // التحقق مما إذا كان صاحب الغرفة أو إداري
         if (!channel.topic || (!channel.topic.includes(`PC_OWNER_${user.id}`) && !member.permissions.has(PermissionFlagsBits.ManageChannels))) {
             return interaction.reply({ content: '❌ فقط مالك هذه الدردشة الخاصة يمكنه حذفها!', ephemeral: true });
         }
@@ -230,7 +330,6 @@ async function handlePrivateChatInteraction(interaction) {
         await interaction.deferReply({ ephemeral: true });
         try {
             const fetched = await channel.messages.fetch({ limit: 100 });
-            // عدم مسح رسالة اللوحة الرئيسية
             const toDelete = fetched.filter(m => !m.embeds.some(e => e.title === '✦ دردشتك الخاصة'));
             await channel.bulkDelete(toDelete, true);
             return interaction.editReply({ content: '🧹 تم مسح رسائل الشات بنجاح.' });
@@ -239,7 +338,7 @@ async function handlePrivateChatInteraction(interaction) {
         }
     }
 
-    // --- ➕ إضافة عضو للروم ---
+    // --- ➕ إضافة عضو ---
     if (customId === 'room_add_user') {
         const userSelect = new UserSelectMenuBuilder()
             .setCustomId('room_select_add_user')
@@ -257,7 +356,7 @@ async function handlePrivateChatInteraction(interaction) {
         return interaction.reply({ content: `✅ تم إضافة ${targetUser} إلى الدردشة الخاصة.`, ephemeral: true });
     }
 
-    // --- ➖ إزالة عضو من الروم ---
+    // --- ➖ إزالة عضو ---
     if (customId === 'room_remove_user') {
         const userSelect = new UserSelectMenuBuilder()
             .setCustomId('room_select_remove_user')
