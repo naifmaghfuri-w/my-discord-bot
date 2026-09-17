@@ -10,7 +10,10 @@ const {
 } = require('discord.js');
 
 // 🔴 ضع هنا ID الكاتيجوري (القسم) الذي تريد إنشاء الرومات فيه
-const PRIVATE_CHAT_CATEGORY_ID = 'ضع_هنا_ID_الكاتيجوري';
+const PRIVATE_CHAT_CATEGORY_ID = '1406728181456830524';
+
+// 🖼️ رابط صورة شغال بديل (يمكنك استبداله بأي رابط مباشر)
+const BANNER_URL = 'https://i.imgur.com/G5gE334.png';
 
 // 1. بناء لوحة التحكم الرئيسية (الخارجية)
 function getPrivateChatPanel() {
@@ -22,7 +25,7 @@ function getPrivateChatPanel() {
             '✦ الخصوصية في هذه الدردشات محفوظة لك في اختيار من يمكنه الدخول إليها 👤.\n\n' +
             '✦ أي دردشة خاصة تبقى خاملة 3 أيام ستُمحى تلقائياً 🧹.'
         )
-        .setImage('https://i.imgur.com/vHq4RST.jpeg');
+        .setImage(BANNER_URL);
 
     const row1 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('pc_create').setLabel('انشاء دردشة').setEmoji('💬').setStyle(ButtonStyle.Primary),
@@ -42,7 +45,7 @@ function getPrivateChatPanel() {
     return { embeds: [embed], components: [row1, row2, row3] };
 }
 
-// 2. بناء لوحة التحكم داخل الروم الخاص بعد الإنشاء
+// 2. بناء لوحة التحكم داخل الروم الخاص
 function getRoomControlPanel(owner) {
     const embed = new EmbedBuilder()
         .setColor('#2b2d31')
@@ -54,7 +57,7 @@ function getRoomControlPanel(owner) {
             '✦ استعمل الأزرار التالية للتحكم الكامل بدردشتك الخاصة.'
         )
         .setFooter({ text: 'SunRise' })
-        .setImage('https://i.imgur.com/vHq4RST.jpeg');
+        .setImage(BANNER_URL);
 
     const row1 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('room_add_user').setLabel('اضافة عضو').setStyle(ButtonStyle.Primary),
@@ -83,13 +86,40 @@ function getRoomControlPanel(owner) {
     return { content: `${owner}`, embeds: [embed], components: [row1, row2, row3, row4, row5] };
 }
 
-// 3. معالجة التفاعلات
+// 3. بناء لوحة الإعدادات الخاصة بالإشعارات (المطابقة للصورة الثانية)
+function getSettingsPanel() {
+    const embed = new EmbedBuilder()
+        .setColor('#2b2d31')
+        .setTitle('✱ لوحة التحكم بالاشعارات والدعوات')
+        .setDescription(
+            'هنا يمكنك التحكم بـ الاشعارات والدعوات التي تتلقاها\n' +
+            'اختار الزر المناسب للتفعيل او التعطيل\n\n' +
+            '✉️ **زاجل:** استقبال رسائل زاجل من الاعضاء\n' +
+            '🚪 **الدعوات:** استقبال دعوات الانضمام للدردشات الخاصة'
+        )
+        .setFooter({ text: 'SunRise' });
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('toggle_invites').setLabel('الدعوات: مفعل').setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId('toggle_zajel').setLabel('زاجل: مفعل').setStyle(ButtonStyle.Success)
+    );
+
+    return { embeds: [embed], components: [row], ephemeral: true };
+}
+
+// 4. معالجة التفاعلات
 async function handlePrivateChatInteraction(interaction) {
     if (!interaction.guild) return;
 
     const { customId, guild, member, user } = interaction;
 
-    // --- 💬 إنشاء دردشة خاصة إرسال التحكم بالروم ---
+    // --- 🔔 زر الإعدادات ---
+    if (customId === 'pc_settings') {
+        const settingsData = getSettingsPanel();
+        return interaction.reply(settingsData);
+    }
+
+    // --- 💬 إنشاء دردشة جديدة ---
     if (customId === 'pc_create') {
         await interaction.deferReply({ ephemeral: true });
 
@@ -107,7 +137,7 @@ async function handlePrivateChatInteraction(interaction) {
             const channel = await guild.channels.create({
                 name: channelName,
                 type: ChannelType.GuildText,
-                parent: PRIVATE_CHAT_CATEGORY_ID !== 'ضع_هنا_ID_الكاتيجوري' ? PRIVATE_CHAT_CATEGORY_ID : null,
+                parent: PRIVATE_CHAT_CATEGORY_ID !== '1406728181456830524' ? PRIVATE_CHAT_CATEGORY_ID : null,
                 topic: `PC_OWNER_${user.id}`,
                 permissionOverwrites: [
                     {
@@ -127,7 +157,6 @@ async function handlePrivateChatInteraction(interaction) {
                 ],
             });
 
-            // إرسال اللوحة الداخلية داخل الروم الجديد فوراً
             const roomPanelData = getRoomControlPanel(user);
             await channel.send(roomPanelData);
 
@@ -138,7 +167,7 @@ async function handlePrivateChatInteraction(interaction) {
         }
     }
 
-    // باقي أحداث الأزرار (إرسال دعوة، طرق الباب، إلخ)
+    // --- ✉️ باقي التفاعلات ---
     if (customId === 'pc_invite') {
         const userSelect = new UserSelectMenuBuilder()
             .setCustomId('pc_select_invite_user')
@@ -179,33 +208,6 @@ async function handlePrivateChatInteraction(interaction) {
 
         const row = new ActionRowBuilder().addComponents(userSelect);
         return interaction.reply({ content: '✉️ اختر الشخص الذي تريد إرسال رسالة زاجل له:', components: [row], ephemeral: true });
-    }
-
-    if (interaction.isUserSelectMenu() && customId === 'pc_select_invite_user') {
-        const targetUser = interaction.users.first();
-        const userChannel = guild.channels.cache.find(ch => ch.topic === `PC_OWNER_${user.id}`);
-
-        if (!userChannel) {
-            return interaction.reply({ content: '⚠️ يجب أن تمتلك غرفة خاصة أولاً لدعوة الأخرين!', ephemeral: true });
-        }
-
-        await userChannel.permissionOverwrites.edit(targetUser.id, {
-            ViewChannel: true,
-            SendMessages: true,
-            ReadMessageHistory: true
-        });
-
-        return interaction.reply({ content: `✅ تم إضافة ${targetUser} إلى دردشتك الخاصة ${userChannel}`, ephemeral: true });
-    }
-
-    if (interaction.isStringSelectMenu() && customId === 'pc_select_knock_channel') {
-        const targetChannelId = interaction.values[0];
-        const targetChannel = guild.channels.cache.get(targetChannelId);
-
-        if (targetChannel) {
-            await targetChannel.send(`🚪 **طرق الباب:** العضو ${user} يطرق باب الغرفة ويدعوكم للسماح له بالدخول!`);
-            return interaction.reply({ content: '🚪 تم طرق الباب بنجاح!', ephemeral: true });
-        }
     }
 }
 
