@@ -14,22 +14,28 @@ module.exports = async (client, interaction) => {
     // 🔘 معالجة تفاعلات الـ AFK (أزرار و Modal)
     // ==========================================
     if (interaction.isButton() || interaction.isModalSubmit()) {
-        if (interaction.customId.startsWith('afk_')) {
+        if (interaction.customId && interaction.customId.startsWith('afk_')) {
             return await afkSystem.handleInteraction(interaction);
         }
     }
 
     // ==========================================
-    // 🔘 معالجة تفاعلات الدردشات الخاصة (تغطي السيرفر والـ DM)
+    // 🔘 معالجة تفاعلات الدردشات الخاصة (أزرار، قوائم، و Modals)
     // ==========================================
-    if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isUserSelectMenu()) {
+    if (
+        interaction.isButton() || 
+        interaction.isStringSelectMenu() || 
+        interaction.isUserSelectMenu() || 
+        interaction.isModalSubmit() // 👈 تم إضافة دعم النوافذ النصية مثل زاجل وتغيير الاسم
+    ) {
         const id = interaction.customId;
-        // ✅ إضافة كل البادئات الخاصة بنظام الدردشة والدعوات
         if (
-            id.startsWith('pc_') || 
-            id.startsWith('room_') || 
-            id.startsWith('invite_') || 
-            id.startsWith('knock_')
+            id && (
+                id.startsWith('pc_') || 
+                id.startsWith('room_') || 
+                id.startsWith('invite_') || 
+                id.startsWith('knock_')
+            )
         ) {
             return await handlePrivateChatInteraction(interaction);
         }
@@ -81,3 +87,4 @@ module.exports = async (client, interaction) => {
         }
     }
 };
+
