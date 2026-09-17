@@ -53,7 +53,7 @@ function getRoomControlPanel(owner) {
             '✦ أي دردشة خاصة تبقى خاملة 3 أيام ستُمحى تلقائياً.\n\n' +
             '✦ استعمل الأزرار التالية للتحكم الكامل بدردشتك الخاصة.'
         )
-        .setFooter({ text: 'الامبراطورية | Empire' })
+        .setFooter({ text: 'SunRise' })
         .setImage('https://i.imgur.com/vHq4RST.jpeg');
 
     const row1 = new ActionRowBuilder().addComponents(
