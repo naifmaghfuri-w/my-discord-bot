@@ -1,5 +1,5 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const labCommand = require('../commands/lab');
+const labCommand = require('../commands/lab'); // التأكد من المسار الجديد لمجلد/ملف المختبر
 const { profileCommand } = require('../profileSystem');
 const { handleGamesCommand } = require('../games');
 const afkSystem = require('../afkSystem');
@@ -39,9 +39,10 @@ module.exports = async (client, message) => {
         return;
     }
 
-    // 🧪 تشغيل أمر المختبر (تحويل Message إلى Fake Interaction ليقبلها الأمر)
+    // 🖼️ 🧪 تشغيل أمر المختبر (توليد/إرسال واجهة صورة)
     if (content === 'lab' || content === 'the lab' || content === 'مختبر' || content === 'المختبر') {
         if (labCommand && labCommand.execute) {
+            // محاكاة Interaction يدعم إرسال الصور والمرفقات (Files)
             const fakeInteraction = {
                 guild: message.guild,
                 channel: message.channel,
@@ -52,11 +53,22 @@ module.exports = async (client, message) => {
                 deferred: false,
                 reply: async (options) => {
                     if (typeof options === 'string') return await message.reply(options);
-                    return await message.reply(options.content || options);
+                    // هنا يتم دعم خيار files لتوليد الصورة وإرسالها مباشرة
+                    return await message.reply({
+                        content: options.content || null,
+                        files: options.files || [],
+                        components: options.components || [],
+                        embeds: options.embeds || []
+                    });
                 },
                 followUp: async (options) => {
                     if (typeof options === 'string') return await message.channel.send(options);
-                    return await message.channel.send(options.content || options);
+                    return await message.channel.send({
+                        content: options.content || null,
+                        files: options.files || [],
+                        components: options.components || [],
+                        embeds: options.embeds || []
+                    });
                 },
                 deferReply: async () => {
                     await message.channel.sendTyping();
@@ -105,3 +117,4 @@ module.exports = async (client, message) => {
         }
     }
 };
+
