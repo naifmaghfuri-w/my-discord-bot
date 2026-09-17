@@ -6,7 +6,8 @@ const serversCmd = require('../commands/servers');
 const getInviteCmd = require('../commands/get-invite');
 const { profileCommand, shopCommand, handleProfileEvents } = require('../profileSystem');
 const { handleGamesCommand } = require('../games');
-const afkSystem = require('../afkSystem'); // 👈 استدعاء نظام AFK
+const afkSystem = require('../afkSystem');
+const { handlePrivateChatInteraction } = require('../privateChat'); // 👈 1. تم إضافة استدعاء ملف الدردشات الخاصة
 
 module.exports = async (client, interaction) => {
     // ==========================================
@@ -15,6 +16,15 @@ module.exports = async (client, interaction) => {
     if (interaction.isButton() || interaction.isModalSubmit()) {
         if (interaction.customId.startsWith('afk_')) {
             return await afkSystem.handleInteraction(interaction);
+        }
+    }
+
+    // ==========================================
+    // 🔘 معالجة تفاعلات الدردشات الخاصة (أزرار، قوائم الأعضاء، القوائم المنسدلة)
+    // ==========================================
+    if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isUserSelectMenu()) { // 👈 2. دعم القوائم المنسدلة للأعضاء
+        if (interaction.customId.startsWith('pc_')) {
+            return await handlePrivateChatInteraction(interaction); // 👈 3. توجيه جميع تفاعلات الرومات الخاصة
         }
     }
 
@@ -64,3 +74,4 @@ module.exports = async (client, interaction) => {
         }
     }
 };
+
