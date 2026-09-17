@@ -3,12 +3,13 @@ const labCommand = require('../commands/lab');
 const { profileCommand } = require('../profileSystem');
 const { handleGamesCommand } = require('../games');
 const afkSystem = require('../afkSystem');
-const { getPrivateChatPanel } = require('../privateChat'); // 👈 استدعاء دالة لوحة الدردشة الخاصة
+const { getPrivateChatPanel } = require('../privateChat');
 
+// 🧠 تهيئة نموذج Gemini 3.5 Flash-Lite
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 const model = genAI.getGenerativeModel({ 
     model: 'gemini-3.5-flash-lite',
-    systemInstruction: `أنتِ فتاة اسمك "مارش" كإنسانه طبيعي بلهجة السورية بس سوريه ومختصرة.
+    systemInstruction: `أنتِ فتاة اسمك "مارش" كإنسانه طبيعي بلهجة السورية وخليك ذكية وتتطورين وحفظي الأشياء الي يحكولك احفظيها زي اسمائهم وكلامك مختصر.
 قواعد التفاعل الذكي:
 -لاتكثري من اساله شو اخبارك و منورنا وكيف حالك لاتكثرين منها دوماً خلك في موضوع
 -اسماء الاولاد الي تحكين معهم بصغة ولد هم ساي و زيلا و مي 
@@ -38,9 +39,31 @@ module.exports = async (client, message) => {
         return;
     }
 
+    // 🧪 تشغيل أمر المختبر (تحويل Message إلى Fake Interaction ليقبلها الأمر)
     if (content === 'lab' || content === 'the lab' || content === 'مختبر' || content === 'المختبر') {
         if (labCommand && labCommand.execute) {
-            return await labCommand.execute(message).catch(console.error);
+            const fakeInteraction = {
+                guild: message.guild,
+                channel: message.channel,
+                user: message.author,
+                member: message.member,
+                client: message.client,
+                replied: false,
+                deferred: false,
+                reply: async (options) => {
+                    if (typeof options === 'string') return await message.reply(options);
+                    return await message.reply(options.content || options);
+                },
+                followUp: async (options) => {
+                    if (typeof options === 'string') return await message.channel.send(options);
+                    return await message.channel.send(options.content || options);
+                },
+                deferReply: async () => {
+                    await message.channel.sendTyping();
+                }
+            };
+
+            return await labCommand.execute(fakeInteraction).catch(console.error);
         }
     }
 
@@ -62,7 +85,7 @@ module.exports = async (client, message) => {
     await afkSystem.handleMessage(client, message);
 
     // ==========================================
-    // 3. معالجة رد الذكاء الاصطناعي (Gemini)
+    // 3. معالجة رد الذكاء الاصطناعي (Gemini 3.5 Flash-Lite)
     // ==========================================
     const isMentioned = message.mentions.has(client.user);
     const isDots = content === '..' || content === '...';
@@ -82,4 +105,3 @@ module.exports = async (client, message) => {
         }
     }
 };
-
