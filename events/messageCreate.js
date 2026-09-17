@@ -3,6 +3,7 @@ const labCommand = require('../commands/lab');
 const { profileCommand } = require('../profileSystem');
 const { handleGamesCommand } = require('../games');
 const afkSystem = require('../afkSystem');
+const { getPrivateChatPanel } = require('../privateChat'); // 👈 استدعاء دالة لوحة الدردشة الخاصة
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 const model = genAI.getGenerativeModel({ 
@@ -26,8 +27,17 @@ module.exports = async (client, message) => {
     const content = rawContent.toLowerCase();
 
     // ==========================================
-    // 1. الأوامر النصية المباشرة (مثل: مختبر، بروفايل، العاب)
+    // 1. الأوامر النصية المباشرة (مختبر، بروفايل، العاب، إرسال اللوحة)
     // ==========================================
+    if (content === '!setup-panel' || content === 'لوحة الدردشات') {
+        if (!message.member.permissions.has('Administrator')) return;
+
+        const panelData = getPrivateChatPanel();
+        await message.channel.send(panelData);
+        await message.delete().catch(() => {});
+        return;
+    }
+
     if (content === 'lab' || content === 'the lab' || content === 'مختبر' || content === 'المختبر') {
         if (labCommand && labCommand.execute) {
             return await labCommand.execute(message).catch(console.error);
@@ -47,7 +57,7 @@ module.exports = async (client, message) => {
     }
 
     // ==========================================
-    // 2. معالجة نظام الـ AFK (إزالة الـ AFK، تفعيله، أو تنبيه المنشن)
+    // 2. معالجة نظام الـ AFK
     // ==========================================
     await afkSystem.handleMessage(client, message);
 
@@ -72,3 +82,4 @@ module.exports = async (client, message) => {
         }
     }
 };
+
