@@ -83,13 +83,60 @@ function getRoomControlPanel(owner) {
     return { content: `${owner}`, embeds: [embed], components: [row1, row2, row3, row4, row5] };
 }
 
-// 3. معالجة التفاعلات
+// 3. معالجة التفاعلات المحدثة (تدعم السيرفر والرسائل الخاصة)
 async function handlePrivateChatInteraction(interaction) {
-    if (!interaction.guild && !interaction.isButton()) return;
+    const { customId, user } = interaction;
 
-    const { customId, guild, member, user } = interaction;
+    // --- 🟢 قبول الدعوة في الـ DM ---
+    if (customId && customId.startsWith('invite_accept_')) {
+        await interaction.deferUpdate();
 
-    // --- ✉️ فتح قائمة اختيار العضو للدعوة ---
+        const channelId = customId.split('_')[2];
+        const channel = interaction.client.channels.cache.get(channelId);
+
+        if (!channel) {
+            return interaction.followUp({ content: '❌ هذه الدردشة لم تعد متاحة.', ephemeral: true });
+        }
+
+        try {
+            await channel.permissionOverwrites.edit(user.id, {
+                ViewChannel: true,
+                SendMessages: true,
+                ReadMessageHistory: true
+            });
+
+            await interaction.editReply({ components: [] });
+            await interaction.followUp({
+                content: `✦ تم قبول دعوة المراسلة !\n✦ للمراسلة توجه الى الدردشة الخاصة:\n\n${channel}`
+            });
+
+            return channel.send({
+                content: `قام ${user} بقبول دعوتك، هذه مساحة خاصة جديدة بينكما!`
+            });
+        } catch (err) {
+            console.error(err);
+            return interaction.followUp({ content: '❌ حدث خطأ أثناء منح الصلاحيات في السيرفر.' });
+        }
+    }
+
+    // --- 🔴 رفض الدعوة في الـ DM ---
+    if (customId && customId.startsWith('invite_reject_')) {
+        await interaction.update({ components: [] });
+        return interaction.followUp({ content: '❌ تم رفض الدعوة.' });
+    }
+
+    // --- 🚫 إيقاف تلقي الدعوات في الـ DM ---
+    if (customId === 'invite_disable') {
+        await interaction.update({ components: [] });
+        return interaction.followUp({ content: '🔕 تم إيقاف تلقي الدعوات.' });
+    }
+
+    // يشترط وجود سيرفر للباقات والتفاعلات داخل السيرفر
+    if (!interaction.guild) return;
+
+    const { guild, member } = interaction;
+
+    // --- ✉️ فتح قائمة الدعوة ---
     if (customId === 'pc_invite') {
         const userSelect = new UserSelectMenuBuilder()
             .setCustomId('pc_select_invite_user')
@@ -99,7 +146,7 @@ async function handlePrivateChatInteraction(interaction) {
         return interaction.reply({ content: 'من تريد دعوته؟', components: [row], ephemeral: true });
     }
 
-    // --- 📩 إرسال الدعوة إلى الخاص (DM) عند اختيار العضو ---
+    // --- 📩 إرسال الدعوة عبر الـ DM ---
     if (interaction.isUserSelectMenu() && customId === 'pc_select_invite_user') {
         await interaction.deferReply({ ephemeral: true });
 
@@ -110,7 +157,6 @@ async function handlePrivateChatInteraction(interaction) {
             return interaction.editReply({ content: '⚠️ يجب أن تمتلك غرفة خاصة أولاً لإرسال دعوة!' });
         }
 
-        // إنشاء إمبد الدعوة للخاص المطابق للصورة الأولى
         const inviteEmbed = new EmbedBuilder()
             .setColor('#2b2d31')
             .setDescription(
@@ -120,7 +166,7 @@ async function handlePrivateChatInteraction(interaction) {
             .setImage(BANNER_URL);
 
         const inviteButtons = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId(`invite_accept_${userChannel.id}_${user.id}`).setLabel('قبول').setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId(`invite_accept_${userChannel.id}`).setLabel('قبول').setStyle(ButtonStyle.Success),
             new ButtonBuilder().setCustomId(`invite_reject_${userChannel.id}`).setLabel('رفض').setStyle(ButtonStyle.Danger),
             new ButtonBuilder().setCustomId('invite_disable').setLabel('ايقاف تلقي الدعوات').setStyle(ButtonStyle.Secondary)
         );
@@ -133,41 +179,7 @@ async function handlePrivateChatInteraction(interaction) {
         }
     }
 
-    // --- 🟢 قبول الدعوة من الخاص (DM) ---
-    if (customId && customId.startsWith('invite_accept_')) {
-        const [, , channelId, inviterId] = customId.split('_');
-        const channel = interaction.client.channels.cache.get(channelId);
-
-        if (!channel) {
-            return interaction.reply({ content: '❌ هذه الدردشة لم تعد متاحة.', ephemeral: true });
-        }
-
-        // إعطاء العضو صلاحية الدخول
-        await channel.permissionOverwrites.edit(user.id, {
-            ViewChannel: true,
-            SendMessages: true,
-            ReadMessageHistory: true
-        });
-
-        // تحديث رسالة الخاص بالقبول (مطابق للصورة الثانية)
-        await interaction.update({ components: [] });
-        await interaction.followUp({
-            content: `✦ تم قبول دعوة المراسلة !\n✦ للمراسلة توجه الى الدردشة الخاصة:\n\n${channel}`
-        });
-
-        // إرسال إشعار داخل الغرفة الخاصة (مطابق للصورة الرابعة)
-        return channel.send({
-            content: `قام ${user} بقبول دعوتك، هذه مساحة خاصة جديدة بينكما!`
-        });
-    }
-
-    // --- 🔴 رفض الدعوة من الخاص (DM) ---
-    if (customId && customId.startsWith('invite_reject_')) {
-        await interaction.update({ components: [] });
-        return interaction.followUp({ content: '❌ تم رفض الدعوة.' });
-    }
-
-    // --- ⚙️ باقي التفاعلات (إنشاء غرفة، طرق الباب، إلخ) ---
+    // --- 💬 إنشاء غرفة خاصة ---
     if (customId === 'pc_create') {
         await interaction.deferReply({ ephemeral: true });
 
