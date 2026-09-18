@@ -8,6 +8,7 @@ const {
     MessageFlags
 } = require('discord.js');
 const { QuickDB } = require('quick.db');
+const path = require('path');
 
 const db = new QuickDB();
 
@@ -26,12 +27,24 @@ async function generateCanvas(user, data) {
     const canvas = createCanvas(800, 450);
     const ctx = canvas.getContext('2d');
 
-    // 1. خلفية داكنة ثابتة
-    ctx.fillStyle = '#0a0f1d';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // 1. رسم الخلفية (صورة إن وجدت أو لون افتراضي)
+    try {
+        if (data.equippedBg && !data.equippedBg.startsWith('#')) {
+            const bgPath = path.join(__dirname, '../assets', data.equippedBg);
+            const bgImage = await loadImage(bgPath);
+            ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+        } else {
+            ctx.fillStyle = '#0a0f1d';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+    } catch (e) {
+        // خلفية بديلة في حال عدم وجود الصورة
+        ctx.fillStyle = '#0a0f1d';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
 
     // 2. طبقة معتمة وإطار خارجي
-    ctx.fillStyle = 'rgba(10, 15, 25, 0.8)';
+    ctx.fillStyle = 'rgba(10, 15, 25, 0.85)';
     ctx.fillRect(20, 20, 760, 410);
 
     const frameColor = data.frameColor || '#00ffcc';
@@ -39,7 +52,7 @@ async function generateCanvas(user, data) {
     ctx.lineWidth = 3;
     ctx.strokeRect(20, 20, 760, 410);
 
-    // 3. Avatar
+    // 3. Avatar الصورة الشخصية
     try {
         const avatarUrl = user.displayAvatarURL({ extension: 'png', size: 256 });
         const avatar = await loadImage(avatarUrl);
@@ -50,7 +63,7 @@ async function generateCanvas(user, data) {
         ctx.drawImage(avatar, 60, 60, 120, 120);
         ctx.restore();
     } catch (e) {
-        console.error("خطأ في تحميل الصورة الشخصية:", e);
+        console.error("خطأ في تحميل الصورة الشخصية:", e.message);
     }
 
     ctx.beginPath();
@@ -121,18 +134,31 @@ const profileCommand = {
         .setDescription('عرض بطاقة البروفايل الخاصة بك'),
 
     async execute(interaction) {
-        await interaction.deferReply();
-        const userData = await getUserData(interaction.user.id);
-        const buffer = await generateCanvas(interaction.user, userData);
-        const attachment = new AttachmentBuilder(buffer, { name: 'profile.png' });
-        await interaction.editReply({ files: [attachment] });
+        try {
+            if (!interaction.replied && !interaction.deferred) {
+                await interaction.deferReply();
+            }
+            const userData = await getUserData(interaction.user.id);
+            const buffer = await generateCanvas(interaction.user, userData);
+            const attachment = new AttachmentBuilder(buffer, { name: 'profile.png' });
+            await interaction.editReply({ files: [attachment] });
+        } catch (err) {
+            console.error('❌ خطأ في عرض البروفايل:', err);
+            if (interaction.deferred) {
+                await interaction.editReply({ content: '❌ حدث خطأ أثناء إنشاء بطاقة البروفايل!' }).catch(() => {});
+            }
+        }
     },
 
     async executeText(message) {
-        const userData = await getUserData(message.author.id);
-        const buffer = await generateCanvas(message.author, userData);
-        const attachment = new AttachmentBuilder(buffer, { name: 'profile.png' });
-        await message.reply({ files: [attachment] });
+        try {
+            const userData = await getUserData(message.author.id);
+            const buffer = await generateCanvas(message.author, userData);
+            const attachment = new AttachmentBuilder(buffer, { name: 'profile.png' });
+            await message.reply({ files: [attachment] });
+        } catch (err) {
+            console.error('❌ خطأ في عرض البروفايل النصي:', err);
+        }
     }
 };
 
@@ -143,32 +169,36 @@ const shopCommand = {
         .setDescription('متجر ومستودع ستايلات البروفايل'),
 
     async execute(interaction) {
-        const userId = interaction.user.id;
-        const userData = await getUserData(userId);
+        try {
+            const userId = interaction.user.id;
+            const userData = await getUserData(userId);
 
-        const options = STORE_ITEMS.map(item => {
-            const isOwned = userData.inventory.includes(item.id);
-            return {
-                label: item.name,
-                value: item.id,
-                description: isOwned ? '🟢 مجهزة/مملوكة (اضغط للتجهيز)' : `شراء بـ ${item.price.toLocaleString()} Jenny`,
-                emoji: isOwned ? '🎒' : '🛒'
-            };
-        });
+            const options = STORE_ITEMS.map(item => {
+                const isOwned = userData.inventory.includes(item.id);
+                return {
+                    label: item.name,
+                    value: item.id,
+                    description: isOwned ? '🟢 مجهزة/مملوكة (اضغط للتجهيز)' : `شراء بـ ${item.price.toLocaleString()} Jenny`,
+                    emoji: isOwned ? '🎒' : '🛒'
+                };
+            });
 
-        const selectMenu = new ActionRowBuilder().addComponents(
-            new StringSelectMenuBuilder()
-                .setCustomId('profile_shop_select')
-                .setPlaceholder('اختر مظهراً لشراءه أو تجهيزه...')
-                .addOptions(options)
-        );
+            const selectMenu = new ActionRowBuilder().addComponents(
+                new StringSelectMenuBuilder()
+                    .setCustomId('profile_shop_select')
+                    .setPlaceholder('اختر مظهراً لشراءه أو تجهيزه...')
+                    .addOptions(options)
+            );
 
-        const embed = new EmbedBuilder()
-            .setTitle('🛒 متجر ومستودع المظاهر')
-            .setDescription(`رصيدك الحالي: **${userData.wealth.toLocaleString()} Jenny**\n\nاختر من القائمة أدناه لشراء مظهر جديد أو تجهيز مظهر تملكه.`)
-            .setColor(userData.frameColor);
+            const embed = new EmbedBuilder()
+                .setTitle('🛒 متجر ومستودع المظاهر')
+                .setDescription(`رصيدك الحالي: **${userData.wealth.toLocaleString()} Jenny**\n\nاختر من القائمة أدناه لشراء مظهر جديد أو تجهيز مظهر تملكه.`)
+                .setColor(userData.frameColor.startsWith('#') ? userData.frameColor : '#00ffcc');
 
-        await interaction.reply({ embeds: [embed], components: [selectMenu] });
+            await interaction.reply({ embeds: [embed], components: [selectMenu] });
+        } catch (err) {
+            console.error('❌ خطأ في فتح المتجر:', err);
+        }
     }
 };
 
