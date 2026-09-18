@@ -4,13 +4,14 @@ const fs = require('fs');
 const path = require('path');
 
 const app = express();
-const port = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;
 
 // 🌐 خادم Express لمعالجة الطلبات والحفاظ على النشاط على Render
-app.get('/', (req, res) => res.send('Bot is online!'));
+app.get('/', (req, res) => res.status(200).send('Bot is online!'));
 
-app.listen(port, () => {
-    console.log(`🌐 Web server listening on port ${port}`);
+// تم إضافة '0.0.0.0' لتسمح لـ Render بالتقاط البورت المفتوح فوراً
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🌐 Web server listening on port ${PORT}`);
     
     setInterval(() => {
         const renderUrl = process.env.RENDER_EXTERNAL_URL;
@@ -35,7 +36,7 @@ const client = new Client({
 client.commands = new Collection();
 
 // ==========================================
-// 🔄 تحميل وتسجيل أوامر السلاش تلقائياً (بما فيها المجلدات الفرعية مثل games و lab)
+// 🔄 تحميل وتسجيل أوامر السلاش تلقائياً
 // ==========================================
 const commands = [];
 const commandsPath = path.join(__dirname, 'commands');
@@ -56,19 +57,26 @@ function loadCommands(dirPath) {
 
                 if (Array.isArray(command.gamesCommands)) {
                     command.gamesCommands.forEach(cmd => {
-                        if (cmd?.toJSON) commands.push(cmd.toJSON());
-                        else if (cmd?.data?.toJSON) commands.push(cmd.data.toJSON());
+                        const cmdData = cmd?.data?.toJSON ? cmd.data.toJSON() : (cmd?.toJSON ? cmd.toJSON() : cmd);
+                        if (cmdData?.name) {
+                            commands.push(cmdData);
+                            client.commands.set(cmdData.name, cmd);
+                        }
                     });
                 } else if (command.data) {
                     const cmdData = command.data.toJSON ? command.data.toJSON() : command.data;
-                    commands.push(cmdData);
-                    if (cmdData.name) client.commands.set(cmdData.name, command);
+                    if (cmdData?.name) {
+                        commands.push(cmdData);
+                        client.commands.set(cmdData.name, command);
+                    }
                 } else if (typeof command === 'object') {
                     Object.values(command).forEach(cmd => {
                         if (cmd?.data?.toJSON) {
                             const cData = cmd.data.toJSON();
-                            commands.push(cData);
-                            if (cData.name) client.commands.set(cData.name, cmd);
+                            if (cData?.name) {
+                                commands.push(cData);
+                                client.commands.set(cData.name, cmd);
+                            }
                         }
                     });
                 }
