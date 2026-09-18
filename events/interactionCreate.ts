@@ -1,14 +1,14 @@
 import { Interaction, MessageFlags, Client } from 'discord.js';
 
 // تعريف الواجهات البرمجية للموديولات
-interface ExecutableCommand {
-    execute?: (interaction: Interaction | any) => Promise<any>;
-    handleColorSelect?: (interaction: Interaction | any) => Promise<any>;
-    handleInteraction?: (interaction: Interaction | any) => Promise<any>;
+export interface ExecutableCommand {
+    execute?: (interaction: Interaction) => Promise<any>;
+    handleColorSelect?: (interaction: Interaction) => Promise<any>;
+    handleInteraction?: (interaction: Interaction) => Promise<any>;
     data?: { name: string };
 }
 
-interface ProfileSystemModule {
+export interface ProfileSystemModule {
     profileCommand?: ExecutableCommand;
     shopCommand?: ExecutableCommand;
     handleProfileEvents?: (interaction: Interaction) => Promise<boolean>;
@@ -55,11 +55,14 @@ try { handlePrivateChatInteraction = require('../commands/privateChat')?.handleP
 
 export default async function handleInteractionCreate(client: Client, interaction: Interaction): Promise<void> {
     try {
+        // استخراج الـ customId بأمان إن وجد
+        const customId = 'customId' in interaction ? (interaction.customId as string) : '';
+
         // ==========================================
         // 🔘 1. معالجة تفاعلات الـ AFK
         // ==========================================
         if ((interaction.isButton() || interaction.isModalSubmit()) && afkSystem?.handleInteraction) {
-            if (interaction.customId?.startsWith('afk_')) {
+            if (customId.startsWith('afk_')) {
                 return await afkSystem.handleInteraction(interaction);
             }
         }
@@ -74,12 +77,11 @@ export default async function handleInteractionCreate(client: Client, interactio
              interaction.isUserSelectMenu() ||
              interaction.isModalSubmit())
         ) {
-            const id = interaction.customId || '';
             if (
-                id.startsWith('pc_') ||
-                id.startsWith('room_') ||
-                id.startsWith('invite_') ||
-                id.startsWith('knock_')
+                customId.startsWith('pc_') ||
+                customId.startsWith('room_') ||
+                customId.startsWith('invite_') ||
+                customId.startsWith('knock_')
             ) {
                 return await handlePrivateChatInteraction(interaction);
             }
@@ -97,10 +99,9 @@ export default async function handleInteractionCreate(client: Client, interactio
         // 🔘 4. معالجة تفاعلات الألوان والألعاب
         // ==========================================
         if (interaction.isStringSelectMenu() || interaction.isButton()) {
-            const id = interaction.customId || '';
 
             // نظام الألعاب
-            if (id.startsWith('game_') || id.startsWith('games_') || id === 'select_game' || gamesCmd?.handleInteraction) {
+            if (customId.startsWith('game_') || customId.startsWith('games_') || customId === 'select_game' || gamesCmd?.handleInteraction) {
                 if (typeof gamesCmd?.handleInteraction === 'function') {
                     return await gamesCmd.handleInteraction(interaction);
                 } else if (typeof handleGamesCommand === 'function') {
@@ -109,7 +110,7 @@ export default async function handleInteractionCreate(client: Client, interactio
             }
 
             // نظام قائمة الألوان
-            if (interaction.isStringSelectMenu() && id === 'select_name_color' && colorsCmd?.handleColorSelect) {
+            if (interaction.isStringSelectMenu() && customId === 'select_name_color' && colorsCmd?.handleColorSelect) {
                 return await colorsCmd.handleColorSelect(interaction);
             }
         }
