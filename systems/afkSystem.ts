@@ -11,8 +11,7 @@ import {
     MessageFlags,
     Interaction,
     ButtonInteraction,
-    ModalSubmitInteraction,
-    GuildMember
+    ModalSubmitInteraction
 } from 'discord.js';
 
 // تعريف واجهة بيانات العضو الغائب
@@ -45,8 +44,9 @@ export const afkSystem = {
             const userData = afkUsers.get(message.author.id)!;
             afkUsers.delete(message.author.id);
 
+            // استعادة الاسم الأصلي (سواء كان اللقب القديم أو إلغاء اللقب بـ null)
             try {
-                if (message.member.manageable && userData.oldNickname !== null) {
+                if (message.member.manageable) {
                     await message.member.setNickname(userData.oldNickname);
                 }
             } catch (err: unknown) {
@@ -91,10 +91,13 @@ export const afkSystem = {
             const currentNickname = message.member.nickname || message.author.username;
             const newNickname = `[AFK] ${currentNickname}`.slice(0, 32);
 
+            // حفظ اللقب الأصلي بوضوح
+            const originalNickname = message.member.nickname || null;
+
             afkUsers.set(message.author.id, {
                 reason: reason,
                 timestamp: Date.now(),
-                oldNickname: message.member.nickname || null,
+                oldNickname: originalNickname,
                 mentionsCount: 0,
                 notifiedUsers: new Set<string>(),
                 leftMessages: []
@@ -121,7 +124,10 @@ export const afkSystem = {
 
         // 🟡 عند منشن شخص في وضع الغياب
         if (message.mentions.users.size > 0) {
-            for (const user of message.mentions.users.values()) {
+            // استخدام Set لمنع التكرار في نفس الرسالة
+            const mentionedUsers = new Set(message.mentions.users.values());
+
+            for (const user of mentionedUsers) {
                 if (afkUsers.has(user.id) && user.id !== message.author.id) {
                     const afkData = afkUsers.get(user.id)!;
                     afkData.mentionsCount += 1;
@@ -152,7 +158,7 @@ export const afkSystem = {
     },
 
     // 2. معالجة تفاعلات الأزرار والنوافذ المنبثقة Modal
-    async handleInteraction(interaction: Interaction): Promise<boolean | void> {
+    async handleInteraction(interaction: Interaction): Promise<boolean> {
         try {
             // أ. زر التنبيه "نبهني عند عودته"
             if (interaction.isButton() && interaction.customId.startsWith('afk_notify_')) {
