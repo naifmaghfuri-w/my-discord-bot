@@ -38,21 +38,6 @@ const client = new Client({
 const commands = [];
 const commandsPath = path.join(__dirname, 'commands');
 
-// 1. قراءة ألعاب المجلد الفرعي commands/games
-try {
-    const { gamesCommands } = require('./commands/games');
-    if (Array.isArray(gamesCommands)) {
-        gamesCommands.forEach(cmd => {
-            if (cmd?.toJSON) commands.push(cmd.toJSON());
-            else if (cmd?.data?.toJSON) commands.push(cmd.data.toJSON());
-            else if (cmd) commands.push(cmd);
-        });
-    }
-} catch (e) {
-    console.warn('⚠️ لم يتم العثور على مجلد الألعاب أو يوجد خطأ في تصدير commands/games');
-}
-
-// 2. قراءة بقية الأوامر في مجلد commands مع يتجنب الملفات والمسارات الشائعة لمنع التكرار
 if (fs.existsSync(commandsPath)) {
     const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
@@ -60,13 +45,17 @@ if (fs.existsSync(commandsPath)) {
         const filePath = path.join(commandsPath, file);
         const command = require(filePath);
 
-        // معالجة الملفات التي تصدر عدة أوامر كأشياء منفصلة (مثل profileSystem)
-        if (typeof command === 'object' && !command.data) {
-            Object.values(command).forEach(cmd => {
-                if (cmd?.data?.toJSON) commands.push(cmd.data.toJSON());
+        if (Array.isArray(command.gamesCommands)) {
+            command.gamesCommands.forEach(cmd => {
+                if (cmd?.toJSON) commands.push(cmd.toJSON());
+                else if (cmd?.data?.toJSON) commands.push(cmd.data.toJSON());
             });
         } else if (command.data) {
             commands.push(command.data.toJSON ? command.data.toJSON() : command.data);
+        } else if (typeof command === 'object') {
+            Object.values(command).forEach(cmd => {
+                if (cmd?.data?.toJSON) commands.push(cmd.data.toJSON());
+            });
         }
     }
 }
