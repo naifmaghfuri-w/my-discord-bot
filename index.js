@@ -45,14 +45,17 @@ if (fs.existsSync(commandsPath)) {
         const filePath = path.join(commandsPath, file);
         const command = require(filePath);
         if (Array.isArray(command)) {
-            command.forEach(cmd => commands.push(cmd.data.toJSON()));
+            command.forEach(cmd => {
+                if (cmd.data?.toJSON) commands.push(cmd.data.toJSON());
+                else if (cmd.toJSON) commands.push(cmd.toJSON());
+            });
         } else if (command.data) {
-            commands.push(command.data.toJSON());
+            commands.push(command.data.toJSON ? command.data.toJSON() : command.data);
         }
     }
 }
 
-// إضافة أوامر الملفات الخارجية الأخرى (الموجودة خارج مجلد commands)
+// إضافة أوامر الملفات الخارجية الأخرى
 const { gamesCommands } = require('./games');
 const { profileCommand, shopCommand } = require('./profileSystem');
 
@@ -67,13 +70,12 @@ const messageCreateHandler = require('./events/messageCreate');
 const interactionCreateHandler = require('./events/interactionCreate');
 
 client.on('messageCreate', message => messageCreateHandler(client, message));
-// ✅ التمرير الصحيح للحدث
 client.on('interactionCreate', interaction => interactionCreateHandler(client, interaction));
 
 client.once('ready', async () => {
     console.log(`🚀 تم تسجيل الدخول بنجاح باسم: ${client.user.tag}`);
 
-    // 🎯 تعيين الحالة المخصصة للبوت (gg/EMM)
+    // 🎯 تعيين الحالة المخصصة للبوت
     client.user.setPresence({
         activities: [
             {
@@ -110,4 +112,3 @@ if (!token) {
 
 process.on('unhandledRejection', error => console.error('❌ Unhandled Rejection:', error));
 process.on('uncaughtException', error => console.error('❌ Uncaught Exception:', error));
-
