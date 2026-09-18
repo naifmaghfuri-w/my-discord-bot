@@ -9,16 +9,22 @@ const PORT = process.env.PORT || 3000;
 // 🌐 خادم Express لمعالجة الطلبات والحفاظ على النشاط على Render
 app.get('/', (req, res) => res.status(200).send('Bot is online!'));
 
-// تم إضافة '0.0.0.0' لتسمح لـ Render بالتقاط البورت المفتوح فوراً
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🌐 Web server listening on port ${PORT}`);
     
-    setInterval(() => {
+    setInterval(async () => {
         const renderUrl = process.env.RENDER_EXTERNAL_URL;
         if (renderUrl) {
-            fetch(renderUrl)
-                .then(() => console.log('🔄 Keep-alive ping sent.'))
-                .catch(err => console.error('⚠️ Keep-alive ping failed:', err.message));
+            try {
+                if (typeof fetch !== 'undefined') {
+                    await fetch(renderUrl);
+                } else {
+                    require('https').get(renderUrl, () => {});
+                }
+                console.log('🔄 Keep-alive ping sent.');
+            } catch (err) {
+                console.error('⚠️ Keep-alive ping failed:', err.message);
+            }
         }
     }, 5 * 60 * 1000);
 });
@@ -92,22 +98,37 @@ loadCommands(commandsPath);
 // ==========================================
 // 📡 ربط الأحداث (Events)
 // ==========================================
-const messageCreateHandler = require('./events/messageCreate');
-const interactionCreateHandler = require('./events/interactionCreate');
+let messageCreateHandler, interactionCreateHandler;
 
-client.on('messageCreate', message => {
-    if (typeof messageCreateHandler === 'function') {
-        messageCreateHandler(client, message);
-    } else if (messageCreateHandler?.execute) {
-        messageCreateHandler.execute(client, message);
+try { messageCreateHandler = require('./events/messageCreate'); } catch (e) { console.error('⚠️ تعذر تحميل حدث الرسائل:', e.message); }
+try { interactionCreateHandler = require('./events/interactionCreate'); } catch (e) { console.error('⚠️ تعذر تحميل حدث التفاعلات:', e.message); }
+
+client.on('messageCreate', async message => {
+    try {
+        if (typeof messageCreateHandler === 'function') {
+            await messageCreateHandler(client, message);
+        } else if (messageCreateHandler?.execute) {
+            await messageCreateHandler.execute(client, message);
+        }
+    } catch (err) {
+        console.error('❌ خطأ أثناء معالجة الرسالة:', err);
     }
 });
 
-client.on('interactionCreate', interaction => {
-    if (typeof interactionCreateHandler === 'function') {
-        interactionCreateHandler(client, interaction);
-    } else if (interactionCreateHandler?.execute) {
-        interactionCreateHandler.execute(client, interaction);
+client.on('interactionCreate', async interaction => {
+    try {
+        if (typeof interactionCreateHandler === 'function') {
+            // توجيه التفاعل بصيغة متوافقة (سواء كان يستقبل مرجعين أو مرجع واحد)
+            if (interactionCreateHandler.length === 1) {
+                await interactionCreateHandler(interaction);
+            } else {
+                await interactionCreateHandler(client, interaction);
+            }
+        } else if (interactionCreateHandler?.execute) {
+            await interactionCreateHandler.execute(client, interaction);
+        }
+    } catch (err) {
+        console.error('❌ خطأ أثناء معالجة التفاعل:', err);
     }
 });
 
@@ -144,7 +165,7 @@ if (!token) {
     console.error('❌ خطأ: لم يتم العثور على DISCORD_TOKEN في متغيرات البيئة!');
 } else {
     client.login(token)
-        .then(() => console.log("✅ تم إرسال التوكين بنجاح."))
+        .then(() => console.log("✅ تم الاتصال بديسكورد بنجاح."))
         .catch(err => console.error('❌ فشل تسجيل الدخول إلى ديسكورد:', err));
 }
 
