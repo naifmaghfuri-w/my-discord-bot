@@ -20,13 +20,24 @@ module.exports = async (client, interaction) => {
     }
 
     // ==========================================
+    // 🔘 معالجة تفاعلات المختبر (Lab System)
+    // ==========================================
+    if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) {
+        if (interaction.customId && interaction.customId.startsWith('lab_')) {
+            if (labCommand && typeof labCommand.handleInteraction === 'function') {
+                return await labCommand.handleInteraction(interaction);
+            }
+        }
+    }
+
+    // ==========================================
     // 🔘 معالجة تفاعلات الدردشات الخاصة (أزرار، قوائم، و Modals)
     // ==========================================
     if (
         interaction.isButton() || 
         interaction.isStringSelectMenu() || 
         interaction.isUserSelectMenu() || 
-        interaction.isModalSubmit() // 👈 تم إضافة دعم النوافذ النصية مثل زاجل وتغيير الاسم
+        interaction.isModalSubmit()
     ) {
         const id = interaction.customId;
         if (
@@ -79,12 +90,11 @@ module.exports = async (client, interaction) => {
     } catch (error) {
         console.error(`❌ خطأ أثناء تنفيذ الأمر ${commandName}:`, error);
         
-        const errorMessage = { content: '❌ حدث خطأ أثناء تنفيذ هذا الأمر!', ephemeral: true };
+        const errorMessage = { content: '❌ حدث خطأ أثناء تنفيذ هذا الأمر!', flags: 64 };
         if (interaction.replied || interaction.deferred) {
-            await interaction.followUp(errorMessage);
+            await interaction.followUp(errorMessage).catch(() => {});
         } else {
-            await interaction.reply(errorMessage);
+            await interaction.reply(errorMessage).catch(() => {});
         }
     }
 };
-
