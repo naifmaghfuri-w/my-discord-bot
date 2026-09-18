@@ -777,7 +777,7 @@ async function handleLabSession(context, user) {
 
                 duelCollector.on('end', collected => {
                     if (collected.size === 0) {
-                        channel.send({ content: `⏳ **انتهى وقت التحدي ولم يجب أحد بنجاح! الرمز الصحيح كان:** \`${randomItem.symbol}\`` });
+                        channel.send({ content: `⏳ **انتهى وقت التحدي ولم يجب أحد بنجاح! الرمز الصحيح كان:** \`${randomItem.symbol}\`` }).catch(() => {});
                     }
                 });
 
@@ -1073,8 +1073,7 @@ async function handleLabSession(context, user) {
 
             for (const [mat, qty] of Object.entries(reaction.req)) {
                 if (!player.inv[mat] || player.inv[mat] < qty) {
-                    return await notifyOnly(`❌ لا تملك المواد الكافية! تحتاج إلى (${labData.items[mat]?.name || mat} x${qty})`);
-
+                    return await notifyOnly(`❌ لا تملك المواد الكافية! تحتاج إلى (${labData.items[mat]?.name \vert{}\vert{} mat} x${qty})`);
                 }
             }
 
@@ -1197,4 +1196,3 @@ module.exports = {
     execute,
     handleLabSession
 };
-
