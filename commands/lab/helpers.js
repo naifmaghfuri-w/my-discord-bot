@@ -158,6 +158,8 @@ function updatePlayerData(userId, data) {
 
 module.exports = {
     ensureDataFile,
+    loadDatabase,
+    saveDatabase,
     getMarketPrices,
     generateDailyQuest,
     processItemStabilityAndDecay,
