@@ -207,7 +207,7 @@ function buildShopScreen(player, index) {
 
     const embed = new EmbedBuilder()
         .setTitle(`🛒 المتجر: ${currentItem.name}`)
-        .setDescription(currentItem.desc || `عنصر كيميائي أو جهاز مخبري متقدم.\n**الحالة الفيزيائية/المستوى:** ${currentItem.state || 'مستوى ' + (currentItem.reqLevel || 1)}`)
+        .setDescription(currentItem.desc || `عنصر كيميائي أو جهاز مخبري متتقدم.\n**الحالة الفيزيائية/المستوى:** ${currentItem.state || 'مستوى ' + (currentItem.reqLevel || 1)}`)
         .setColor(0xf1c40f)
         .addFields(
             { name: '💵 السعر', value: `\`${currentItem.price} <:emoji_40:1548935096768274532>\``, inline: true },
@@ -1183,6 +1183,16 @@ async function handleLabSession(context, user) {
     });
 }
 
+const data = new SlashCommandBuilder()
+    .setName('lab')
+    .setDescription('فتح المختبر الكيميائي التفاعلي');
+
+async function execute(interaction) {
+    await handleLabSession(interaction, interaction.user);
+}
+
 module.exports = {
+    data,
+    execute,
     handleLabSession
 };
