@@ -38,7 +38,7 @@ module.exports = {
         dry_precipitate: { name: 'مسحوق جاف فائق النقاء', symbol: 'ZnC2O4', price: 1100, buyable: false, state: '🪨 مسحوق', desc: 'ناتج تجفيف المترسبات المعقدة في الفرن الزجاجي.' },
         secret_compound: { name: 'المركب السري النادر ✨', symbol: 'X', price: 2500, buyable: false, state: '✨ طاقة', desc: 'اكتشاف نادر جداً ناتج عن الخلط العشوائي للمواد.' },
         pure_gold: { name: 'الذهب النقي (Au)', symbol: 'Au', price: 2200, buyable: false, state: '✨ معدن نفيس', desc: 'سبائك ذهب عالية النقاوة مستخلصة كيميائياً.' },
-        pure_platinum: { name: 'البلاتين الصافي (Pt)', symbol: 'Pt', price: 3500, buyable: false, state: '✨ معدن نفيس', desc: 'عنصر البلاتين النادر المستخرج عبر تحلیل كهرومغناطيسي.' },
+        pure_platinum: { name: 'البلاتين الصافي (Pt)', symbol: 'Pt', price: 3500, buyable: false, state: '✨ معدن نفيس', desc: 'عنصر البلاتين النادر المستخرج عبر تحليل كهرومغناطيسي.' },
         benzene: { name: 'مركب البنزين العطري (C6H6)', symbol: 'C6H6', price: 1200, buyable: false, state: '💧 سائل', desc: 'مركب عضوي حلقي أساسي في الصناعات المتقدمة.' },
         nitroglycerin: { name: 'النيتروجليسرين (C3H5N3O9)', symbol: 'C3H5N3O9', price: 1800, buyable: false, state: '💥 مركب حسّاس', desc: 'مركب عضوي شديد الانفجار وقيمته عالية جداً.' },
         toxic_waste: { name: 'النفايات الكيميائية ☣️', symbol: 'WASTE', price: 0, buyable: false, state: '☣️ نفايات', desc: 'نفايات ضارة تسبب تلف المواد إذا لم يتم تصريفها.' }
@@ -88,5 +88,19 @@ module.exports = {
         { id: 'r_nitroglycerin', name: '💥 تخليق النيتروجليسرين (C3H5N3O9)', tool: 'water_bath', reqLevel: 20, costAbility: 10, req: { hno3: 2, h2so4: 1 }, targetTemp: 25, targetPress: 1, timeSec: 45, yield: { nitroglycerin: 1, toxic_waste: 2 }, xp: 500 }
     ],
     TEMP_STEPS: [25, 110, 500, 900],
-    PRESS_STEPS: [1, 2, 3]
+    PRESS_STEPS: [1, 2, 3],
+
+    // --- دوال مساعدة لسهولة الوصول للبيانات ---
+    getItem(id) {
+        return this.items[id] || null;
+    },
+    getEquipment(id) {
+        return this.equipment[id] || null;
+    },
+    getReaction(id) {
+        return this.reactions.find(r => r.id === id) || null;
+    },
+    getReactionsByLevel(level) {
+        return this.reactions.filter(r => r.reqLevel <= level);
+    }
 };
