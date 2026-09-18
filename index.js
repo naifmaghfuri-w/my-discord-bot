@@ -38,30 +38,38 @@ const client = new Client({
 const commands = [];
 const commandsPath = path.join(__dirname, 'commands');
 
+// 1. قراءة ألعاب المجلد الفرعي commands/games
+try {
+    const { gamesCommands } = require('./commands/games');
+    if (Array.isArray(gamesCommands)) {
+        gamesCommands.forEach(cmd => {
+            if (cmd?.toJSON) commands.push(cmd.toJSON());
+            else if (cmd?.data?.toJSON) commands.push(cmd.data.toJSON());
+            else if (cmd) commands.push(cmd);
+        });
+    }
+} catch (e) {
+    console.warn('⚠️ لم يتم العثور على مجلد الألعاب أو يوجد خطأ في تصدير commands/games');
+}
+
+// 2. قراءة بقية الأوامر في مجلد commands مع يتجنب الملفات والمسارات الشائعة لمنع التكرار
 if (fs.existsSync(commandsPath)) {
     const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
     for (const file of commandFiles) {
         const filePath = path.join(commandsPath, file);
         const command = require(filePath);
-        if (Array.isArray(command)) {
-            command.forEach(cmd => {
-                if (cmd.data?.toJSON) commands.push(cmd.data.toJSON());
-                else if (cmd.toJSON) commands.push(cmd.toJSON());
+
+        // معالجة الملفات التي تصدر عدة أوامر كأشياء منفصلة (مثل profileSystem)
+        if (typeof command === 'object' && !command.data) {
+            Object.values(command).forEach(cmd => {
+                if (cmd?.data?.toJSON) commands.push(cmd.data.toJSON());
             });
         } else if (command.data) {
             commands.push(command.data.toJSON ? command.data.toJSON() : command.data);
         }
     }
 }
-
-// إضافة أوامر الملفات الخارجية من داخل مجلد commands
-const { gamesCommands } = require('./commands/games');
-const { profileCommand, shopCommand } = require('./commands/profileSystem');
-
-if (gamesCommands) gamesCommands.forEach(cmd => commands.push(cmd));
-if (profileCommand?.data) commands.push(profileCommand.data.toJSON ? profileCommand.data.toJSON() : profileCommand.data);
-if (shopCommand?.data) commands.push(shopCommand.data.toJSON ? shopCommand.data.toJSON() : shopCommand.data);
 
 // ==========================================
 // 📡 ربط الأحداث (Events)
@@ -90,7 +98,7 @@ client.once('ready', async () => {
     const rest = new REST({ version: '10' }).setToken(token);
     try {
         await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
-        console.log('✅ تم تسجيل جميع الأوامر المائلة بنجاح!');
+        console.log(`✅ تم تسجيل (${commands.length}) أمر مائل بنجاح!`);
     } catch (err) {
         console.error('❌ خطأ في تسجيل الأوامر:', err);
     }
