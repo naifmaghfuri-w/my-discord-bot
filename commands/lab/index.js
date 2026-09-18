@@ -25,7 +25,7 @@ function buildMainMenu(user, player) {
         .setColor(0x2ecc71)
         .addFields(
             { name: '\u200B', value: `\`Level.${player.level}/25\``, inline: true },
-            { name: '', value: `\`${player.xp} / ${player.level * 100} XP\``, inline: true },
+            { name: '\u200B', value: `\`${player.xp} / ${player.level * 100} XP\``, inline: true },
             { name: ' ', value: `\`${player.abilityPoints} AP\``, inline: true },
             { name: '\u200B', value: `${player.coins} <:emoji_40:1548935096768274532>`, inline: true },
             { name: '📜 السمعة الأكاديمية', value: `\`${player.academicReputation || 0} pts\``, inline: true },
@@ -402,7 +402,7 @@ async function handleLabSession(context, user) {
                 }
                 player.xp += task.xp;
                 player.abilityPoints += 1;
-                
+
                 if (player.xp >= player.level * 100 && player.level < 25) {
                     player.level += 1;
                     player.xp -= player.level * 100;
@@ -1121,7 +1121,7 @@ async function handleLabSession(context, user) {
         if (i.customId === 'btn_open_quest') {
             const q = player.quest;
             const itemNeeded = labData.items[q.item];
-            
+
             const questEmbed = new EmbedBuilder()
                 .setTitle('📜 المهام اليومية المتجددة')
                 .addFields(
@@ -1160,39 +1160,25 @@ async function handleLabSession(context, user) {
                 const itemInfo = labData.items[id];
                 if (itemInfo && !itemInfo.buyable && player.inv[id] > 0 && itemInfo.price > 0) {
                     const qty = player.inv[id];
-                    const price = itemInfo.price * qty;
-                    totalEarned += price;
-                    soldList.push(`• **${itemInfo.name}** (x${qty}) ➔ \`+${price}\``);
+                    const price = itemInfo.price;
+                    totalEarned += price * qty;
+                    soldList.push(`• **${itemInfo.name}**: \`${qty}\` x \`${price}\``);
                     delete player.inv[id];
                 }
             });
 
-            if (totalEarned === 0) {
-                return await notifyOnly('⚠️ لا تملك أي مواد مُصنّعة قابلة للبيع حالياً!');
+            if (totalEarned > 0) {
+                player.coins += totalEarned;
+                updatePlayerData(user.id, player);
+                await notifyOnly(`💵 **تم بيع النواتج الكيميائية بنجاح!**\nالربح الإجمالي: \`+${totalEarned}\` <:emoji_40:1548935096768274532>\n\n${soldList.join('\n')}`);
+            } else {
+                await notifyOnly('❌ لا تملك أي نواتج قابلة للبيع في مستودعك حالياً!');
             }
-
-            player.coins += totalEarned;
-            player.achievements.trader = (player.achievements.trader || 0) + totalEarned;
-            if (player.achievements.trader >= 1000 && !player.unlockedBadges.includes('trader')) {
-                player.unlockedBadges.push('trader');
-                player.coins += labData.achievements.trader.reward;
-            }
-
-            updatePlayerData(user.id, player);
-            await notifyOnly(`💵 **تمت عملية البيع بنجاح!**\n${soldList.join('\n')}\n\n💰 الإجمالي المضاف لرصيدك: **+${totalEarned}** <:emoji_40:1548935096768274532>`);
             return await updateScreen(buildMainMenu(user, player));
         }
-    });
-
-    collector.on('end', async () => {
-        responseMsg.edit({ components: [] }).catch(() => {});
     });
 }
 
 module.exports = {
-    data: new SlashCommandBuilder().setName('lab').setDescription('مختبر v1.5'),
-    async execute(interaction) {
-        await handleLabSession(interaction, interaction.user);
-    },
     handleLabSession
 };
