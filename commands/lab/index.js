@@ -677,7 +677,7 @@ async function handleLabSession(context, user) {
             player.inv['nitroglycerin'] -= 1;
             player.academicReputation = (player.academicReputation || 0) + 50;
             updatePlayerData(user.id, player);
-            await notifyOnly('🎉 تم نشر الورقة البحثية بنجاح! حصلت على **+50 نقطة سمعة أكاديمية**.');
+            await notifyOnly('🎉 تم نشر الورقة البحثية بنجاح!حصلت على **+50 نقطة سمعة أكاديمية**.');
             return await updateScreen(buildMoreMenu(user, player));
         }
 
