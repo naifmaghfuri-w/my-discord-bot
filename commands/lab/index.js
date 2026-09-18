@@ -476,7 +476,7 @@ async function handleLabSession(context, user) {
         if (i.customId === 'btn_open_more_menu') return await updateScreen(buildMoreMenu(user, player));
         if (i.customId === 'btn_open_lab_hub') return await updateScreen(buildLabHubScreen());
 
-        // Sections
+        // Inventory
         if (i.customId === 'btn_open_inv') {
             const invList = Object.keys(player.inv).length > 0 
                 ? Object.entries(player.inv).map(([id, qty]) => `• **${labData.items[id]?.name || id}**: \`${qty}\``).join('\n')
@@ -1196,4 +1196,3 @@ module.exports = {
     },
     handleLabSession
 };
-
