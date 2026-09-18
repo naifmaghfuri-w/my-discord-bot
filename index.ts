@@ -15,7 +15,7 @@ import path from 'path';
 import https from 'https';
 
 // ----------------------------------------------------
-// 🛠️ تمديد واجهة Client لإضافة الخاصية custom commands
+// 🛠️ تمديد واجهة Client لإضافة الخاصية commands
 // ----------------------------------------------------
 declare module 'discord.js' {
     interface Client {
