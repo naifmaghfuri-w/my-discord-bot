@@ -1,6 +1,6 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 
-// ⚠️ ضع الآيدي الخاص بحسابك هنا
+// ⚠️ الآيدي الخاص بحساب صاحب البوت
 const OWNER_ID = '1391517806193017023';
 
 module.exports = {
@@ -9,31 +9,48 @@ module.exports = {
         .setDescription('عرض السيرفرات التي يتواجد فيها البوت'),
 
     async execute(interaction) {
-        // 1. تأجيل الرد فوراً لتجنب خطأ The application did not respond
-        await interaction.deferReply({ ephemeral: true });
+        try {
+            // التحقق من أن المستخدم هو صاحب البوت قبل deferReply لتوفير الاستجابة السريعة
+            if (interaction.user.id !== OWNER_ID) {
+                return interaction.reply({ 
+                    content: '❌ هذا الأمر مخصص لصاحب البوت فقط!', 
+                    flags: MessageFlags.Ephemeral 
+                });
+            }
 
-        // التحقق من أن المستخدم هو صاحب البوت
-        if (interaction.user.id !== OWNER_ID) {
-            return interaction.editReply({ content: '❌ هذا الأمر مخصص لصاحب البوت فقط!' });
+            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+            const guilds = Array.from(interaction.client.guilds.cache.values());
+
+            if (guilds.length === 0) {
+                return interaction.editReply({ content: '⚠️ البوت غير متواجد في أي سيرفر حالياً.' });
+            }
+
+            // تقسيم السيرفرات لقوائم لتفادي تجاوز حد الـ Embed
+            const formattedList = guilds.map((guild, index) => 
+                `**${index + 1}.${guild.name}**\n🆔 ID: \`${guild.id}\` | 👥 الأعضاء: \`${guild.memberCount}\``
+            );
+
+            let description = formattedList.join('\n\n');
+
+            // حماية من تجاوز حد 4000 حرف
+            if (description.length > 4000) {
+                description = description.slice(0, 3950) + '\n\n...وغيرها من السيرفرات التي تجاوزت حد العرض.';
+            }
+
+            const embed = new EmbedBuilder()
+                .setTitle(`📊 قائمة سيرفرات البوت (${guilds.length})`)
+                .setDescription(description)
+                .setColor('#2b2d31')
+                .setFooter({ text: `طُلب بواسطة: ${interaction.user.tag}` })
+                .setTimestamp();
+
+            await interaction.editReply({ embeds: [embed] });
+        } catch (err) {
+            console.error('❌ خطأ في تنفيذ أمر servers:', err);
+            if (interaction.deferred) {
+                await interaction.editReply({ content: '❌ حدث خطأ أثناء جلب قائمة السيرفرات.' });
+            }
         }
-
-        const guilds = interaction.client.guilds.cache;
-
-        if (guilds.size === 0) {
-            return interaction.editReply({ content: 'البوت غير متواجد في أي سيرفر حالياً.' });
-        }
-
-        // إنشاء قائمة السيرفرات
-        const description = guilds.map((guild, index) => {
-            return `**${index + 1}. ${guild.name}**\n🆔 ID: \`${guild.id}\` | 👥 الأعضاء: \`${guild.memberCount}\``;
-        }).join('\n\n');
-
-        const embed = new EmbedBuilder()
-            .setTitle(`📊 قائمة سيرفرات البوت (${guilds.size})`)
-            .setDescription(description.length > 4000 ? description.substring(0, 4000) + '...' : description)
-            .setColor('#2b2d31');
-
-        // 2. إرسال النتيجة عبر editReply
-        await interaction.editReply({ embeds: [embed] });
     },
 };
