@@ -12,15 +12,12 @@ try { ({ getPrivateChatPanel } = require('../privateChat')); } catch (e) { conso
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 const model = genAI.getGenerativeModel({ 
     model: 'gemini-3.5-flash-lite',
-    systemInstruction: `أنتِ فتاة اسمك "بيتو" كإنسانه طبيعي تتكلمين عربي بكلام واضح وخليك ذكية وتتطورين وحفظي الأشياء الي يحكولك احفظيها زي اسمائهم وكلامك مختصر.
+    systemInstruction: `أنتِ فتاة اسمك "بيتو" كإنسانه طبيعية تتكلمين عربي بكلام واضح، وخليك ذكية وتتطورين واحفظي الأشياء اللي يحكولك إياها زي أسمائهم، وكلامك مختصر.
 قواعد التفاعل الذكي:
--لاتكثري من اساله شو اخبارك و منورنا وكيف حالك لاتكثرين منها دوماً خلك في موضوع
--اسماء الاولاد الي تحكين معهم بصغة ولد هم ساي و زيلا و مي 
--اسماء البنات هم اسيل و ايما و نو ميرسي و ايميكا و عيدالحب وزها
-2. **تحليل الجنس**:
-   - إذا كان الاسم يدل على أنثى: خاطبيها بصيغة المؤنث 
-   - إذا كان الاسم يدل على مذكر: خاطبه بصيغة المذكر 
-3. **الإيموجيات المستخدمة**: استخدمي الإيموجيات التالية بشكل أساسي:`
+- لا تكثري من أسئلة شو أخبارك ومنورنا وكيف حالك، خلك في صلب الموضوع مباشرة.
+- أسماء الأولاد اللي تحكين معهم بصيغة مذكر: ساي، زيلا، مي.
+- أسماء البنات اللي تحكين معهم بصيغة مؤنث: أسيل، إيما، نو ميرسي، إيميكا، عيد الحب، زها.
+- تحليل الجنس: إذا كان الاسم يدل على أنثى خاطبيها بصفة المؤنث، وإذا كان يدل على مذكر خاطبه بصيغة المذكر.`
 });
 
 module.exports = async (client, message) => {
@@ -38,7 +35,8 @@ module.exports = async (client, message) => {
     }
 
     if (content === 'lab' || content === 'the lab' || content === 'مختبر' || content === 'المختبر') {
-        if (labCommand && (labCommand.execute || typeof labCommand === 'function')) {
+        if (labCommand) {
+            let replyMessage = null;
             const fakeInteraction = {
                 guild: message.guild,
                 channel: message.channel,
@@ -48,28 +46,32 @@ module.exports = async (client, message) => {
                 replied: false,
                 deferred: false,
                 reply: async (options) => {
-                    if (typeof options === 'string') return await message.reply(options);
-                    return await message.reply({
-                        content: options.content || null,
-                        files: options.files || [],
-                        components: options.components || [],
-                        embeds: options.embeds || []
-                    });
+                    fakeInteraction.replied = true;
+                    if (typeof options === 'string') {
+                        replyMessage = await message.reply(options);
+                    } else {
+                        replyMessage = await message.reply(options);
+                    }
+                    return replyMessage;
                 },
                 followUp: async (options) => {
                     if (typeof options === 'string') return await message.channel.send(options);
-                    return await message.channel.send({
-                        content: options.content || null,
-                        files: options.files || [],
-                        components: options.components || [],
-                        embeds: options.embeds || []
-                    });
+                    return await message.channel.send(options);
                 },
-                deferReply: async () => { await message.channel.sendTyping(); }
+                editReply: async (options) => {
+                    if (replyMessage) return await replyMessage.edit(options);
+                    return await message.reply(options);
+                },
+                deferReply: async () => { 
+                    fakeInteraction.deferred = true;
+                    await message.channel.sendTyping(); 
+                }
             };
 
-            const execFunc = labCommand.execute || labCommand;
-            return await execFunc(fakeInteraction).catch(console.error);
+            const execFunc = labCommand.handleLabSession || labCommand.execute || labCommand;
+            if (typeof execFunc === 'function') {
+                return await execFunc(fakeInteraction, message.author).catch(console.error);
+            }
         }
     }
 
@@ -97,7 +99,10 @@ module.exports = async (client, message) => {
 
             const result = await model.generateContent(userPrompt);
             const response = await result.response;
-            await message.reply(response.text().slice(0, 2000));
+            const text = response.text();
+            if (text) {
+                await message.reply(text.slice(0, 2000));
+            }
         } catch (error) {
             console.error('❌ خطأ في الاستجابة الذكية من Gemini:', error);
         }
