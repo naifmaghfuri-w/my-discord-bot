@@ -2,13 +2,16 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 let labCommand, profileCommand, handleGamesCommand, afkSystem, getPrivateChatPanel;
 
+// استدعاء الموديولات من مجلد commands
 try { labCommand = require('../commands/lab'); } catch (e) { console.error('⚠️ تعذر تحميل مجلد المختبر:', e.message); }
-try { ({ profileCommand } = require('../profileSystem')); } catch (e) { console.error('⚠️ تعذر تحميل البروفايل:', e.message); }
-try { ({ handleGamesCommand } = require('../games')); } catch (e) { console.error('⚠️ تعذر تحميل الألعاب:', e.message); }
-try { afkSystem = require('../afkSystem'); } catch (e) { console.error('⚠️ تعذر تحميل نظام AFK:', e.message); }
-try { ({ getPrivateChatPanel } = require('../privateChat')); } catch (e) { console.error('⚠️ تعذر تحميل الدردشات الخاصة:', e.message); }
+try { ({ profileCommand } = require('../commands/profileSystem')); } catch (e) { console.error('⚠️ تعذر تحميل البروفايل:', e.message); }
+try { ({ handleGamesCommand } = require('../commands/games')); } catch (e) { console.error('⚠️ تعذر تحميل الألعاب:', e.message); }
+try { afkSystem = require('../commands/afkSystem'); } catch (e) { console.error('⚠️ تعذر تحميل نظام AFK:', e.message); }
+try { ({ getPrivateChatPanel } = require('../commands/privateChat')); } catch (e) { console.error('⚠️ تعذر تحميل الدردشات الخاصة:', e.message); }
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+
+// إعداد النموذج بناءً على طلبك
 const model = genAI.getGenerativeModel({ 
     model: 'gemini-3.5-flash-lite',
     systemInstruction: `أنتِ فتاة اسمك "بيتو" كإنسانه طبيعي تتكلمين عربي بكلام واضح وخليك ذكية وتتطورين وحفظي الأشياء الي يحكولك احفظيها زي اسمائهم وكلامك مختصر.
