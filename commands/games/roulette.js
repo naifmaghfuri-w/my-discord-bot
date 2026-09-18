@@ -10,16 +10,14 @@ const {
 } = require('discord.js');
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-// ايقونة العملة
+// أيقونة العملة
 const CURRENCY_EMOJI = '<:J_:1548935096768274532>';
 
-// قاعدة بيانات وهمية لرصيد اللاعبين (يمكنك ربطها بقاعدة البيانات الخاصة بك Quick.db / SQLite)
+// قاعدة بيانات وهمية لرصيد اللاعبين
 const balances = new Map(); // userId => amount
 
 function getBalance(userId) {
-    if (!balances.has(userId)) balances.set(userId, 500); // رصيد مجاني ابتدائي للجميع للتجربة 500 Jenny
+    if (!balances.has(userId)) balances.set(userId, 500); // رصيد مجاني ابتدائي 500 Jenny
     return balances.get(userId);
 }
 
@@ -41,7 +39,7 @@ const SHOP_ITEMS = {
     REVIVE: { id: 'revive', name: 'إحياء لاعب 🧟', price: 200, desc: 'إعادة لاعب خرج من اللعبة' }
 };
 
-// دالة رسم العجلة (مصححة الذاكرة 350x350)
+// دالة رسم العجلة (مصححة ومحسنة الأداء 350x350)
 async function drawWheel(players, rotationAngle = 0, centerAvatarUrl = null) {
     const size = 350;
     const canvas = createCanvas(size, size);
@@ -87,9 +85,8 @@ async function drawWheel(players, rotationAngle = 0, centerAvatarUrl = null) {
         ctx.fillStyle = '#FFFFFF';
         ctx.font = 'bold 12px sans-serif';
         
-        // إضافة أيقونة الدرع بجانب الاسم إذا كان لديه درع
         const shieldIcon = player.hasShield ? ' 🛡️' : '';
-        ctx.fillText(`${player.number}- ${player.username}${shieldIcon}`, radius - 15, 4);
+        ctx.fillText(`${player.number}- ${player.username.substring(0, 10)}${shieldIcon}`, radius - 15, 4);
         ctx.restore();
     });
 
@@ -141,78 +138,80 @@ async function drawWheel(players, rotationAngle = 0, centerAvatarUrl = null) {
 
 // دالة فتح نافذة المتجر التفاعلية
 async function openShopModal(i, player) {
-    const userBal = getBalance(i.user.id);
+    try {
+        const userBal = getBalance(i.user.id);
 
-    const shopEmbed = new EmbedBuilder()
-        .setTitle(`🏪 متجر اللعبة (عملتك: ${userBal} ${CURRENCY_EMOJI})`)
-        .setDescription(
-            `اختر العناصر التي تريد شراءها باستخدام عملة Jenny:\n\n` +
-            `1️⃣ **${SHOP_ITEMS.DOUBLE_ELIMINATE.name}** - ${SHOP_ITEMS.DOUBLE_ELIMINATE.price} ${CURRENCY_EMOJI}\n└ ${SHOP_ITEMS.DOUBLE_ELIMINATE.desc}\n\n` +
-            `2️⃣ **${SHOP_ITEMS.SHIELD.name}** - ${SHOP_ITEMS.SHIELD.price} ${CURRENCY_EMOJI}\n└ ${SHOP_ITEMS.SHIELD.desc}\n\n` +
-            `3️⃣ **${SHOP_ITEMS.REVIVE.name}** - ${SHOP_ITEMS.REVIVE.price} ${CURRENCY_EMOJI}\n└ ${SHOP_ITEMS.REVIVE.desc}`
-        )
-        .setColor('#F1C40F');
+        const shopEmbed = new EmbedBuilder()
+            .setTitle(`🏪 متجر اللعبة (عملتك: ${userBal} ${CURRENCY_EMOJI})`)
+            .setDescription(
+                `اختر العناصر التي تريد شراءها باستخدام عملة Jenny:\n\n` +
+                `1️⃣ **${SHOP_ITEMS.DOUBLE_ELIMINATE.name}** - ${SHOP_ITEMS.DOUBLE_ELIMINATE.price} ${CURRENCY_EMOJI}\n└ ${SHOP_ITEMS.DOUBLE_ELIMINATE.desc}\n\n` +
+                `2️⃣ **${SHOP_ITEMS.SHIELD.name}** - ${SHOP_ITEMS.SHIELD.price} ${CURRENCY_EMOJI}\n└ ${SHOP_ITEMS.SHIELD.desc}\n\n` +
+                `3️⃣ **${SHOP_ITEMS.REVIVE.name}** - ${SHOP_ITEMS.REVIVE.price} ${CURRENCY_EMOJI}\n└ ${SHOP_ITEMS.REVIVE.desc}`
+            )
+            .setColor('#F1C40F');
 
-    const shopMenu = new StringSelectMenuBuilder()
-        .setCustomId('buy_item_select')
-        .setPlaceholder('اختر عنصراً لشرائه...')
-        .addOptions([
-            { label: SHOP_ITEMS.DOUBLE_ELIMINATE.name, value: SHOP_ITEMS.DOUBLE_ELIMINATE.id, description: `${SHOP_ITEMS.DOUBLE_ELIMINATE.price} Jenny` },
-            { label: SHOP_ITEMS.SHIELD.name, value: SHOP_ITEMS.SHIELD.id, description: `${SHOP_ITEMS.SHIELD.price} Jenny` },
-            { label: SHOP_ITEMS.REVIVE.name, value: SHOP_ITEMS.REVIVE.id, description: `${SHOP_ITEMS.REVIVE.price} Jenny` }
-        ]);
+        const shopMenu = new StringSelectMenuBuilder()
+            .setCustomId('buy_item_select')
+            .setPlaceholder('اختر عنصراً لشرائه...')
+            .addOptions([
+                { label: SHOP_ITEMS.DOUBLE_ELIMINATE.name, value: SHOP_ITEMS.DOUBLE_ELIMINATE.id, description: `${SHOP_ITEMS.DOUBLE_ELIMINATE.price} Jenny` },
+                { label: SHOP_ITEMS.SHIELD.name, value: SHOP_ITEMS.SHIELD.id, description: `${SHOP_ITEMS.SHIELD.price} Jenny` },
+                { label: SHOP_ITEMS.REVIVE.name, value: SHOP_ITEMS.REVIVE.id, description: `${SHOP_ITEMS.REVIVE.price} Jenny` }
+            ]);
 
-    const row = new ActionRowBuilder().addComponents(shopMenu);
+        const row = new ActionRowBuilder().addComponents(shopMenu);
 
-    const shopReply = await i.reply({ embeds: [shopEmbed], components: [row], flags: MessageFlags.Ephemeral, withResponse: true });
+        const shopReply = await i.reply({ embeds: [shopEmbed], components: [row], flags: MessageFlags.Ephemeral, fetchReply: true });
 
-    const collector = shopReply.resource ? shopReply.resource.message.createMessageComponentCollector({
-        componentType: ComponentType.StringSelect,
-        time: 20_000
-    }) : shopReply.createMessageComponentCollector({
-        componentType: ComponentType.StringSelect,
-        time: 20_000
-    });
+        const collector = shopReply.createMessageComponentCollector({
+            componentType: ComponentType.StringSelect,
+            time: 20_000
+        });
 
-    collector.on('collect', async (selectInt) => {
-        const itemKey = selectInt.values[0];
+        collector.on('collect', async (selectInt) => {
+            if (selectInt.user.id !== i.user.id) return;
+            const itemKey = selectInt.values[0];
 
-        if (itemKey === SHOP_ITEMS.DOUBLE_ELIMINATE.id) {
-            if (player.hasDouble) {
-                return selectInt.reply({ content: '❌ لديك ميزة الطرد المزدوج بالفعل!', flags: MessageFlags.Ephemeral });
+            if (itemKey === SHOP_ITEMS.DOUBLE_ELIMINATE.id) {
+                if (player.hasDouble) {
+                    return selectInt.reply({ content: '❌ لديك ميزة الطرد المزدوج بالفعل!', flags: MessageFlags.Ephemeral });
+                }
+                if (!removeBalance(i.user.id, SHOP_ITEMS.DOUBLE_ELIMINATE.price)) {
+                    return selectInt.reply({ content: `❌ لا تملك رصيداً كافياً من ${CURRENCY_EMOJI}!`, flags: MessageFlags.Ephemeral });
+                }
+                player.hasDouble = true;
+                await selectInt.reply({ content: `✅ تم شراء **${SHOP_ITEMS.DOUBLE_ELIMINATE.name}** بنجاح!`, flags: MessageFlags.Ephemeral });
+
+            } else if (itemKey === SHOP_ITEMS.SHIELD.id) {
+                if (player.hasShield) {
+                    return selectInt.reply({ content: '❌ لديك درع حماية مفعل بالفعل!', flags: MessageFlags.Ephemeral });
+                }
+                if (!removeBalance(i.user.id, SHOP_ITEMS.SHIELD.price)) {
+                    return selectInt.reply({ content: `❌ لا تملك رصيداً كافياً من ${CURRENCY_EMOJI}!`, flags: MessageFlags.Ephemeral });
+                }
+                player.hasShield = true;
+                await selectInt.reply({ content: `✅ تم شراء **${SHOP_ITEMS.SHIELD.name}** بنجاح! يمكنك استخدامه لحمايتك من الطرد.`, flags: MessageFlags.Ephemeral });
+
+            } else if (itemKey === SHOP_ITEMS.REVIVE.id) {
+                if (player.hasRevive) {
+                    return selectInt.reply({ content: '❌ لديك جرعة إحياء بالفعل!', flags: MessageFlags.Ephemeral });
+                }
+                if (!removeBalance(i.user.id, SHOP_ITEMS.REVIVE.price)) {
+                    return selectInt.reply({ content: `❌ لا تملك رصيداً كافياً من ${CURRENCY_EMOJI}!`, flags: MessageFlags.Ephemeral });
+                }
+                player.hasRevive = true;
+                await selectInt.reply({ content: `✅ تم شراء **${SHOP_ITEMS.REVIVE.name}** بنجاح! يمكنك استخدامه لإعادة لاعب مفقود.`, flags: MessageFlags.Ephemeral });
             }
-            if (!removeBalance(i.user.id, SHOP_ITEMS.DOUBLE_ELIMINATE.price)) {
-                return selectInt.reply({ content: `❌ لا تملك رصيداً كافياً من ${CURRENCY_EMOJI}!`, flags: MessageFlags.Ephemeral });
-            }
-            player.hasDouble = true;
-            await selectInt.reply({ content: `✅ تم شراء **${SHOP_ITEMS.DOUBLE_ELIMINATE.name}** بنجاح!`, flags: MessageFlags.Ephemeral });
-
-        } else if (itemKey === SHOP_ITEMS.SHIELD.id) {
-            if (player.hasShield) {
-                return selectInt.reply({ content: '❌ لديك درع حماية مفعل بالفعل!', flags: MessageFlags.Ephemeral });
-            }
-            if (!removeBalance(i.user.id, SHOP_ITEMS.SHIELD.price)) {
-                return selectInt.reply({ content: `❌ لا تملك رصيداً كافياً من ${CURRENCY_EMOJI}!`, flags: MessageFlags.Ephemeral });
-            }
-            player.hasShield = true;
-            await selectInt.reply({ content: `✅ تم شراء **${SHOP_ITEMS.SHIELD.name}** بنجاح! يمكنك استخدامه لحمايتك من الطرد.`, flags: MessageFlags.Ephemeral });
-
-        } else if (itemKey === SHOP_ITEMS.REVIVE.id) {
-            if (player.hasRevive) {
-                return selectInt.reply({ content: '❌ لديك جرعة إحياء بالفعل!', flags: MessageFlags.Ephemeral });
-            }
-            if (!removeBalance(i.user.id, SHOP_ITEMS.REVIVE.price)) {
-                return selectInt.reply({ content: `❌ لا تملك رصيداً كافياً من ${CURRENCY_EMOJI}!`, flags: MessageFlags.Ephemeral });
-            }
-            player.hasRevive = true;
-            await selectInt.reply({ content: `✅ تم شراء **${SHOP_ITEMS.REVIVE.name}** بنجاح! يمكنك استخدامه لإعادة لاعب مفقود.`, flags: MessageFlags.Ephemeral });
-        }
-    });
+        });
+    } catch (e) {
+        console.error('❌ خطأ في متجر الروليت:', e);
+    }
 }
 
 async function executeRouletteGame(interaction) {
     const players = []; // { id, number, username, avatarUrl, hasShield, hasDouble, hasRevive }
-    const eliminatedPlayers = []; // لتتبع اللاعبين المطرودين للاستفادة من الإحياء
+    const eliminatedPlayers = [];
     const maxPlayers = 20;
     let countdown = 60;
 
@@ -280,9 +279,9 @@ async function executeRouletteGame(interaction) {
 
     let response;
     if (interaction.replied || interaction.deferred) {
-        response = await interaction.followUp({ embeds: [buildEmbed(countdown)], components: buildButtons(), withResponse: true });
+        response = await interaction.followUp({ embeds: [buildEmbed(countdown)], components: buildButtons(), fetchReply: true });
     } else {
-        response = await interaction.reply({ embeds: [buildEmbed(countdown)], components: buildButtons(), withResponse: true });
+        response = await interaction.reply({ embeds: [buildEmbed(countdown)], components: buildButtons(), fetchReply: true });
     }
 
     const interval = setInterval(async () => {
@@ -294,10 +293,7 @@ async function executeRouletteGame(interaction) {
         }
     }, 5000);
 
-    const collector = response.resource ? response.resource.message.createMessageComponentCollector({
-        componentType: ComponentType.Button,
-        time: 60_000
-    }) : response.createMessageComponentCollector({
+    const collector = response.createMessageComponentCollector({
         componentType: ComponentType.Button,
         time: 60_000
     });
@@ -310,7 +306,6 @@ async function executeRouletteGame(interaction) {
         if (i.customId === 'open_shop') {
             let player = players.find(p => p.id === userId);
             if (!player) {
-                // لاعب زائر في المتجر
                 player = { id: userId, username, avatarUrl, hasShield: false, hasDouble: false, hasRevive: false };
             }
             return await openShopModal(i, player);
@@ -384,6 +379,7 @@ async function executeRouletteGame(interaction) {
 
 async function runGameLoop(interaction, players, eliminatedPlayers) {
     let round = 1;
+    const channel = interaction.channel;
 
     while (players.length > 1) {
         const chosenIndex = Math.floor(Math.random() * players.length);
@@ -392,27 +388,10 @@ async function runGameLoop(interaction, players, eliminatedPlayers) {
         const sliceAngle = (2 * Math.PI) / players.length;
         const targetAngle = -(chosenIndex * sliceAngle + sliceAngle / 2);
 
-        let wheelMsg;
         const buffer = await drawWheel(players, targetAngle, chosenPlayer.avatarUrl);
         const attachment = new AttachmentBuilder(buffer, { name: 'wheel.png' });
 
-        if (players.length === 2) {
-            const winnerEmbed = new EmbedBuilder()
-                .setTitle('🏆 الفائز في اللعبة!')
-                .setDescription(`توقفت العجلة عند صاحب الرقم **${chosenPlayer.number}**!\n\n🎉 **الفائز باللعبة هو:** <@${chosenPlayer.id}>`)
-                .setImage('attachment://wheel.png')
-                .setColor('#57F287');
-
-            // مكافأة الفائز 100 Jenny
-            addBalance(chosenPlayer.id, 100);
-
-            if (wheelMsg) {
-                await wheelMsg.edit({ embeds: [winnerEmbed], files: [attachment], components: [] });
-            } else {
-                await interaction.followUp({ embeds: [winnerEmbed], files: [attachment] });
-            }
-            return;
-        }
+        if (players.length === 1) break; // للتحقق الأمني
 
         const targets = players.filter(p => p.id !== chosenPlayer.id);
 
@@ -430,6 +409,8 @@ async function runGameLoop(interaction, players, eliminatedPlayers) {
 
         if (chosenPlayer.hasDouble && targets.length >= 2) {
             selectMenu.setMinValues(2).setMaxValues(2);
+        } else {
+            selectMenu.setMinValues(1).setMaxValues(1);
         }
 
         const menuRow = new ActionRowBuilder().addComponents(selectMenu);
@@ -456,7 +437,7 @@ async function runGameLoop(interaction, players, eliminatedPlayers) {
             .setImage('attachment://wheel.png')
             .setColor('#D4AF37');
 
-        wheelMsg = await interaction.followUp({
+        const wheelMsg = await channel.send({
             embeds: [roundEmbed],
             files: [attachment],
             components: components
@@ -475,7 +456,6 @@ async function runGameLoop(interaction, players, eliminatedPlayers) {
             });
 
             if (selectInteraction.customId === 'use_revive') {
-                // خيار الإحياء
                 chosenPlayer.hasRevive = false;
                 const revivedPlayer = eliminatedPlayers.pop();
                 players.push(revivedPlayer);
@@ -493,22 +473,24 @@ async function runGameLoop(interaction, players, eliminatedPlayers) {
             const selectedIds = selectInteraction.values;
             let statusText = '';
 
+            // حماية ومعالجة الطرد بشكل آمن لمنع تعارض الأرقام أو حذوفات خاطئة
             for (const eliminatedId of selectedIds) {
-                const targetIndex = players.findIndex(p => p.id === eliminatedId);
-                const targetPlayer = players[targetIndex];
+                const targetPlayer = players.find(p => p.id === eliminatedId);
+                if (!targetPlayer) continue;
 
-                // التحقق من وجود درع حماية
                 if (targetPlayer.hasShield) {
-                    targetPlayer.hasShield = false; // استهلاك الدرع
+                    targetPlayer.hasShield = false; 
                     statusText += `🛡️ **الرقم ${targetPlayer.number}** (<@${targetPlayer.id}>) استخدم **درع الحماية** وتم إلغاء طرده!\n`;
                 } else {
                     eliminatedPlayers.push(targetPlayer);
-                    players.splice(targetIndex, 1);
+                    // حذف اللاعب عن طريق الفلترة لعدم تخريب المصفوفتين
+                    const pIndex = players.findIndex(p => p.id === eliminatedId);
+                    if (pIndex !== -1) players.splice(pIndex, 1);
                     statusText += `💥 تم طرد الرقم **${targetPlayer.number}** (<@${targetPlayer.id}>)!\n`;
                 }
             }
 
-            if (chosenPlayer.hasDouble) chosenPlayer.hasDouble = false; // استهلاك الميزة
+            if (chosenPlayer.hasDouble) chosenPlayer.hasDouble = false; 
 
             const eliminatedEmbed = new EmbedBuilder()
                 .setTitle(`💥 نتائج الجولة ${round}`)
@@ -520,10 +502,24 @@ async function runGameLoop(interaction, players, eliminatedPlayers) {
                 components: []
             });
 
+            // التحقق من الفائز النهائى بعد الطرد
+            if (players.length === 1) {
+                const winner = players[0];
+                addBalance(winner.id, 100);
+
+                const winnerEmbed = new EmbedBuilder()
+                    .setTitle('🏆 الفائز في اللعبة!')
+                    .setDescription(`🎉 **الفائز النهائي بالروليت هو:** <@${winner.id}> (الرقم **${winner.number}**)!\n حصل على **100** ${CURRENCY_EMOJI} كمكافأة!`)
+                    .setColor('#57F287');
+
+                await channel.send({ embeds: [winnerEmbed] });
+                break;
+            }
+
             round++;
 
         } catch {
-            await interaction.followUp({
+            await channel.send({
                 content: `⏰ انتهى الوقت ولم يقم الرقم **${chosenPlayer.number}** باختيار أحد، تم تخطي دور هذه الجولة!`
             });
             round++;
