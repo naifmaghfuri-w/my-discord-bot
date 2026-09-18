@@ -1,6 +1,6 @@
 let colorsCmd, clearCmd, moderationCmds, labCommand, serversCmd, getInviteCmd;
 let profileCommand, shopCommand, handleProfileEvents;
-let handleGamesCommand, afkSystem, handlePrivateChatInteraction;
+let gamesCmd, handleGamesCommand, afkSystem, handlePrivateChatInteraction;
 
 // استدعاء الموديولات بحماية لتجنب توقف البوت عند فقدان أحد الملفات
 try { colorsCmd = require('../commands/colors'); } catch (e) { console.error('⚠️ تعذر تحميل الألوان:', e.message); }
@@ -11,14 +11,18 @@ try { serversCmd = require('../commands/servers'); } catch (e) { console.error('
 try { getInviteCmd = require('../commands/get-invite'); } catch (e) { console.error('⚠️ تعذر تحميل أمر الدعوة:', e.message); }
 
 try { ({ profileCommand, shopCommand, handleProfileEvents } = require('../commands/profileSystem')); } catch (e) { console.error('⚠️ تعذر تحميل البروفايل والمتجر:', e.message); }
-try { ({ handleGamesCommand } = require('../commands/games')); } catch (e) { console.error('⚠️ تعذر تحميل الألعاب:', e.message); }
+try { 
+    gamesCmd = require('../commands/games'); 
+    handleGamesCommand = gamesCmd.handleGamesCommand || gamesCmd.execute || gamesCmd;
+} catch (e) { console.error('⚠️ تعذر تحميل الألعاب:', e.message); }
+
 try { afkSystem = require('../commands/afkSystem'); } catch (e) { console.error('⚠️ تعذر تحميل نظام AFK:', e.message); }
 try { ({ handlePrivateChatInteraction } = require('../commands/privateChat')); } catch (e) { console.error('⚠️ تعذر تحميل الدردشات الخاصة:', e.message); }
 
 module.exports = async (client, interaction) => {
     try {
         // ==========================================
-        // 🔘 معالجة تفاعلات الـ AFK
+        // 🔘 1. معالجة تفاعلات الـ AFK
         // ==========================================
         if ((interaction.isButton() || interaction.isModalSubmit()) && afkSystem?.handleInteraction) {
             if (interaction.customId && interaction.customId.startsWith('afk_')) {
@@ -27,7 +31,7 @@ module.exports = async (client, interaction) => {
         }
 
         // ==========================================
-        // 🔘 معالجة تفاعلات الدردشات الخاصة
+        // 🔘 2. معالجة تفاعلات الدردشات الخاصة
         // ==========================================
         if (
             typeof handlePrivateChatInteraction === 'function' &&
@@ -50,23 +54,35 @@ module.exports = async (client, interaction) => {
         }
 
         // ==========================================
-        // 🔘 معالجة القوائم المنسدلة والأزرار الأخرى
+        // 🔘 3. معالجة تفاعلات الألعاب (القوائم والأزرار)
         // ==========================================
         if (interaction.isStringSelectMenu() || interaction.isButton()) {
+            const id = interaction.customId || '';
+
+            // إذا كان التفاعل تابعاً لنظام الألعاب
+            if (id.startsWith('game_') || id.startsWith('games_') || id === 'select_game' || gamesCmd?.handleInteraction) {
+                if (typeof gamesCmd?.handleInteraction === 'function') {
+                    return await gamesCmd.handleInteraction(interaction);
+                } else if (typeof handleGamesCommand === 'function') {
+                    return await handleGamesCommand(interaction);
+                }
+            }
+
+            // معالجة القوائم المنسدلة للبروفايل والألوان
             if (interaction.isStringSelectMenu()) {
                 if (typeof handleProfileEvents === 'function') {
                     const handled = await handleProfileEvents(interaction);
                     if (handled) return;
                 }
 
-                if (interaction.customId === 'select_name_color' && colorsCmd?.handleColorSelect) {
+                if (id === 'select_name_color' && colorsCmd?.handleColorSelect) {
                     return await colorsCmd.handleColorSelect(interaction);
                 }
             }
         }
 
         // ==========================================
-        // 💬 معالجة أوامر السلاش (Slash Commands)
+        // 💬 4. معالجة أوامر السلاش (Slash Commands)
         // ==========================================
         if (!interaction.isChatInputCommand()) return;
 
@@ -79,7 +95,15 @@ module.exports = async (client, interaction) => {
         if (commandName === 'profile' && profileCommand?.execute) return await profileCommand.execute(interaction);
         if (commandName === 'shop' && shopCommand?.execute) return await shopCommand.execute(interaction);
         if (commandName === 'lab' && labCommand?.execute) return await labCommand.execute(interaction);
-        if (commandName === 'games' && typeof handleGamesCommand === 'function') return await handleGamesCommand(interaction);
+
+        // أمر الألعاب السلاش
+        if (commandName === 'games') {
+            if (gamesCmd?.execute) {
+                return await gamesCmd.execute(interaction);
+            } else if (typeof handleGamesCommand === 'function') {
+                return await handleGamesCommand(interaction);
+            }
+        }
 
         if (Array.isArray(moderationCmds)) {
             const modCommand = moderationCmds.find(c => c.data?.name === commandName);
@@ -99,4 +123,3 @@ module.exports = async (client, interaction) => {
         }
     }
 };
-
