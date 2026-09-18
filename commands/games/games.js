@@ -4,8 +4,7 @@ const {
     ActionRowBuilder, 
     StringSelectMenuBuilder, 
     StringSelectMenuOptionBuilder, 
-    ComponentType,
-    MessageFlags
+    ComponentType
 } = require('discord.js');
 
 // استدعاء ملفات الألعاب من نفس المجلد (commands/games/)
@@ -13,11 +12,9 @@ const { startOutOfLoopGame } = require('./outOfLoop');
 const { startDetectiveGame } = require('./detective');
 const { executeRouletteGame } = require('./roulette');
 
-const gamesCommands = [
-    new SlashCommandBuilder()
-        .setName('games')
-        .setDescription('عرض قائمة الألعاب المتاحة واختيار لعبة لبدئها')
-];
+const gamesCommand = new SlashCommandBuilder()
+    .setName('games')
+    .setDescription('عرض قائمة الألعاب المتاحة واختيار لعبة لبدئها');
 
 async function handleGamesCommand(context) {
     const author = context.user || context.author;
@@ -33,7 +30,7 @@ async function handleGamesCommand(context) {
                 .setEmoji('🕵️‍♂️'),
             new StringSelectMenuOptionBuilder()
                 .setLabel('المحققين')
-                .setDescription('لعبة التحقيق واستواب المشاركين لكشف الجاني')
+                .setDescription('لعبة التحقيق واستجواب المشاركين لكشف الجاني')
                 .setValue('detective_game')
                 .setEmoji('🔍'),
             new StringSelectMenuOptionBuilder()
@@ -52,7 +49,7 @@ async function handleGamesCommand(context) {
 
     const gamesEmbed = new EmbedBuilder()
         .setColor('#9b59b6')
-        .setTitle(' قائمة الألعاب المتاحة')
+        .setTitle('🎮 قائمة الألعاب المتاحة')
         .setDescription('اختر اللعبة التي تريد تشغيلها من القائمة بالأسفل:');
 
     let response;
@@ -68,7 +65,7 @@ async function handleGamesCommand(context) {
         if (selectInteraction.user.id !== author.id) {
             return selectInteraction.reply({ 
                 content: 'صاحب الأمر فقط هو من يمكنه اختيار اللعبة!', 
-                flags: MessageFlags.Ephemeral 
+                ephemeral: true 
             });
         }
 
@@ -92,10 +89,15 @@ async function handleGamesCommand(context) {
 
             await selectInteraction.reply({ 
                 embeds: [hxhEmbed], 
-                flags: MessageFlags.Ephemeral 
+                ephemeral: true 
             });
         }
     });
 }
 
-module.exports = { gamesCommands, handleGamesCommand };
+// تصدير متوافق مع index.js و interactionCreate
+module.exports = { 
+    gamesCommands: [gamesCommand], 
+    handleGamesCommand,
+    execute: handleGamesCommand
+};
