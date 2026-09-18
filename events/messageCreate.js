@@ -101,7 +101,7 @@ module.exports = async (client, message) => {
     // ==========================================
     const isMentioned = message.mentions.has(client.user);
     const isDots = content === '..' || content === '...';
-    const isCalledByName = content.includes('مارش') || content.includes('marsh');
+    const isCalledByName = content.includes('بيتو') || content.includes('marsh');
 
     if (isMentioned || isDots || isCalledByName) {
         try {
