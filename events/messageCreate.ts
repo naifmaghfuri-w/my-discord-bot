@@ -1,13 +1,13 @@
-import { Client, Message, PermissionsBitField } from 'discord.js';
+import { Client, Message, PermissionsBitField, TextChannel } from 'discord.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // تعريف الأنواع المخصصة لتجنب أخطاء TypeScript
-interface ExecutableCommand {
+export interface ExecutableCommand {
     execute?: (message: Message | any, ...args: any[]) => Promise<any>;
     handleLabSession?: (interaction: any, user: any) => Promise<any>;
 }
 
-interface AfkSystem {
+export interface AfkSystem {
     handleMessage?: (client: Client, message: Message) => Promise<any>;
 }
 
@@ -26,7 +26,7 @@ try { getPrivateChatPanel = require('../commands/privateChat')?.getPrivateChatPa
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-// إعداد نموذج Gemini
+// إعداد نموذج Gemini 3.5 Flash-Lite
 const model = genAI.getGenerativeModel({
     model: 'gemini-3.5-flash-lite',
     systemInstruction: `أنتِ فتاة اسمك "بيتو" كإنسانة طبيعية تتكلمين عربي بكلام واضح وخليك ذكية وتتطورين واحفظي الأشياء التي يحكولك احفظيها زي أسمائهم وكلامك مختصر.
@@ -54,7 +54,7 @@ export default async function handleMessageCreate(client: Client, message: Messa
         return;
     }
 
-    // 2. أمر المختبر
+    // 2. أمر المختبر (تحاكي Interaction عبر رسائل الشات)
     if (['lab', 'the lab', 'مختبر', 'المختبر'].includes(content)) {
         if (labCommand) {
             let replyMessage: Message | null = null;
@@ -67,13 +67,18 @@ export default async function handleMessageCreate(client: Client, message: Messa
                 client: message.client,
                 replied: false,
                 deferred: false,
+                isCommand: () => false,
+                isButton: () => false,
+                isStringSelectMenu: () => false,
                 reply: async (options: any) => {
                     fakeInteraction.replied = true;
                     replyMessage = await message.reply(options);
                     return replyMessage;
                 },
                 followUp: async (options: any) => {
-                    return await message.channel.send(options);
+                    if (message.channel instanceof TextChannel || 'send' in message.channel) {
+                        return await message.channel.send(options);
+                    }
                 },
                 editReply: async (options: any) => {
                     if (replyMessage) return await replyMessage.edit(options);
@@ -81,7 +86,9 @@ export default async function handleMessageCreate(client: Client, message: Messa
                 },
                 deferReply: async () => {
                     fakeInteraction.deferred = true;
-                    await message.channel.sendTyping().catch(() => {});
+                    if ('sendTyping' in message.channel) {
+                        await message.channel.sendTyping().catch(() => {});
+                    }
                 }
             };
 
@@ -114,7 +121,9 @@ export default async function handleMessageCreate(client: Client, message: Messa
 
     if (isMentioned || isDots || isCalledByName) {
         try {
-            await message.channel.sendTyping().catch(() => {});
+            if ('sendTyping' in message.channel) {
+                await message.channel.sendTyping().catch(() => {});
+            }
 
             const cleanedContent = message.content.replace(new RegExp(`<@!?${client.user.id}>`, 'g'), '').trim();
             const userDisplayName = message.member?.displayName || message.author.username;
