@@ -1,11 +1,11 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const labCommand = require('../commands/lab'); // التأكد من المسار الجديد لمجلد/ملف المختبر
+const labCommand = require('../commands/lab'); 
 const { profileCommand } = require('../profileSystem');
 const { handleGamesCommand } = require('../games');
 const afkSystem = require('../afkSystem');
 const { getPrivateChatPanel } = require('../privateChat');
 
-// 🧠 تهيئة نموذج Gemini 3.5 Flash-Lite
+// 🧠 تهيئة نموذج Gemini (تم الإبقاء على الاسم المخصص كما طلبك)
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 const model = genAI.getGenerativeModel({ 
     model: 'gemini-3.5-flash-lite',
@@ -17,8 +17,7 @@ const model = genAI.getGenerativeModel({
 2. **تحليل الجنس**:
    - إذا كان الاسم يدل على أنثى: خاطبيها بصيغة المؤنث 
    - إذا كان الاسم يدل على مذكر: خاطبه بصيغة المذكر 
-3. **الإيموجيات المستخدمة**: استخدمي الإيموجيات التالية بشكل أساسي:
-   `
+3. **الإيموجيات المستخدمة**: استخدمي الإيموجيات التالية بشكل أساسي:`
 });
 
 module.exports = async (client, message) => {
@@ -42,7 +41,6 @@ module.exports = async (client, message) => {
     // 🖼️ 🧪 تشغيل أمر المختبر (توليد/إرسال واجهة صورة)
     if (content === 'lab' || content === 'the lab' || content === 'مختبر' || content === 'المختبر') {
         if (labCommand && labCommand.execute) {
-            // محاكاة Interaction يدعم إرسال الصور والمرفقات (Files)
             const fakeInteraction = {
                 guild: message.guild,
                 channel: message.channel,
@@ -53,7 +51,6 @@ module.exports = async (client, message) => {
                 deferred: false,
                 reply: async (options) => {
                     if (typeof options === 'string') return await message.reply(options);
-                    // هنا يتم دعم خيار files لتوليد الصورة وإرسالها مباشرة
                     return await message.reply({
                         content: options.content || null,
                         files: options.files || [],
@@ -97,11 +94,12 @@ module.exports = async (client, message) => {
     await afkSystem.handleMessage(client, message);
 
     // ==========================================
-    // 3. معالجة رد الذكاء الاصطناعي (Gemini 3.5 Flash-Lite)
+    // 3. معالجة رد الذكاء الاصطناعي
     // ==========================================
     const isMentioned = message.mentions.has(client.user);
     const isDots = content === '..' || content === '...';
-    const isCalledByName = content.includes('بيتو') || content.includes('marsh');
+    // تعديل السطر لتفادي الانكسار النصي
+    const isCalledByName = content.includes('بيتو') || content.includes('pitou');
 
     if (isMentioned || isDots || isCalledByName) {
         try {
