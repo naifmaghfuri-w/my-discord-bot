@@ -1,22 +1,26 @@
-const colorsCmd = require('../commands/colors');
-const clearCmd = require('../commands/clear');
-const moderationCmds = require('../commands/moderation');
-const labCommand = require('../commands/lab');
-const serversCmd = require('../commands/servers');
-const getInviteCmd = require('../commands/get-invite');
+let colorsCmd, clearCmd, moderationCmds, labCommand, serversCmd, getInviteCmd;
+let profileCommand, shopCommand, handleProfileEvents;
+let handleGamesCommand, afkSystem, handlePrivateChatInteraction;
 
-// تعديل المسارات لتأشير على مجلد commands مباشرة
-const { profileCommand, shopCommand, handleProfileEvents } = require('../commands/profileSystem');
-const { handleGamesCommand } = require('../commands/games');
-const afkSystem = require('../commands/afkSystem');
-const { handlePrivateChatInteraction } = require('../commands/privateChat');
+// استدعاء الموديولات بحماية لتجنب توقف البوت عند فقدان أحد الملفات
+try { colorsCmd = require('../commands/colors'); } catch (e) { console.error('⚠️ تعذر تحميل الألوان:', e.message); }
+try { clearCmd = require('../commands/clear'); } catch (e) { console.error('⚠️ تعذر تحميل أداة المسح:', e.message); }
+try { moderationCmds = require('../commands/moderation'); } catch (e) { console.error('⚠️ تعذر تحميل الإدارة:', e.message); }
+try { labCommand = require('../commands/lab'); } catch (e) { console.error('⚠️ تعذر تحميل المختبر:', e.message); }
+try { serversCmd = require('../commands/servers'); } catch (e) { console.error('⚠️ تعذر تحميل السيرفرات:', e.message); }
+try { getInviteCmd = require('../commands/get-invite'); } catch (e) { console.error('⚠️ تعذر تحميل أمر الدعوة:', e.message); }
+
+try { ({ profileCommand, shopCommand, handleProfileEvents } = require('../commands/profileSystem')); } catch (e) { console.error('⚠️ تعذر تحميل البروفايل والمتجر:', e.message); }
+try { ({ handleGamesCommand } = require('../commands/games')); } catch (e) { console.error('⚠️ تعذر تحميل الألعاب:', e.message); }
+try { afkSystem = require('../commands/afkSystem'); } catch (e) { console.error('⚠️ تعذر تحميل نظام AFK:', e.message); }
+try { ({ handlePrivateChatInteraction } = require('../commands/privateChat')); } catch (e) { console.error('⚠️ تعذر تحميل الدردشات الخاصة:', e.message); }
 
 module.exports = async (client, interaction) => {
     try {
         // ==========================================
         // 🔘 معالجة تفاعلات الـ AFK
         // ==========================================
-        if (interaction.isButton() || interaction.isModalSubmit()) {
+        if ((interaction.isButton() || interaction.isModalSubmit()) && afkSystem?.handleInteraction) {
             if (interaction.customId && interaction.customId.startsWith('afk_')) {
                 return await afkSystem.handleInteraction(interaction);
             }
@@ -26,10 +30,11 @@ module.exports = async (client, interaction) => {
         // 🔘 معالجة تفاعلات الدردشات الخاصة
         // ==========================================
         if (
-            interaction.isButton() || 
-            interaction.isStringSelectMenu() || 
-            interaction.isUserSelectMenu() || 
-            interaction.isModalSubmit()
+            typeof handlePrivateChatInteraction === 'function' &&
+            (interaction.isButton() || 
+             interaction.isStringSelectMenu() || 
+             interaction.isUserSelectMenu() || 
+             interaction.isModalSubmit())
         ) {
             const id = interaction.customId;
             if (
@@ -49,11 +54,13 @@ module.exports = async (client, interaction) => {
         // ==========================================
         if (interaction.isStringSelectMenu() || interaction.isButton()) {
             if (interaction.isStringSelectMenu()) {
-                const handled = await handleProfileEvents(interaction);
-                if (handled) return;
+                if (typeof handleProfileEvents === 'function') {
+                    const handled = await handleProfileEvents(interaction);
+                    if (handled) return;
+                }
 
-                if (interaction.customId === 'select_name_color') {
-                    return colorsCmd.handleColorSelect(interaction);
+                if (interaction.customId === 'select_name_color' && colorsCmd?.handleColorSelect) {
+                    return await colorsCmd.handleColorSelect(interaction);
                 }
             }
         }
@@ -65,23 +72,23 @@ module.exports = async (client, interaction) => {
 
         const { commandName } = interaction;
 
-        if (commandName === 'servers') return await serversCmd.execute(interaction);
-        if (commandName === 'get-invite') return await getInviteCmd.execute(interaction);
-        if (commandName === 'colors') return await colorsCmd.execute(interaction);
-        if (commandName === 'clear') return await clearCmd.execute(interaction);
-        if (commandName === 'profile') return await profileCommand.execute(interaction);
-        if (commandName === 'shop') return await shopCommand.execute(interaction);
-        if (commandName === 'lab') return await labCommand.execute(interaction);
-        if (commandName === 'games') return await handleGamesCommand(interaction);
+        if (commandName === 'servers' && serversCmd?.execute) return await serversCmd.execute(interaction);
+        if (commandName === 'get-invite' && getInviteCmd?.execute) return await getInviteCmd.execute(interaction);
+        if (commandName === 'colors' && colorsCmd?.execute) return await colorsCmd.execute(interaction);
+        if (commandName === 'clear' && clearCmd?.execute) return await clearCmd.execute(interaction);
+        if (commandName === 'profile' && profileCommand?.execute) return await profileCommand.execute(interaction);
+        if (commandName === 'shop' && shopCommand?.execute) return await shopCommand.execute(interaction);
+        if (commandName === 'lab' && labCommand?.execute) return await labCommand.execute(interaction);
+        if (commandName === 'games' && typeof handleGamesCommand === 'function') return await handleGamesCommand(interaction);
 
         if (Array.isArray(moderationCmds)) {
             const modCommand = moderationCmds.find(c => c.data?.name === commandName);
-            if (modCommand) return await modCommand.execute(interaction);
+            if (modCommand?.execute) return await modCommand.execute(interaction);
         }
     } catch (error) {
         console.error(`❌ خطأ أثناء تنفيذ الإنتراكشن:`, error);
         
-        const errorMessage = { content: '❌ حدث خطأ غير متوقع أثناء تنفيذ هذا الطلب!', ephemeral: true };
+        const errorMessage = { content: '❌ حدث خطأ غير متوقع أثناء تنفيذ هذا الطلب!', flags: 64 };
         
         if (interaction.isRepliable()) {
             if (interaction.replied || interaction.deferred) {
@@ -92,3 +99,4 @@ module.exports = async (client, interaction) => {
         }
     }
 };
+
