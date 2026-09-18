@@ -1,3 +1,5 @@
+const { MessageFlags } = require('discord.js');
+
 let colorsCmd, clearCmd, moderationCmds, labCommand, serversCmd, getInviteCmd;
 let profileCommand, shopCommand, handleProfileEvents;
 let gamesCmd, handleGamesCommand, afkSystem, handlePrivateChatInteraction;
@@ -25,7 +27,7 @@ module.exports = async (client, interaction) => {
         // 🔘 1. معالجة تفاعلات الـ AFK
         // ==========================================
         if ((interaction.isButton() || interaction.isModalSubmit()) && afkSystem?.handleInteraction) {
-            if (interaction.customId && interaction.customId.startsWith('afk_')) {
+            if (interaction.customId?.startsWith('afk_')) {
                 return await afkSystem.handleInteraction(interaction);
             }
         }
@@ -40,26 +42,32 @@ module.exports = async (client, interaction) => {
              interaction.isUserSelectMenu() || 
              interaction.isModalSubmit())
         ) {
-            const id = interaction.customId;
+            const id = interaction.customId || '';
             if (
-                id && (
-                    id.startsWith('pc_') || 
-                    id.startsWith('room_') || 
-                    id.startsWith('invite_') || 
-                    id.startsWith('knock_')
-                )
+                id.startsWith('pc_') || 
+                id.startsWith('room_') || 
+                id.startsWith('invite_') || 
+                id.startsWith('knock_')
             ) {
                 return await handlePrivateChatInteraction(interaction);
             }
         }
 
         // ==========================================
-        // 🔘 3. معالجة تفاعلات الألعاب (القوائم والأزرار)
+        // 🔘 3. معالجة أحداث البروفايل والمتجر (أزرار وقوائم)
+        // ==========================================
+        if (typeof handleProfileEvents === 'function') {
+            const handled = await handleProfileEvents(interaction);
+            if (handled) return;
+        }
+
+        // ==========================================
+        // 🔘 4. معالجة تفاعلات الألوان والألعاب
         // ==========================================
         if (interaction.isStringSelectMenu() || interaction.isButton()) {
             const id = interaction.customId || '';
 
-            // إذا كان التفاعل تابعاً لنظام الألعاب
+            // نظام الألعاب
             if (id.startsWith('game_') || id.startsWith('games_') || id === 'select_game' || gamesCmd?.handleInteraction) {
                 if (typeof gamesCmd?.handleInteraction === 'function') {
                     return await gamesCmd.handleInteraction(interaction);
@@ -68,21 +76,14 @@ module.exports = async (client, interaction) => {
                 }
             }
 
-            // معالجة القوائم المنسدلة للبروفايل والألوان
-            if (interaction.isStringSelectMenu()) {
-                if (typeof handleProfileEvents === 'function') {
-                    const handled = await handleProfileEvents(interaction);
-                    if (handled) return;
-                }
-
-                if (id === 'select_name_color' && colorsCmd?.handleColorSelect) {
-                    return await colorsCmd.handleColorSelect(interaction);
-                }
+            // نظام قائمة الألوان
+            if (interaction.isStringSelectMenu() && id === 'select_name_color' && colorsCmd?.handleColorSelect) {
+                return await colorsCmd.handleColorSelect(interaction);
             }
         }
 
         // ==========================================
-        // 💬 4. معالجة أوامر السلاش (Slash Commands)
+        // 💬 5. معالجة أوامر السلاش (Slash Commands)
         // ==========================================
         if (!interaction.isChatInputCommand()) return;
 
@@ -105,14 +106,19 @@ module.exports = async (client, interaction) => {
             }
         }
 
+        // أوامر الإدارة (Array)
         if (Array.isArray(moderationCmds)) {
             const modCommand = moderationCmds.find(c => c.data?.name === commandName);
             if (modCommand?.execute) return await modCommand.execute(interaction);
         }
+
     } catch (error) {
         console.error(`❌ خطأ أثناء تنفيذ الإنتراكشن:`, error);
         
-        const errorMessage = { content: '❌ حدث خطأ غير متوقع أثناء تنفيذ هذا الطلب!', flags: 64 };
+        const errorMessage = { 
+            content: '❌ حدث خطأ غير متوقع أثناء تنفيذ هذا الطلب!', 
+            flags: MessageFlags.Ephemeral 
+        };
         
         if (interaction.isRepliable()) {
             if (interaction.replied || interaction.deferred) {
