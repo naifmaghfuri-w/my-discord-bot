@@ -1,6 +1,7 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 
-const OWNER_ID = '1391517806193017023'; // ضع الآيدي الخاص بك هنا
+// ⚠️ الآيدي الخاص بحساب صاحب البوت
+const OWNER_ID = '1391517806193017023';
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -12,24 +13,46 @@ module.exports = {
                 .setRequired(true)),
 
     async execute(interaction) {
-        if (interaction.user.id !== OWNER_ID) {
-            return interaction.reply({ content: '❌ هذا الأمر مخصص لصاحب البوت فقط!', ephemeral: true });
-        }
-
-        const guildId = interaction.options.getString('guild_id');
-        const guild = interaction.client.guilds.cache.get(guildId);
-
-        if (!guild) {
-            return interaction.reply({ content: '❌ لم يتم العثور على سيرفر بهذا ID.', ephemeral: true });
-        }
-
         try {
+            // التحقق من أن المستخدم هو صاحب البوت
+            if (interaction.user.id !== OWNER_ID) {
+                return interaction.reply({ 
+                    content: '❌ هذا الأمر مخصص لصاحب البوت فقط!', 
+                    flags: MessageFlags.Ephemeral 
+                });
+            }
+
+            const guildId = interaction.options.getString('guild_id').trim();
+            
+            // البحث عن السيرفر في الكاش أو محاولة جلب البيانات
+            let guild = interaction.client.guilds.cache.get(guildId);
+            if (!guild) {
+                guild = await interaction.client.guilds.fetch(guildId).catch(() => null);
+            }
+
+            if (!guild) {
+                return interaction.reply({ 
+                    content: '❌ لم يتم العثور على سيرفر بهذا الـ ID أو أن البوت غير متواجد فيه.', 
+                    flags: MessageFlags.Ephemeral 
+                });
+            }
+
             const guildName = guild.name;
             await guild.leave();
-            await interaction.reply({ content: `✅ تم الخروج بنجاح من سيرفر: **${guildName}** (\`${guildId}\`)`, ephemeral: true });
+
+            return interaction.reply({ 
+                content: `✅ تم الخروج بنجاح من سيرفر: **${guildName}** (\`${guildId}\`)`, 
+                flags: MessageFlags.Ephemeral 
+            });
+
         } catch (error) {
-            console.error(error);
-            await interaction.reply({ content: '❌ حدث خطأ أثناء محاولة الخروج من السيرفر.', ephemeral: true });
+            console.error('❌ خطأ في أمر leave-server:', error);
+            if (!interaction.replied) {
+                await interaction.reply({ 
+                    content: '❌ حدث خطأ أثناء محاولة الخروج من السيرفر.', 
+                    flags: MessageFlags.Ephemeral 
+                });
+            }
         }
     },
 };
