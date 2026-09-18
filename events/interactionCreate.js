@@ -10,70 +10,77 @@ const afkSystem = require('../afkSystem');
 const { handlePrivateChatInteraction } = require('../privateChat');
 
 module.exports = async (client, interaction) => {
-    // ==========================================
-    // 🔘 معالجة تفاعلات الـ AFK
-    // ==========================================
-    if (interaction.isButton() || interaction.isModalSubmit()) {
-        if (interaction.customId && interaction.customId.startsWith('afk_')) {
-            return await afkSystem.handleInteraction(interaction);
-        }
-    }
-
-    // ==========================================
-    // 🔘 معالجة تفاعلات المختبر (Lab System)
-    // ==========================================
-    if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) {
-        if (interaction.customId && interaction.customId.startsWith('lab_')) {
-            if (labCommand && typeof labCommand.handleInteraction === 'function') {
-                return await labCommand.handleInteraction(interaction);
-            }
-        }
-    }
-
-    // ==========================================
-    // 🔘 معالجة تفاعلات الدردشات الخاصة
-    // ==========================================
-    if (
-        interaction.isButton() || 
-        interaction.isStringSelectMenu() || 
-        interaction.isUserSelectMenu() || 
-        interaction.isModalSubmit()
-    ) {
-        const id = interaction.customId;
-        if (
-            id && (
-                id.startsWith('pc_') || 
-                id.startsWith('room_') || 
-                id.startsWith('invite_') || 
-                id.startsWith('knock_')
-            )
-        ) {
-            return await handlePrivateChatInteraction(interaction);
-        }
-    }
-
-    // ==========================================
-    // 🔘 معالجة القوائم المنسدلة والأزرار الأخرى
-    // ==========================================
-    if (interaction.isStringSelectMenu() || interaction.isButton()) {
-        if (interaction.isStringSelectMenu()) {
-            const handled = await handleProfileEvents(interaction);
-            if (handled) return;
-
-            if (interaction.customId === 'select_name_color') {
-                return colorsCmd.handleColorSelect(interaction);
-            }
-        }
-    }
-
-    // ==========================================
-    // 💬 معالجة أوامر السلاش (Slash Commands)
-    // ==========================================
-    if (!interaction.isChatInputCommand()) return;
-
-    const { commandName } = interaction;
-
     try {
+        // ==========================================
+        // 🔘 معالجة تفاعلات الـ AFK
+        // ==========================================
+        if (interaction.isButton() || interaction.isModalSubmit()) {
+            if (interaction.customId && interaction.customId.startsWith('afk_')) {
+                return await afkSystem.handleInteraction(interaction);
+            }
+        }
+
+        // ==========================================
+        // 🔘 معالجة تفاعلات المختبر (Lab System)
+        // ==========================================
+        if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) {
+            const id = interaction.customId;
+            if (
+                id && (
+                    id.startsWith('lab_') || 
+                    id.startsWith('btn_') || 
+                    id.startsWith('modal_')
+                )
+            ) {
+                if (labCommand && typeof labCommand.handleInteraction === 'function') {
+                    return await labCommand.handleInteraction(interaction);
+                }
+            }
+        }
+
+        // ==========================================
+        // 🔘 معالجة تفاعلات الدردشات الخاصة
+        // ==========================================
+        if (
+            interaction.isButton() || 
+            interaction.isStringSelectMenu() || 
+            interaction.isUserSelectMenu() || 
+            interaction.isModalSubmit()
+        ) {
+            const id = interaction.customId;
+            if (
+                id && (
+                    id.startsWith('pc_') || 
+                    id.startsWith('room_') || 
+                    id.startsWith('invite_') || 
+                    id.startsWith('knock_')
+                )
+            ) {
+                return await handlePrivateChatInteraction(interaction);
+            }
+        }
+
+        // ==========================================
+        // 🔘 معالجة القوائم المنسدلة والأزرار الأخرى
+        // ==========================================
+        if (interaction.isStringSelectMenu() || interaction.isButton()) {
+            if (interaction.isStringSelectMenu()) {
+                const handled = await handleProfileEvents(interaction);
+                if (handled) return;
+
+                if (interaction.customId === 'select_name_color') {
+                    return colorsCmd.handleColorSelect(interaction);
+                }
+            }
+        }
+
+        // ==========================================
+        // 💬 معالجة أوامر السلاش (Slash Commands)
+        // ==========================================
+        if (!interaction.isChatInputCommand()) return;
+
+        const { commandName } = interaction;
+
         if (commandName === 'servers') return await serversCmd.execute(interaction);
         if (commandName === 'get-invite') return await getInviteCmd.execute(interaction);
         if (commandName === 'colors') return await colorsCmd.execute(interaction);
@@ -88,13 +95,16 @@ module.exports = async (client, interaction) => {
             if (modCommand) return await modCommand.execute(interaction);
         }
     } catch (error) {
-        console.error(`❌ خطأ أثناء تنفيذ الأمر ${commandName}:`, error);
+        console.error(`❌ خطأ أثناء تنفيذ الإنتراكشن:`, error);
         
-        const errorMessage = { content: '❌ حدث خطأ أثناء تنفيذ هذا الأمر!', flags: 64 };
-        if (interaction.replied || interaction.deferred) {
-            await interaction.followUp(errorMessage).catch(() => {});
-        } else {
-            await interaction.reply(errorMessage).catch(() => {});
+        const errorMessage = { content: '❌ حدث خطأ غير متوقع أثناء تنفيذ هذا الطلب!', flags: 64 };
+        
+        if (interaction.isRepliable()) {
+            if (interaction.replied || interaction.deferred) {
+                await interaction.followUp(errorMessage).catch(() => {});
+            } else {
+                await interaction.reply(errorMessage).catch(() => {});
+            }
         }
     }
 };
