@@ -55,9 +55,9 @@ if (fs.existsSync(commandsPath)) {
     }
 }
 
-// إضافة أوامر الملفات الخارجية الأخرى
-const { gamesCommands } = require('./games');
-const { profileCommand, shopCommand } = require('./profileSystem');
+// إضافة أوامر الملفات الخارجية من داخل مجلد commands
+const { gamesCommands } = require('./commands/games');
+const { profileCommand, shopCommand } = require('./commands/profileSystem');
 
 if (gamesCommands) gamesCommands.forEach(cmd => commands.push(cmd));
 if (profileCommand?.data) commands.push(profileCommand.data.toJSON ? profileCommand.data.toJSON() : profileCommand.data);
