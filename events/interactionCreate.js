@@ -4,10 +4,12 @@ const moderationCmds = require('../commands/moderation');
 const labCommand = require('../commands/lab');
 const serversCmd = require('../commands/servers');
 const getInviteCmd = require('../commands/get-invite');
-const { profileCommand, shopCommand, handleProfileEvents } = require('../profileSystem');
-const { handleGamesCommand } = require('../games');
-const afkSystem = require('../afkSystem');
-const { handlePrivateChatInteraction } = require('../privateChat');
+
+// تعديل المسارات لتأشير على مجلد commands مباشرة
+const { profileCommand, shopCommand, handleProfileEvents } = require('../commands/profileSystem');
+const { handleGamesCommand } = require('../commands/games');
+const afkSystem = require('../commands/afkSystem');
+const { handlePrivateChatInteraction } = require('../commands/privateChat');
 
 module.exports = async (client, interaction) => {
     try {
@@ -79,7 +81,7 @@ module.exports = async (client, interaction) => {
     } catch (error) {
         console.error(`❌ خطأ أثناء تنفيذ الإنتراكشن:`, error);
         
-        const errorMessage = { content: '❌ حدث خطأ غير متوقع أثناء تنفيذ هذا الطلب!', flags: 64 };
+        const errorMessage = { content: '❌ حدث خطأ غير متوقع أثناء تنفيذ هذا الطلب!', ephemeral: true };
         
         if (interaction.isRepliable()) {
             if (interaction.replied || interaction.deferred) {
