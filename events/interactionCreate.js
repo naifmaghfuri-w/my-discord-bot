@@ -1,7 +1,7 @@
 const colorsCmd = require('../commands/colors');
 const clearCmd = require('../commands/clear');
 const moderationCmds = require('../commands/moderation');
-const labCommand = require('../commands/lab');
+const { handleLabSession } = require('../commands/lab');
 const serversCmd = require('../commands/servers');
 const getInviteCmd = require('../commands/get-invite');
 const { profileCommand, shopCommand, handleProfileEvents } = require('../profileSystem');
@@ -17,24 +17,6 @@ module.exports = async (client, interaction) => {
         if (interaction.isButton() || interaction.isModalSubmit()) {
             if (interaction.customId && interaction.customId.startsWith('afk_')) {
                 return await afkSystem.handleInteraction(interaction);
-            }
-        }
-
-        // ==========================================
-        // 🔘 معالجة تفاعلات المختبر (Lab System)
-        // ==========================================
-        if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) {
-            const id = interaction.customId;
-            if (
-                id && (
-                    id.startsWith('lab_') || 
-                    id.startsWith('btn_') || 
-                    id.startsWith('modal_')
-                )
-            ) {
-                if (labCommand && typeof labCommand.handleInteraction === 'function') {
-                    return await labCommand.handleInteraction(interaction);
-                }
             }
         }
 
@@ -87,7 +69,7 @@ module.exports = async (client, interaction) => {
         if (commandName === 'clear') return await clearCmd.execute(interaction);
         if (commandName === 'profile') return await profileCommand.execute(interaction);
         if (commandName === 'shop') return await shopCommand.execute(interaction);
-        if (commandName === 'lab') return await labCommand.execute(interaction);
+        if (commandName === 'lab') return await handleLabSession(interaction, interaction.user);
         if (commandName === 'games') return await handleGamesCommand(interaction);
 
         if (Array.isArray(moderationCmds)) {
