@@ -1,5 +1,5 @@
 const express = require('express');
-const { Client, GatewayIntentBits, REST, Routes, ActivityType } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, ActivityType, Collection } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -32,33 +32,55 @@ const client = new Client({
     ]
 });
 
+client.commands = new Collection();
+
 // ==========================================
-// 🔄 تحميل وتسجيل أوامر السلاش تلقائياً
+// 🔄 تحميل وتسجيل أوامر السلاش تلقائياً (بما فيها المجلدات الفرعية)
 // ==========================================
 const commands = [];
 const commandsPath = path.join(__dirname, 'commands');
 
-if (fs.existsSync(commandsPath)) {
-    const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+function loadCommands(dirPath) {
+    if (!fs.existsSync(dirPath)) return;
 
-    for (const file of commandFiles) {
-        const filePath = path.join(commandsPath, file);
-        const command = require(filePath);
+    const files = fs.readdirSync(dirPath, { withFileTypes: true });
 
-        if (Array.isArray(command.gamesCommands)) {
-            command.gamesCommands.forEach(cmd => {
-                if (cmd?.toJSON) commands.push(cmd.toJSON());
-                else if (cmd?.data?.toJSON) commands.push(cmd.data.toJSON());
-            });
-        } else if (command.data) {
-            commands.push(command.data.toJSON ? command.data.toJSON() : command.data);
-        } else if (typeof command === 'object') {
-            Object.values(command).forEach(cmd => {
-                if (cmd?.data?.toJSON) commands.push(cmd.data.toJSON());
-            });
+    for (const file of files) {
+        const fullPath = path.join(dirPath, file.name);
+
+        // إذا كان المجلد فرعياً (مثل commands/lab)، اقرأ ما دافخله
+        if (file.isDirectory()) {
+            loadCommands(fullPath);
+        } else if (file.name.endsWith('.js')) {
+            try {
+                const command = require(fullPath);
+
+                if (Array.isArray(command.gamesCommands)) {
+                    command.gamesCommands.forEach(cmd => {
+                        if (cmd?.toJSON) commands.push(cmd.toJSON());
+                        else if (cmd?.data?.toJSON) commands.push(cmd.data.toJSON());
+                    });
+                } else if (command.data) {
+                    const cmdData = command.data.toJSON ? command.data.toJSON() : command.data;
+                    commands.push(cmdData);
+                    if (cmdData.name) client.commands.set(cmdData.name, command);
+                } else if (typeof command === 'object') {
+                    Object.values(command).forEach(cmd => {
+                        if (cmd?.data?.toJSON) {
+                            const cData = cmd.data.toJSON();
+                            commands.push(cData);
+                            if (cData.name) client.commands.set(cData.name, cmd);
+                        }
+                    });
+                }
+            } catch (err) {
+                console.error(`⚠️ تعذر تحميل الملف ${file.name}:`, err.message);
+            }
         }
     }
 }
+
+loadCommands(commandsPath);
 
 // ==========================================
 // 📡 ربط الأحداث (Events)
@@ -66,8 +88,22 @@ if (fs.existsSync(commandsPath)) {
 const messageCreateHandler = require('./events/messageCreate');
 const interactionCreateHandler = require('./events/interactionCreate');
 
-client.on('messageCreate', message => messageCreateHandler(client, message));
-client.on('interactionCreate', interaction => interactionCreateHandler(client, interaction));
+// التأكد من دعم كلاً من صيغة الموديول التصديري كـ function أو كـ object بـ execute
+client.on('messageCreate', message => {
+    if (typeof messageCreateHandler === 'function') {
+        messageCreateHandler(client, message);
+    } else if (messageCreateHandler?.execute) {
+        messageCreateHandler.execute(client, message);
+    }
+});
+
+client.on('interactionCreate', interaction => {
+    if (typeof interactionCreateHandler === 'function') {
+        interactionCreateHandler(client, interaction);
+    } else if (interactionCreateHandler?.execute) {
+        interactionCreateHandler.execute(client, interaction);
+    }
+});
 
 client.once('ready', async () => {
     console.log(`🚀 تم تسجيل الدخول بنجاح باسم: ${client.user.tag}`);
