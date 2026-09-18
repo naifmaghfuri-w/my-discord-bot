@@ -35,7 +35,7 @@ const client = new Client({
 client.commands = new Collection();
 
 // ==========================================
-// 🔄 تحميل وتسجيل أوامر السلاش تلقائياً (بما فيها المجلدات الفرعية)
+// 🔄 تحميل وتسجيل أوامر السلاش تلقائياً (بما فيها المجلدات الفرعية مثل games و lab)
 // ==========================================
 const commands = [];
 const commandsPath = path.join(__dirname, 'commands');
@@ -48,7 +48,6 @@ function loadCommands(dirPath) {
     for (const file of files) {
         const fullPath = path.join(dirPath, file.name);
 
-        // إذا كان المجلد فرعياً (مثل commands/lab)، اقرأ ما دافخله
         if (file.isDirectory()) {
             loadCommands(fullPath);
         } else if (file.name.endsWith('.js')) {
@@ -88,7 +87,6 @@ loadCommands(commandsPath);
 const messageCreateHandler = require('./events/messageCreate');
 const interactionCreateHandler = require('./events/interactionCreate');
 
-// التأكد من دعم كلاً من صيغة الموديول التصديري كـ function أو كـ object بـ execute
 client.on('messageCreate', message => {
     if (typeof messageCreateHandler === 'function') {
         messageCreateHandler(client, message);
