@@ -1,11 +1,14 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const labCommand = require('../commands/lab'); 
-const { profileCommand } = require('../profileSystem');
-const { handleGamesCommand } = require('../games');
-const afkSystem = require('../afkSystem');
-const { getPrivateChatPanel } = require('../privateChat');
 
-// 🧠 تهيئة نموذج Gemini (تم الإبقاء على الاسم المخصص كما طلبك)
+// استدعاء الموديولات بأمان لمنع انهيار السيرفر
+let labCommand, profileCommand, handleGamesCommand, afkSystem, getPrivateChatPanel;
+
+try { labCommand = require('../commands/lab'); } catch (e) { console.error('⚠️ تعذر تحميل مجلد المختبر:', e.message); }
+try { ({ profileCommand } = require('../profileSystem')); } catch (e) { console.error('⚠️ تعذر تحميل البروفايل:', e.message); }
+try { ({ handleGamesCommand } = require('../games')); } catch (e) { console.error('⚠️ تعذر تحميل الألعاب:', e.message); }
+try { afkSystem = require('../afkSystem'); } catch (e) { console.error('⚠️ تعذر تحميل نظام AFK:', e.message); }
+try { ({ getPrivateChatPanel } = require('../privateChat')); } catch (e) { console.error('⚠️ تعذر تحميل الدردشات الخاصة:', e.message); }
+
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 const model = genAI.getGenerativeModel({ 
     model: 'gemini-3.5-flash-lite',
@@ -26,21 +29,16 @@ module.exports = async (client, message) => {
     const rawContent = message.content.trim();
     const content = rawContent.toLowerCase();
 
-    // ==========================================
-    // 1. الأوامر النصية المباشرة (مختبر، بروفايل، العاب، إرسال اللوحة)
-    // ==========================================
-    if (content === '!setup-panel' || content === 'لوحة الدردشات') {
+    if ((content === '!setup-panel' || content === 'لوحة الدردشات') && getPrivateChatPanel) {
         if (!message.member.permissions.has('Administrator')) return;
-
         const panelData = getPrivateChatPanel();
         await message.channel.send(panelData);
         await message.delete().catch(() => {});
         return;
     }
 
-    // 🖼️ 🧪 تشغيل أمر المختبر (توليد/إرسال واجهة صورة)
     if (content === 'lab' || content === 'the lab' || content === 'مختبر' || content === 'المختبر') {
-        if (labCommand && labCommand.execute) {
+        if (labCommand && (labCommand.execute || typeof labCommand === 'function')) {
             const fakeInteraction = {
                 guild: message.guild,
                 channel: message.channel,
@@ -67,38 +65,28 @@ module.exports = async (client, message) => {
                         embeds: options.embeds || []
                     });
                 },
-                deferReply: async () => {
-                    await message.channel.sendTyping();
-                }
+                deferReply: async () => { await message.channel.sendTyping(); }
             };
 
-            return await labCommand.execute(fakeInteraction).catch(console.error);
+            const execFunc = labCommand.execute || labCommand;
+            return await execFunc(fakeInteraction).catch(console.error);
         }
     }
 
-    if (content === 'بروفايل' || content === 'بروفايلي' || content === 'profile') {
-        if (profileCommand && profileCommand.execute) {
-            return await profileCommand.execute(message).catch(console.error);
-        }
+    if ((content === 'بروفايل' || content === 'بروفايلي' || content === 'profile') && profileCommand?.execute) {
+        return await profileCommand.execute(message).catch(console.error);
     }
 
-    if (content === 'العاب' || content === 'ألعاب' || content === 'games') {
-        if (typeof handleGamesCommand === 'function') {
-            return await handleGamesCommand(message).catch(console.error);
-        }
+    if ((content === 'العاب' || content === 'ألعاب' || content === 'games') && typeof handleGamesCommand === 'function') {
+        return await handleGamesCommand(message).catch(console.error);
     }
 
-    // ==========================================
-    // 2. معالجة نظام الـ AFK
-    // ==========================================
-    await afkSystem.handleMessage(client, message);
+    if (afkSystem?.handleMessage) {
+        await afkSystem.handleMessage(client, message);
+    }
 
-    // ==========================================
-    // 3. معالجة رد الذكاء الاصطناعي
-    // ==========================================
     const isMentioned = message.mentions.has(client.user);
     const isDots = content === '..' || content === '...';
-    // تعديل السطر لتفادي الانكسار النصي
     const isCalledByName = content.includes('بيتو') || content.includes('pitou');
 
     if (isMentioned || isDots || isCalledByName) {
@@ -115,4 +103,3 @@ module.exports = async (client, message) => {
         }
     }
 };
-
