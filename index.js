@@ -6,7 +6,7 @@ const path = require('path');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// 🌐 خادم Express لمعالجة الطلبات والحفاظ على النشاط
+// 🌐 خادم Express لمعالجة الطلبات والحفاظ على النشاط على Render
 app.get('/', (req, res) => res.send('Bot is online!'));
 
 app.listen(port, () => {
@@ -75,7 +75,6 @@ client.on('interactionCreate', interaction => interactionCreateHandler(client, i
 client.once('ready', async () => {
     console.log(`🚀 تم تسجيل الدخول بنجاح باسم: ${client.user.tag}`);
 
-    // 🎯 تعيين الحالة المخصصة للبوت
     client.user.setPresence({
         activities: [
             {
