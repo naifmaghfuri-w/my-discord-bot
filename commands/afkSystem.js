@@ -9,9 +9,8 @@ module.exports = {
         if (message.author.bot || !message.guild) return;
 
         const rawContent = message.content.trim();
-        const content = rawContent.toLowerCase();
 
-        // 🟢 إلغاء الـ AFK وإرسال التنبيهات
+        // 🟢 إلغاء الـ AFK وإرسال التنبيهات فور إرسال الشخص الغائب لأي رسالة
         if (afkUsers.has(message.author.id)) {
             const userData = afkUsers.get(message.author.id);
             afkUsers.delete(message.author.id);
@@ -21,29 +20,38 @@ module.exports = {
                     await message.member.setNickname(userData.oldNickname);
                 }
             } catch (err) {
-                console.error('❌ تعذر تغيير الاسم:', err.message);
+                console.error('❌ تعذر استعادة الاسم الأصلي:', err.message);
             }
 
             const afkTime = Math.floor(userData.timestamp / 1000);
-            let welcomeText = `👋*أهلاً بعودتك يا ${message.author}!*\n⏱️*مدة الغياب: <t:${afkTime}:R>*\n🔔*تم منشنتك: ${userData.mentionsCount} مرة أثناء غيابك*`;
+            let welcomeText = `👋 **أهلاً بعودتك يا ${message.author}!**\n⏱️ **مدة الغياب:** <t:${afkTime}:R>\n🔔 **تم منشنتك:** \`${userData.mentionsCount}\` مرة أثناء غيابك`;
 
             // تنبيه العضو بالرسائل المتروكة له إن وجدت
             if (userData.leftMessages && userData.leftMessages.length > 0) {
-                welcomeText += `\n\n📨 **الرسائل المتروكة لك أثناء غيابك:**\n` + 
-                    userData.leftMessages.map((m, i) => `**${i + 1}.** من <@${m.from}>: "${m.text}"`).join('\n');
+                welcomeText += `\n\n📨 **الرسائل المتروكة لك أثناء غيابك:**\n`;
+                const formattedMsgs = userData.leftMessages.map((m, i) => `**${i + 1}.** من <@${m.from}>: "${m.text}"`).join('\n');
+                
+                // حماية من تجاوز حد الـ 2000 حرف
+                if ((welcomeText + formattedMsgs).length > 1950) {
+                    welcomeText += formattedMsgs.slice(0, 1800) + '\n...وغيرها من الرسائل التي تجاوزت حد العرض.';
+                } else {
+                    welcomeText += formattedMsgs;
+                }
             }
 
-            await message.reply({ content: welcomeText });
+            await message.reply({ content: welcomeText }).catch(() => null);
 
             // تنبيه الأشخاص الذين طلبوا "نبهني عند عودته"
             if (userData.notifiedUsers && userData.notifiedUsers.size > 0) {
                 const notifyList = Array.from(userData.notifiedUsers).map(id => `<@${id}>`).join(' ');
-                await message.channel.send({ content: `🔔 تنبيه للجميع: العضو ${message.author} عاد من الغياب الآن! ${notifyList}` });
+                await message.channel.send({ 
+                    content: `🔔 **تنبيه:** العضو ${message.author} عاد من الغياب الآن!\n${notifyList}` 
+                }).catch(() => null);
             }
             return;
         }
 
-        // 🔴 تفعيل الـ AFK
+        // 🔴 تفعيل الـ AFK عبر كتابة "afk" في الشات
         const args = rawContent.split(/ +/);
         const commandName = args[0].toLowerCase();
 
@@ -66,22 +74,22 @@ module.exports = {
                     await message.member.setNickname(newNickname);
                 }
             } catch (err) {
-                console.error('❌ تعذر تغيير اللقب:', err.message);
+                console.error('❌ تعذر تغيير اللقب إلى AFK:', err.message);
             }
 
             const embed = new EmbedBuilder()
                 .setColor('#2b2d31')
                 .setTitle('💤 غياب مؤقت')
-                .setDescription(`تم تفعيل وضع الغياب المؤقت بنجاح\n\n📝 **السبب:** ${reason}`)
+                .setDescription(`تم تفعيل وضع الغياب المؤقت بنجاح.\n\n📝 **السبب:** ${reason}`)
                 .setThumbnail(message.author.displayAvatarURL({ dynamic: true }));
 
-            return message.reply({ embeds: [embed] });
+            return message.reply({ embeds: [embed] }).catch(() => null);
         }
 
-        // 🟡 عند منشن شخص غائب
+        // 🟡 عند منشن شخص في وضع الغياب
         if (message.mentions.users.size > 0) {
-            message.mentions.users.forEach(async (user) => {
-                if (afkUsers.has(user.id)) {
+            for (const user of message.mentions.users.values()) {
+                if (afkUsers.has(user.id) && user.id !== message.author.id) {
                     const afkData = afkUsers.get(user.id);
                     afkData.mentionsCount += 1;
 
@@ -89,8 +97,8 @@ module.exports = {
 
                     const embed = new EmbedBuilder()
                         .setColor('#ff0055')
-                        .setTitle(` ${user.displayName}`)
-                        .setDescription(`💤 **في وضع الغياب المؤقت(AFK)**\n📝 **السبب:** ${afkData.reason}\n⏳ **منذ:** <t:${afkTime}:R>`)
+                        .setTitle(`💤 ${user.displayName} في وضع الغياب المؤقت`)
+                        .setDescription(`📝 **السبب:** ${afkData.reason}\n⏳ **منذ:** <t:${afkTime}:R>`)
                         .setThumbnail(user.displayAvatarURL({ dynamic: true }));
 
                     const row = new ActionRowBuilder().addComponents(
@@ -101,68 +109,80 @@ module.exports = {
                         new ButtonBuilder()
                             .setCustomId(`afk_message_${user.id}`)
                             .setLabel('اترك رسالة 📨')
-                            .setStyle(ButtonStyle.Primary)
+                            .setStyle(ButtonStyle.Secondary)
                     );
 
-                    await message.reply({ embeds: [embed], components: [row] });
+                    await message.reply({ embeds: [embed], components: [row] }).catch(() => null);
                 }
-            });
+            }
         }
     },
 
-    // 2. معالجة تفاعلات الأزرار والـ Modal
+    // 2. معالجة تفاعلات الأزرار والنوافذ المنبثقة Modal
     async handleInteraction(interaction) {
-        // أ. زر التنبيه "نبهني عند عودته"
-        if (interaction.isButton() && interaction.customId.startsWith('afk_notify_')) {
-            const targetUserId = interaction.customId.replace('afk_notify_', '');
-            const afkData = afkUsers.get(targetUserId);
+        try {
+            // أ. زر التنبيه "نبهني عند عودته"
+            if (interaction.isButton() && interaction.customId.startsWith('afk_notify_')) {
+                const targetUserId = interaction.customId.replace('afk_notify_', '');
+                const afkData = afkUsers.get(targetUserId);
 
-            if (!afkData) {
-                return interaction.reply({ content: '❌ هذا العضو لم يعد في وضع الغياب المؤقت.', flags: MessageFlags.Ephemeral });
+                if (!afkData) {
+                    return interaction.reply({ content: '❌ هذا العضو لم يعد في وضع الغياب المؤقت.', flags: MessageFlags.Ephemeral });
+                }
+
+                if (interaction.user.id === targetUserId) {
+                    return interaction.reply({ content: '❌ لا يمكنك طلب تنبيه لنفسك!', flags: MessageFlags.Ephemeral });
+                }
+
+                afkData.notifiedUsers.add(interaction.user.id);
+                return interaction.reply({ content: '🔔 تم تسجيل طلبك! سيتم تنبيهك في القناة فور عودة العضو.', flags: MessageFlags.Ephemeral });
             }
 
-            afkData.notifiedUsers.add(interaction.user.id);
-            return interaction.reply({ content: '🔔 تم تسجيل طلبك! سيتم تنبيهك في القناة فور عودة العضو.', flags: MessageFlags.Ephemeral });
-        }
+            // ب. زر "اترك رسالة" - فتح نافذة Modal
+            if (interaction.isButton() && interaction.customId.startsWith('afk_message_')) {
+                const targetUserId = interaction.customId.replace('afk_message_', '');
+                
+                if (!afkUsers.has(targetUserId)) {
+                    return interaction.reply({ content: '❌ هذا العضو لم يعد في وضع الغياب المؤقت.', flags: MessageFlags.Ephemeral });
+                }
 
-        // ب. زر "اترك رسالة" - فتح نافذة Modal
-        if (interaction.isButton() && interaction.customId.startsWith('afk_message_')) {
-            const targetUserId = interaction.customId.replace('afk_message_', '');
-            
-            if (!afkUsers.has(targetUserId)) {
-                return interaction.reply({ content: '❌ هذا العضو لم يعد في وضع الغياب المؤقت.', flags: MessageFlags.Ephemeral });
+                if (interaction.user.id === targetUserId) {
+                    return interaction.reply({ content: '❌ لا يمكنك ترك رسالة لنفسك!', flags: MessageFlags.Ephemeral });
+                }
+
+                const modal = new ModalBuilder()
+                    .setCustomId(`afk_modal_${targetUserId}`)
+                    .setTitle('ترك رسالة للعضو الغائب');
+
+                const messageInput = new TextInputBuilder()
+                    .setCustomId('afk_msg_input')
+                    .setLabel('اكتب رسالتك هنا:')
+                    .setStyle(TextInputStyle.Paragraph)
+                    .setRequired(true)
+                    .setMaxLength(500);
+
+                const row = new ActionRowBuilder().addComponents(messageInput);
+                modal.addComponents(row);
+
+                return await interaction.showModal(modal);
             }
 
-            const modal = new ModalBuilder()
-                .setCustomId(`afk_modal_${targetUserId}`)
-                .setTitle('ترك رسالة للعضو الغائب');
+            // ج. استقبال نص الرسالة من الـ Modal
+            if (interaction.isModalSubmit() && interaction.customId.startsWith('afk_modal_')) {
+                const targetUserId = interaction.customId.replace('afk_modal_', '');
+                const afkData = afkUsers.get(targetUserId);
 
-            const messageInput = new TextInputBuilder()
-                .setCustomId('afk_msg_input')
-                .setLabel('اكتب رسالتك هنا:')
-                .setStyle(TextInputStyle.Paragraph)
-                .setRequired(true)
-                .setMaxLength(500);
+                if (!afkData) {
+                    return interaction.reply({ content: '❌ العضو عاد من الغياب قبل إرسال الرسالة.', flags: MessageFlags.Ephemeral });
+                }
 
-            const row = new ActionRowBuilder().addComponents(messageInput);
-            modal.addComponents(row);
+                const userText = interaction.fields.getTextInputValue('afk_msg_input');
+                afkData.leftMessages.push({ from: interaction.user.id, text: userText });
 
-            return await interaction.showModal(modal);
-        }
-
-        // ج. استقبال نص الرسالة من الـ Modal
-        if (interaction.isModalSubmit() && interaction.customId.startsWith('afk_modal_')) {
-            const targetUserId = interaction.customId.replace('afk_modal_', '');
-            const afkData = afkUsers.get(targetUserId);
-
-            if (!afkData) {
-                return interaction.reply({ content: '❌ العضو عاد من الغياب قبل إرسال الرسالة.', flags: MessageFlags.Ephemeral });
+                return interaction.reply({ content: '✅ تم حفظ رسالتك بنجاح! وسوف يستلمها العضو فور عودته.', flags: MessageFlags.Ephemeral });
             }
-
-            const userText = interaction.fields.getTextInputValue('afk_msg_input');
-            afkData.leftMessages.push({ from: interaction.user.id, text: userText });
-
-            return interaction.reply({ content: '✅ تم حفظ رسالتك بنجاح! وسوف يستلمها العضو فور عودته.', flags: MessageFlags.Ephemeral });
+        } catch (err) {
+            console.error('❌ خطأ في تفاعلات نظام AFK:', err);
         }
 
         return false;
