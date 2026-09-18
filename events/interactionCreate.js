@@ -11,7 +11,7 @@ const { handlePrivateChatInteraction } = require('../privateChat');
 
 module.exports = async (client, interaction) => {
     // ==========================================
-    // 🔘 معالجة تفاعلات الـ AFK (أزرار و Modal)
+    // 🔘 معالجة تفاعلات الـ AFK
     // ==========================================
     if (interaction.isButton() || interaction.isModalSubmit()) {
         if (interaction.customId && interaction.customId.startsWith('afk_')) {
@@ -31,7 +31,7 @@ module.exports = async (client, interaction) => {
     }
 
     // ==========================================
-    // 🔘 معالجة تفاعلات الدردشات الخاصة (أزرار، قوائم، و Modals)
+    // 🔘 معالجة تفاعلات الدردشات الخاصة
     // ==========================================
     if (
         interaction.isButton() || 
