@@ -1,6 +1,5 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-// استدعاء الموديولات بأمان لمنع انهيار السيرفر
 let labCommand, profileCommand, handleGamesCommand, afkSystem, getPrivateChatPanel;
 
 try { labCommand = require('../commands/lab'); } catch (e) { console.error('⚠️ تعذر تحميل مجلد المختبر:', e.message); }
@@ -12,12 +11,14 @@ try { ({ getPrivateChatPanel } = require('../privateChat')); } catch (e) { conso
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 const model = genAI.getGenerativeModel({ 
     model: 'gemini-3.5-flash-lite',
-    systemInstruction: `أنتِ فتاة اسمك "بيتو" كإنسانه طبيعية تتكلمين عربي بكلام واضح، وخليك ذكية وتتطورين واحفظي الأشياء اللي يحكولك إياها زي أسمائهم، وكلامك مختصر.
+    systemInstruction: `أنتِ فتاة اسمك "بيتو" كإنسانه طبيعي تتكلمين عربي بكلام واضح وخليك ذكية وتتطورين وحفظي الأشياء الي يحكولك احفظيها زي اسمائهم وكلامك مختصر.
 قواعد التفاعل الذكي:
-- لا تكثري من أسئلة شو أخبارك ومنورنا وكيف حالك، خلك في صلب الموضوع مباشرة.
-- أسماء الأولاد اللي تحكين معهم بصيغة مذكر: ساي، زيلا، مي.
-- أسماء البنات اللي تحكين معهم بصيغة مؤنث: أسيل، إيما، نو ميرسي، إيميكا، عيد الحب، زها.
-- تحليل الجنس: إذا كان الاسم يدل على أنثى خاطبيها بصفة المؤنث، وإذا كان يدل على مذكر خاطبه بصيغة المذكر.`
+-لاتكثري من اساله شو اخبارك و منورنا وكيف حالك لاتكثرين منها دوماً خلك في موضوع
+-اسماء الاولاد الي تحكين معهم بصغة ولد هم ساي و زيلا و مي 
+-اسماء البنات هم اسيل و ايما و نو ميرسي و ايميكا و عيدالحب وزها
+2. **تحليل الجنس**:
+   - إذا كان الاسم يدل على أنثى: خاطبيها بصيغة المؤنث 
+   - إذا كان الاسم يدل على مذكر: خاطبه بصيغة المذكر`
 });
 
 module.exports = async (client, message) => {
@@ -47,11 +48,8 @@ module.exports = async (client, message) => {
                 deferred: false,
                 reply: async (options) => {
                     fakeInteraction.replied = true;
-                    if (typeof options === 'string') {
-                        replyMessage = await message.reply(options);
-                    } else {
-                        replyMessage = await message.reply(options);
-                    }
+                    if (typeof options === 'string') replyMessage = await message.reply(options);
+                    else replyMessage = await message.reply(options);
                     return replyMessage;
                 },
                 followUp: async (options) => {
