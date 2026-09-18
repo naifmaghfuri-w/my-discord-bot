@@ -2,7 +2,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 let labCommand, profileCommand, handleGamesCommand, afkSystem, getPrivateChatPanel;
 
-// استدعاء الموديولات من مجلد commands
+// استدعاء الموديولات بمساراتها الصحيحة وحمايتها من التوقف
 try { labCommand = require('../commands/lab'); } catch (e) { console.error('⚠️ تعذر تحميل مجلد المختبر:', e.message); }
 try { ({ profileCommand } = require('../commands/profileSystem')); } catch (e) { console.error('⚠️ تعذر تحميل البروفايل:', e.message); }
 try { ({ handleGamesCommand } = require('../commands/games')); } catch (e) { console.error('⚠️ تعذر تحميل الألعاب:', e.message); }
@@ -11,17 +11,17 @@ try { ({ getPrivateChatPanel } = require('../commands/privateChat')); } catch (e
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-// إعداد النموذج بناءً على طلبك
+// إعداد نموذج Gemini للرد بطلب الشخصية
 const model = genAI.getGenerativeModel({ 
     model: 'gemini-3.5-flash-lite',
-    systemInstruction: `أنتِ فتاة اسمك "بيتو" كإنسانه طبيعي تتكلمين عربي بكلام واضح وخليك ذكية وتتطورين وحفظي الأشياء الي يحكولك احفظيها زي اسمائهم وكلامك مختصر.
+    systemInstruction: `أنتِ فتاة اسمك "بيتو" كإنسانة طبيعية تتكلمين عربي بكلام واضح وخليك ذكية وتتطورين واحفظي الأشياء التي يحكولك احفظيها زي أسمائهم وكلامك مختصر.
 قواعد التفاعل الذكي:
--لاتكثري من اساله شو اخبارك و منورنا وكيف حالك لاتكثرين منها دوماً خلك في موضوع
--اسماء الاولاد الي تحكين معهم بصغة ولد هم ساي و زيلا و مي 
--اسماء البنات هم اسيل و ايما و نو ميرسي و ايميكا و عيدالحب وزها
-2. **تحليل الجنس**:
-   - إذا كان الاسم يدل على أنثى: خاطبيها بصيغة المؤنث 
-   - إذا كان الاسم يدل على مذكر: خاطبه بصيغة المذكر`
+- لاتكثري من أسئلة شو أخبارك ومنورنا وكيف حالك، خليك في الموضوع دائماً.
+- أسماء الأولاد الذين تحكين معهم بصيغة المذكر هم: ساي، زيلا، مي.
+- أسماء البنات هم: أسيل، إيما، نو ميرسي، ايميكا، عيدالحب، زها.
+2. تحليل الجنس:
+   - إذا كان الاسم يدل على أنثى: خاطبيها بصيغة المؤنث.
+   - إذا كان الاسم يدل على مذكر: خاطبه بصيغة المذكر.`
 });
 
 module.exports = async (client, message) => {
@@ -30,7 +30,8 @@ module.exports = async (client, message) => {
     const rawContent = message.content.trim();
     const content = rawContent.toLowerCase();
 
-    if ((content === '!setup-panel' || content === 'لوحة الدردشات') && getPrivateChatPanel) {
+    // 1. لوحة الدردشات
+    if ((content === '!setup-panel' || content === 'لوحة الدردشات') && typeof getPrivateChatPanel === 'function') {
         if (!message.member.permissions.has('Administrator')) return;
         const panelData = getPrivateChatPanel();
         await message.channel.send(panelData);
@@ -38,6 +39,7 @@ module.exports = async (client, message) => {
         return;
     }
 
+    // 2. أمر المختبر
     if (content === 'lab' || content === 'the lab' || content === 'مختبر' || content === 'المختبر') {
         if (labCommand) {
             let replyMessage = null;
@@ -51,12 +53,10 @@ module.exports = async (client, message) => {
                 deferred: false,
                 reply: async (options) => {
                     fakeInteraction.replied = true;
-                    if (typeof options === 'string') replyMessage = await message.reply(options);
-                    else replyMessage = await message.reply(options);
+                    replyMessage = await message.reply(options);
                     return replyMessage;
                 },
                 followUp: async (options) => {
-                    if (typeof options === 'string') return await message.channel.send(options);
                     return await message.channel.send(options);
                 },
                 editReply: async (options) => {
@@ -76,18 +76,22 @@ module.exports = async (client, message) => {
         }
     }
 
+    // 3. البروفايل
     if ((content === 'بروفايل' || content === 'بروفايلي' || content === 'profile') && profileCommand?.execute) {
         return await profileCommand.execute(message).catch(console.error);
     }
 
+    // 4. الألعاب
     if ((content === 'العاب' || content === 'ألعاب' || content === 'games') && typeof handleGamesCommand === 'function') {
         return await handleGamesCommand(message).catch(console.error);
     }
 
+    // 5. نظام AFK
     if (afkSystem?.handleMessage) {
-        await afkSystem.handleMessage(client, message);
+        await afkSystem.handleMessage(client, message).catch(console.error);
     }
 
+    // 6. ذكاء بيتو الاصطناعي (Gemini Response)
     const isMentioned = message.mentions.has(client.user);
     const isDots = content === '..' || content === '...';
     const isCalledByName = content.includes('بيتو') || content.includes('pitou');
@@ -105,7 +109,7 @@ module.exports = async (client, message) => {
                 await message.reply(text.slice(0, 2000));
             }
         } catch (error) {
-            console.error('❌ خطأ في الاستجابة الذكية من Gemini:', error);
+            console.error('❌ خطأ في الاستجابة الذكية من Gemini:', error.message);
         }
     }
 };
