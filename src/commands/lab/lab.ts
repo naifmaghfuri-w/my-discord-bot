@@ -16,7 +16,7 @@ import {
     Message
 } from 'discord.js';
 
-// استيراد الملفات المساعدة (يرجى التأكد من إنشاء واجهاتها في ملفاتها الخاصة)
+// استيراد الملفات المساعدة
 import labData from './data';
 import { 
     getMarketPrices, 
