@@ -8,7 +8,7 @@ export interface LabItem {
     name?: string;
     price: number;
     buyable?: boolean;
-    shelfLife?: number; // بالثواني
+    shelfLife?: number;
 }
 
 export interface LabDataStructure {
@@ -26,8 +26,9 @@ export interface DailyQuest {
 }
 
 export interface Upgrades {
-    speed: boolean;
-    shield: boolean;
+    speed?: boolean;
+    shield?: boolean;
+    [key: string]: boolean | undefined; // تم السماح بالمرونة لكي تتوافق مع Record<string, boolean>
 }
 
 export interface Achievements {
@@ -49,7 +50,6 @@ export interface PlayerData {
     abilityPoints: number;
     academicReputation?: number;
     unlockedReactions: string[];
-    // تم التعديل لتقبل أرقام أو بولين لتتوافق تماماً مع ملف lab.ts و helpers.ts
     ownedEquipment: Record<string, number | boolean>;
     equipmentLevels: Record<string, number>;
     inv: Record<string, number>;
@@ -70,11 +70,9 @@ export type Database = Record<string, PlayerData>;
 
 const dataPath: string = path.join(__dirname, 'labData.json');
 
-// التخزين المؤقت في الذاكرة
 let dbCache: Database | null = null;
 let saveTimeout: NodeJS.Timeout | null = null;
 
-// صب البيانات المستوردة إلى النوع المحدد
 const typedLabData = labData as LabDataStructure;
 
 // --- الدوال ---
@@ -98,7 +96,6 @@ export function loadDatabase(): Database {
     return dbCache;
 }
 
-// حفظ آمن مع تأجيل (Debounce) لمنع كتابة الملف بشكل مستمر ومتكرر
 export function saveDatabase(immediate: boolean = false): void {
     if (!dbCache) return;
 
@@ -121,7 +118,7 @@ export function saveDatabase(immediate: boolean = false): void {
 }
 
 export function getMarketPrices(): Record<string, number> {
-    const minuteSeed = Math.floor(Date.now() / 300000); // تتغير الأسعار كل 5 دقائق
+    const minuteSeed = Math.floor(Date.now() / 300000);
     const prices: Record<string, number> = {};
 
     const items = typedLabData.items || {};
@@ -209,7 +206,7 @@ export function getPlayerData(userId: string): PlayerData {
             abilityPoints: 2,
             academicReputation: 0,
             unlockedReactions: ['r_nacl'],
-            ownedEquipment: { beaker: true }, // استخدام قيمة بولينية للبداية لتتوافق مع الأنظمة
+            ownedEquipment: { beaker: true },
             equipmentLevels: { beaker: 1 },
             inv: { na: 2, cl: 2, h2o_imp: 3, fe: 2, o2: 1 },
             itemTimestamps: {},
