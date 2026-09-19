@@ -5,8 +5,6 @@ import {
     ChatInputCommandInteraction, 
     GuildMemberRoleManager, 
     GuildTextBasedChannel, 
-    Collection, 
-    Message, 
     User 
 } from 'discord.js';
 
@@ -37,7 +35,7 @@ const clearCommand: Command = {
 
     async execute(interaction: ChatInputCommandInteraction): Promise<void> {
         try {
-            // التحقق من وجود الأدوار في العضو المشغل للأمر
+            // التحقق من الرتب والأنماط
             const memberRoles = interaction.member?.roles;
             let hasRole = false;
 
@@ -61,7 +59,7 @@ const clearCommand: Command = {
             const targetUser: User | null = interaction.options.getUser('target');
             const channel = interaction.channel as GuildTextBasedChannel | null;
 
-            if (!channel || !('bulkDelete' in channel)) {
+            if (!channel || typeof channel.bulkDelete !== 'function') {
                 await interaction.editReply({ 
                     content: '❌ لا يمكن استخدام هذا الأمر في نوع القناة الحالي.' 
                 });
@@ -69,15 +67,15 @@ const clearCommand: Command = {
             }
 
             // جلب الرسائل من القناة
-            const fetchedMessages: Collection<string, Message> = await channel.messages.fetch({ limit: 100 });
+            const fetchedMessages = await channel.messages.fetch({ limit: 100 });
 
-            let messagesToDelete: Message[] = Array.from(fetchedMessages.values());
+            let messagesToDelete = Array.from(fetchedMessages.values());
 
             if (targetUser) {
                 messagesToDelete = messagesToDelete.filter(msg => msg.author.id === targetUser.id);
             }
 
-            // اقتطاع العدد المطلوب فقط
+            // اقتطاع العدد المطلوب
             messagesToDelete = messagesToDelete.slice(0, amount);
 
             if (messagesToDelete.length === 0) {
@@ -85,15 +83,17 @@ const clearCommand: Command = {
                 return;
             }
 
-            const deleted: Collection<string, Message> = await channel.bulkDelete(messagesToDelete, true);
+            // إصلاح النمط ومنع خطأ TS2322 بطريقة مرنة وسليمة
+            const deleted = await channel.bulkDelete(messagesToDelete, true);
+            const deletedCount = 'size' in deleted ? deleted.size : (deleted as any).length || messagesToDelete.length;
 
             await interaction.editReply({ 
-                content: `🗑️ تم حذف **${deleted.size}** رسالة بنجاح.` 
+                content: `🗑️ تم حذف **${deletedCount}** رسالة بنجاح.` 
             });
 
         } catch (err) {
             console.error('❌ خطأ أثناء تنفيذ أمر clear:', err);
-            if (interaction.deferred) {
+            if (interaction.deferred || interaction.replied) {
                 await interaction.editReply({ 
                     content: '❌ حدث خطأ أثناء الحذف (قد تكون الرسائل أقدم من 14 يوماً ولا يمكن حذفها جماعياً).' 
                 });
