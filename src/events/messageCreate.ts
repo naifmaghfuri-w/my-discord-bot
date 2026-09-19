@@ -1,7 +1,6 @@
 import { Client, Message, PermissionsBitField, SendableChannels } from 'discord.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// تعريف الأنواع المخصصة لتجنب أخطاء TypeScript
 export interface ExecutableCommand {
     execute?: (message: Message | any, ...args: any[]) => Promise<any>;
     handleLabSession?: (interaction: any, user: any) => Promise<any>;
@@ -11,22 +10,20 @@ export interface AfkSystem {
     handleMessage?: (client: Client, message: Message) => Promise<any>;
 }
 
-// استدعاء الموديولات بمساراتها الصحيحة مع حمايتها من التوقف
 let labCommand: any;
 let profileCommand: ExecutableCommand | undefined;
 let handleGamesCommand: ((message: Message) => Promise<any>) | undefined;
-let afkSystem: AfkSystem | undefined;
+let afkModule: any;
 let getPrivateChatPanel: (() => any) | undefined;
 
 try { labCommand = require('../commands/lab'); } catch (e: any) { console.error('⚠️ تعذر تحميل مجلد المختبر:', e.message); }
 try { profileCommand = require('../commands/profileSystem')?.profileCommand; } catch (e: any) { console.error('⚠️ تعذر تحميل البروفايل:', e.message); }
 try { handleGamesCommand = require('../commands/games')?.handleGamesCommand; } catch (e: any) { console.error('⚠️ تعذر تحميل الألعاب:', e.message); }
-try { afkSystem = require('../commands/afkSystem'); } catch (e: any) { console.error('⚠️ تعذر تحميل نظام AFK:', e.message); }
+try { afkModule = require('../commands/afkSystem'); } catch (e: any) { console.error('⚠️ تعذر تحميل نظام AFK:', e.message); }
 try { getPrivateChatPanel = require('../commands/privateChat')?.getPrivateChatPanel; } catch (e: any) { console.error('⚠️ تعذر تحميل الدردشات الخاصة:', e.message); }
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-// إعداد نموذج Gemini
 const model = genAI.getGenerativeModel({
     model: 'gemini-3.5-flash-lite',
     systemInstruction: `أنتِ فتاة اسمك "بيتو" كإنسانة طبيعية تتكلمين عربي وخليك ذكيةوكلامك مختصر.
@@ -45,12 +42,17 @@ export default async function handleMessageCreate(client: Client, message: Messa
     const rawContent = message.content.trim();
     const content = rawContent.toLowerCase();
 
-    // 1. لوحة الدردشات
+    // 1. تشغيل نظام الـ AFK أولاً مع كل رسالة (للتحقق من إلغاء الـ AFK أو تفعيله أو المنشن)
+    const afkHandler = afkModule?.afkSystem?.handleMessage || afkModule?.default?.handleMessage || afkModule?.handleMessage;
+    if (typeof afkHandler === 'function') {
+        await afkHandler(client, message).catch(console.error);
+    }
+
+    // 2. لوحة الدردشات
     if ((content === '!setup-panel' || content === 'لوحة الدردشات') && typeof getPrivateChatPanel === 'function') {
         if (!message.member?.permissions.has(PermissionsBitField.Flags.Administrator)) return;
         const panelData = getPrivateChatPanel();
         
-        // التحقق من صلاحية القناة للإرسال لتجنب خطأ TS2339
         if (message.channel.isSendable()) {
             await message.channel.send(panelData);
         }
@@ -58,7 +60,7 @@ export default async function handleMessageCreate(client: Client, message: Messa
         return;
     }
 
-    // 2. أمر المختبر (تحاكي Interaction عبر رسائل الشات)
+    // 3. أمر المختبر
     if (['lab', 'the lab', 'مختبر', 'المختبر'].includes(content)) {
         if (labCommand) {
             let replyMessage: Message | null = null;
@@ -105,19 +107,14 @@ export default async function handleMessageCreate(client: Client, message: Messa
         }
     }
 
-    // 3. البروفايل
+    // 4. البروفايل
     if (['بروفايل', 'بروفايلي', 'profile'].includes(content) && profileCommand?.execute) {
         return await profileCommand.execute(message).catch(console.error);
     }
 
-    // 4. الألعاب
+    // 5. الألعاب
     if (['العاب', 'ألعاب', 'games', '!games'].includes(content) && typeof handleGamesCommand === 'function') {
-        await handleGamesCommand(message).catch(console.error);
-    }
-
-    // 5. نظام AFK (يتم تشغيله مع كل رسالة)
-    if (afkSystem?.handleMessage) {
-        await afkSystem.handleMessage(client, message).catch(console.error);
+        return await handleGamesCommand(message).catch(console.error);
     }
 
     // 6. ذكاء بيتو الاصطناعي (Gemini Response)
