@@ -111,11 +111,11 @@ export default async function handleMessageCreate(client: Client, message: Messa
     }
 
     // 4. الألعاب
-    if (['العاب', 'ألعاب', 'games'].includes(content) && typeof handleGamesCommand === 'function') {
-        return await handleGamesCommand(message).catch(console.error);
+    if (['العاب', 'ألعاب', 'games', '!games'].includes(content) && typeof handleGamesCommand === 'function') {
+        await handleGamesCommand(message).catch(console.error);
     }
 
-    // 5. نظام AFK
+    // 5. نظام AFK (يتم تشغيله مع كل رسالة)
     if (afkSystem?.handleMessage) {
         await afkSystem.handleMessage(client, message).catch(console.error);
     }
