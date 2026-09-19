@@ -3,9 +3,8 @@ import {
     Client, 
     MessageFlags, 
     ChatInputCommandInteraction,
-    ButtonInteraction,
     AnySelectMenuInteraction,
-    ModalSubmitInteraction
+    InteractionReplyOptions
 } from 'discord.js';
 
 // ==========================================
@@ -28,7 +27,7 @@ export interface ProfileSystemModule {
     default?: ProfileSystemModule;
 }
 
-// دالة مساعدة لتطوير وتفكيك الموديولات المستوردة عبر require بأمان
+// دالة مساعدة لتفكيك الموديولات المستوردة عبر require بأمان
 function resolveModule<T>(mod: any): T | undefined {
     if (!mod) return undefined;
     return mod.default ? mod.default : mod;
@@ -89,7 +88,6 @@ try {
 
 export default async function handleInteractionCreate(client: Client, interaction: Interaction): Promise<void> {
     try {
-        // استخراج customId بشكل آمن وصحيح لأنواع التفاعلات القابلة للضغط/الإرسال
         let customId = '';
         if (
             interaction.isButton() || 
@@ -99,18 +97,14 @@ export default async function handleInteractionCreate(client: Client, interactio
             customId = interaction.customId;
         }
 
-        // ==========================================
         // 🔘 1. معالجة تفاعلات الـ AFK
-        // ==========================================
         if ((interaction.isButton() || interaction.isModalSubmit()) && afkSystem?.handleInteraction) {
             if (customId.startsWith('afk_')) {
                 return await afkSystem.handleInteraction(interaction);
             }
         }
 
-        // ==========================================
         // 🔘 2. معالجة تفاعلات الدردشات الخاصة
-        // ==========================================
         if (
             typeof handlePrivateChatInteraction === 'function' &&
             (interaction.isButton() || interaction.isAnySelectMenu() || interaction.isModalSubmit())
@@ -125,9 +119,7 @@ export default async function handleInteractionCreate(client: Client, interactio
             }
         }
 
-        // ==========================================
-        // 🔘 3. معالجة تفاعلات المختبر الكيميائي (أزرار، قوائم، ومودالات)
-        // ==========================================
+        // 🔘 3. معالجة تفاعلات المختبر الكيميائي
         if (
             (interaction.isButton() || interaction.isAnySelectMenu() || interaction.isModalSubmit()) &&
             (customId.startsWith('btn_') || customId.startsWith('modal_') || customId.startsWith('lab_')) &&
@@ -136,20 +128,14 @@ export default async function handleInteractionCreate(client: Client, interactio
             return await labCommand.handleInteraction(interaction);
         }
 
-        // ==========================================
         // 🔘 4. معالجة أحداث البروفايل والمتجر
-        // ==========================================
         if (typeof handleProfileEvents === 'function') {
             const handled = await handleProfileEvents(interaction);
             if (handled) return;
         }
 
-        // ==========================================
         // 🔘 5. معالجة تفاعلات الألوان والألعاب
-        // ==========================================
         if (interaction.isAnySelectMenu() || interaction.isButton()) {
-
-            // نظام الألعاب
             if (customId.startsWith('game_') || customId.startsWith('games_') || customId === 'select_game' || gamesCmd?.handleInteraction) {
                 if (typeof gamesCmd?.handleInteraction === 'function') {
                     return await gamesCmd.handleInteraction(interaction);
@@ -158,15 +144,12 @@ export default async function handleInteractionCreate(client: Client, interactio
                 }
             }
 
-            // نظام قائمة الألوان
             if (interaction.isStringSelectMenu() && customId === 'select_name_color' && colorsCmd?.handleColorSelect) {
                 return await colorsCmd.handleColorSelect(interaction);
             }
         }
 
-        // ==========================================
         // 💬 6. معالجة أوامر السلاش (Slash Commands)
-        // ==========================================
         if (!interaction.isChatInputCommand()) return;
 
         const { commandName } = interaction;
@@ -179,7 +162,6 @@ export default async function handleInteractionCreate(client: Client, interactio
         if (commandName === 'shop' && shopCommand?.execute) return await shopCommand.execute(interaction);
         if (commandName === 'lab' && labCommand?.execute) return await labCommand.execute(interaction);
 
-        // أمر الألعاب السلاش
         if (commandName === 'games') {
             if (gamesCmd?.execute) {
                 return await gamesCmd.execute(interaction);
@@ -188,7 +170,6 @@ export default async function handleInteractionCreate(client: Client, interactio
             }
         }
 
-        // أوامر الإدارة (Array)
         if (Array.isArray(moderationCmds)) {
             const modCommand = moderationCmds.find(c => c.data?.name === commandName);
             if (modCommand?.execute) return await modCommand.execute(interaction);
@@ -197,7 +178,8 @@ export default async function handleInteractionCreate(client: Client, interactio
     } catch (error) {
         console.error(`❌ خطأ أثناء تنفيذ الإنتراكشن:`, error);
 
-        const errorMessage = {
+        // تم تعيين InteractionReplyOptions لتفادي أخطاء النوع في Render
+        const errorMessage: InteractionReplyOptions = {
             content: '❌ حدث خطأ غير متوقع أثناء تنفيذ هذا الطلب!',
             flags: MessageFlags.Ephemeral
         };
