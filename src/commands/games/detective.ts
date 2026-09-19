@@ -224,13 +224,13 @@ async function runDetectiveRound(
         const locationInfo = LOCATIONS_DATA[locationName]!;
         const crimeScene = locationInfo.crime_scenes[Math.floor(Math.random() * locationInfo.crime_scenes.length)]!;
 
-        const shuffled = [...playerList].sort(() => Math.random() - 0.5);
+        const shuffled: User[] = [...playerList].sort(() => Math.random() - 0.5);
 
         const killer = shuffled.pop()!;
         const doctor = shuffled.pop() || killer;
         const informant = shuffled.pop() || killer;
-        const detectives = shuffled.splice(0, Math.min(3, shuffled.length));
-        const citizens = shuffled;
+        const detectives: User[] = shuffled.splice(0, Math.min(3, shuffled.length));
+        const citizens: User[] = shuffled;
 
         const rolesData: Record<string, PlayerRoleData> = {};
         const playerSpots: Record<string, string> = {};
