@@ -9,7 +9,6 @@ import {
     Interaction,
     ButtonInteraction,
     StringSelectMenuInteraction,
-    TextBasedChannel,
     User
 } from 'discord.js';
 
@@ -70,6 +69,18 @@ const NIGHT_EVENTS: string[] = [
 
 const LOBBY_WAIT_TIME_SECONDS = 30;
 
+// دالة مساعدة للإرسال في القناة لتفادي أخطاء TypeScript
+async function sendToChannel(channel: any, payload: any): Promise<Message | null> {
+    try {
+        if (channel && typeof channel.send === 'function') {
+            return await channel.send(payload);
+        }
+    } catch (e) {
+        console.error('❌ خطأ في الإرسال إلى القناة:', e);
+    }
+    return null;
+}
+
 function createChunkedButtons(buttons: ButtonBuilder[], maxPerRow = 5): ActionRowBuilder<ButtonBuilder>[] {
     const rows: ActionRowBuilder<ButtonBuilder>[] = [];
     for (let i = 0; i < buttons.length; i += maxPerRow) {
@@ -121,7 +132,7 @@ export async function startDetectiveGame(
                 );
         }
 
-        let mainMessage: Message;
+        let mainMessage: Message | null = null;
         if (selectInteraction.replied || selectInteraction.deferred) {
             mainMessage = await selectInteraction.editReply({ 
                 embeds: [buildLobbyEmbed()], 
@@ -135,14 +146,14 @@ export async function startDetectiveGame(
             });
         }
 
-        const channel = (initialInteraction.channel || selectInteraction.channel) as TextBasedChannel;
+        const channel = initialInteraction.channel || selectInteraction.channel;
 
         if (!channel) {
             console.error('❌ تعذر العثور على القناة لبدء اللعبة.');
             return;
         }
 
-        const lobbyCollector = channel.createMessageComponentCollector({ 
+        const lobbyCollector = (channel as any).createMessageComponentCollector({ 
             componentType: ComponentType.Button, 
             time: LOBBY_WAIT_TIME_SECONDS * 1000 
         });
@@ -181,10 +192,12 @@ export async function startDetectiveGame(
             joinButton.setDisabled(true);
             leaveButton.setDisabled(true);
             
-            await mainMessage.edit({ components: [new ActionRowBuilder<ButtonBuilder>().addComponents(joinButton, leaveButton)] }).catch(() => {});
+            if (mainMessage) {
+                await mainMessage.edit({ components: [new ActionRowBuilder<ButtonBuilder>().addComponents(joinButton, leaveButton)] }).catch(() => {});
+            }
 
             if (playerInteractions.size < 2) {
-                await channel.send({ 
+                await sendToChannel(channel, { 
                     content: '❌ **تم إلغاء القضية!** لم ينضم عدد كافٍ من المشتبه بهم (يلزم 2 على الأقل).' 
                 });
                 return;
@@ -199,7 +212,7 @@ export async function startDetectiveGame(
 }
 
 async function runDetectiveRound(
-    channel: TextBasedChannel, 
+    channel: any, 
     playerInteractions: Map<string, StringSelectMenuInteraction | ButtonInteraction>
 ): Promise<void> {
     try {
@@ -255,7 +268,7 @@ async function runDetectiveRound(
         });
 
         // 2. إرسال الأوراق والبطاقات تلقائيًا لكل لاعب
-        await channel.send(`🎭 **انتهى وقت الانضمام! تم توزيع الأوراق والأماكن تلقائيًا لكل لاعب.**`);
+        await sendToChannel(channel, `🎭 **انتهى وقت الانضمام! تم توزيع الأوراق والأماكن تلقائيًا لكل لاعب.**`);
 
         for (const [userId, interaction] of playerInteractions.entries()) {
             const data = rolesData[userId]!;
@@ -298,7 +311,7 @@ async function runDetectiveRound(
 
         const actionRow = new ActionRowBuilder<ButtonBuilder>().addComponents(actionBtn);
 
-        const actionMsg = await channel.send({
+        const actionMsg = await sendToChannel(channel, {
             content: "🌙 **مرحلة الأهداف والمهام السرية:** أمام أصحاب المهام (المجرم والطبيب) 25 ثانية لتحديد الأهداف!",
             components: [actionRow]
         });
@@ -375,7 +388,9 @@ async function runDetectiveRound(
         await new Promise<void>(resolve => actionCollector.on('end', () => resolve()));
 
         actionBtn.setDisabled(true);
-        await actionMsg.edit({ components: [new ActionRowBuilder<ButtonBuilder>().addComponents(actionBtn)] }).catch(() => {});
+        if (actionMsg) {
+            await actionMsg.edit({ components: [new ActionRowBuilder<ButtonBuilder>().addComponents(actionBtn)] }).catch(() => {});
+        }
 
         // معالجة القتل الآلي إذا لم يختر المجرم
         const targets = playerList.filter(p => p.id !== killer.id);
@@ -397,7 +412,7 @@ async function runDetectiveRound(
                     `✨ **حدث ليلة الجريمة:**\n${currentEvent}`
                 );
             activePlayers = [...playerList];
-            await channel.send({ embeds: [embed] });
+            await sendToChannel(channel, { embeds: [embed] });
         } else if (selectedKillTarget) {
             const victimSpot = playerSpots[selectedKillTarget.id] || "مكان مجهول";
             const witnessHint = `👁️ **دليل الشاهد:** لوحظ تحرك مشبوه يبتعد عن (${victimSpot}).`;
@@ -414,7 +429,7 @@ async function runDetectiveRound(
                     `📢 **ابدأوا التحقيق واستجوبوا المشاركين للوصول للجاني!**`
                 );
             activePlayers = playerList.filter(p => p.id !== selectedKillTarget!.id);
-            await channel.send({ embeds: [embed] });
+            await sendToChannel(channel, { embeds: [embed] });
         } else {
             activePlayers = [...playerList];
         }
@@ -437,7 +452,7 @@ async function runDetectiveRound(
 
         const investRow = new ActionRowBuilder<ButtonBuilder>().addComponents(skipButton, emergencyButton);
 
-        const investMsg = await channel.send({
+        const investMsg = await sendToChannel(channel, {
             content: `⏳ **بدأ وقت التحقيق!** ينتهي التحقيق <t:${investEndTime}:R>\nأمامكم وقت لمناقشة الأماكن والتبريرات.`,
             components: [investRow]
         });
@@ -464,7 +479,9 @@ async function runDetectiveRound(
                     }
 
                     skipButton.setLabel(`تخطي التحقيق ⏩ (${skipVotes.size}/${SKIP_REQUIRED})`);
-                    await investMsg.edit({ components: [new ActionRowBuilder<ButtonBuilder>().addComponents(skipButton, emergencyButton)] }).catch(() => {});
+                    if (investMsg) {
+                        await investMsg.edit({ components: [new ActionRowBuilder<ButtonBuilder>().addComponents(skipButton, emergencyButton)] }).catch(() => {});
+                    }
 
                     if (skipVotes.size >= SKIP_REQUIRED) {
                         skipEarly = true;
@@ -492,12 +509,14 @@ async function runDetectiveRound(
 
         skipButton.setDisabled(true);
         emergencyButton.setDisabled(true);
-        await investMsg.edit({ components: [new ActionRowBuilder<ButtonBuilder>().addComponents(skipButton, emergencyButton)] }).catch(() => {});
+        if (investMsg) {
+            await investMsg.edit({ components: [new ActionRowBuilder<ButtonBuilder>().addComponents(skipButton, emergencyButton)] }).catch(() => {});
+        }
 
         if (emergencyCalledBy) {
-            await channel.send(`🚨 **اجتماع طارئ!** قام <@${(emergencyCalledBy as User).id}> بقطع وقت التحقيق للذهاب للتصويت فوراً!`);
+            await sendToChannel(channel, `🚨 **اجتماع طارئ!** قام <@${(emergencyCalledBy as User).id}> بقطع وقت التحقيق للذهاب للتصويت فوراً!`);
         } else if (skipEarly) {
-            await channel.send("⏩ **اكتمل نصاب التخطي! الانتقال للتصويت فوراً.**");
+            await sendToChannel(channel, "⏩ **اكتمل نصاب التخطي! الانتقال للتصويت فوراً.**");
         }
 
         // 6. مرحلة التصويت
@@ -532,7 +551,7 @@ async function runDetectiveRound(
             return createChunkedButtons(buttons);
         }
 
-        const voteMsg = await channel.send({
+        const voteMsg = await sendToChannel(channel, {
             content: `🗳️ **مرحلة التصويت!** ينتهي التصويت <t:${voteEndTime}:R>\nاختر المشتبه به لنقله لمرحلة المحاكمة:`,
             components: buildVoteRows(false)
         });
@@ -581,7 +600,9 @@ async function runDetectiveRound(
                     await vInteraction.reply({ content: `تم تصويتك ضد **${targetUser ? targetUser.displayName || targetUser.username : 'المشتبه به'}**!`, ephemeral: true });
                 }
 
-                await voteMsg.edit({ components: buildVoteRows(false) }).catch(() => {});
+                if (voteMsg) {
+                    await voteMsg.edit({ components: buildVoteRows(false) }).catch(() => {});
+                }
 
                 if (userVotesMap.size >= activePlayers.length) {
                     voteCollector.stop();
@@ -592,7 +613,9 @@ async function runDetectiveRound(
         });
 
         await new Promise<void>(resolve => voteCollector.on('end', () => resolve()));
-        await voteMsg.edit({ components: buildVoteRows(true) }).catch(() => {});
+        if (voteMsg) {
+            await voteMsg.edit({ components: buildVoteRows(true) }).catch(() => {});
+        }
 
         let maxVotes = 0;
         let topCandidate: string | null = null;
@@ -631,7 +654,7 @@ async function runDetectiveRound(
                     `بقية اللاعبين يستعدون للتصويت التأكيدي: (تأكيد الطرد ❌ / العفو 🕊️)`
                 );
 
-            await channel.send({ embeds: [defenseEmbed] });
+            await sendToChannel(channel, { embeds: [defenseEmbed] });
 
             await new Promise(resolve => setTimeout(resolve, 50000));
 
@@ -650,7 +673,7 @@ async function runDetectiveRound(
 
             const trialRow = new ActionRowBuilder<ButtonBuilder>().addComponents(executeBtn, pardonBtn);
 
-            const trialMsg = await channel.send({
+            const trialMsg = await sendToChannel(channel, {
                 content: `⚖️ **انتهى وقت الدفاع!** صوّتوا الآن على مصير <@${accusedUser.id}>:`,
                 components: [trialRow]
             });
@@ -692,18 +715,20 @@ async function runDetectiveRound(
 
             executeBtn.setDisabled(true);
             pardonBtn.setDisabled(true);
-            await trialMsg.edit({ components: [new ActionRowBuilder<ButtonBuilder>().addComponents(executeBtn, pardonBtn)] }).catch(() => {});
+            if (trialMsg) {
+                await trialMsg.edit({ components: [new ActionRowBuilder<ButtonBuilder>().addComponents(executeBtn, pardonBtn)] }).catch(() => {});
+            }
 
             if (confirmVotes.execute > confirmVotes.pardon) {
                 finalConvictedCandidate = topCandidate;
-                await channel.send(`⚖️ **أصدرت المحكمة حكمها!** تم تأكيد طرد <@${accusedUser.id}> بأغلبية الأصوات.`);
+                await sendToChannel(channel, `⚖️ **أصدرت المحكمة حكمها!** تم تأكيد طرد <@${accusedUser.id}> بأغلبية الأصوات.`);
             } else {
-                await channel.send(`🕊️ **تم منح العفو!** قررت الأغلبية قبول دفاع <@${accusedUser.id}> ولم يتم طرده.`);
+                await sendToChannel(channel, `🕊️ **تم منح العفو!** قررت الأغلبية قبول دفاع <@${accusedUser.id}> ولم يتم طرده.`);
             }
         }
 
         // 8. النتيجة الختامية
-        const rolesSummary = playerList.map(p => {
+        const rolesSummary = playerList.map((p: User) => {
             const data = rolesData[p.id]!;
             const spotInfo = data.spot ? `(الموقع: ${data.spot})` : '';
             return `• <@${p.id}> ➔ **${data.name}** ${spotInfo}`;
@@ -727,7 +752,7 @@ async function runDetectiveRound(
             `📜 **كشف أدوار ومواقع جميع المشاركين:**\n${rolesSummary}`
         );
 
-        await channel.send({ embeds: [resultEmbed] });
+        await sendToChannel(channel, { embeds: [resultEmbed] });
 
     } catch (err: unknown) {
         console.error('❌ خطأ في تشغيل جولة المحققين:', err);
