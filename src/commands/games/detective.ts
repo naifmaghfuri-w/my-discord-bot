@@ -449,7 +449,7 @@ async function runDetectiveRound(
         });
 
         let skipEarly = false;
-        // ✅ تحديد النوع صراحةً لحل خطأ السطر 404
+        // ✅ صراحة تحديد النوع هنا تجنباً للخطأ
         let emergencyCalledBy: User | null = null;
 
         const investCollector = channel.createMessageComponentCollector({ componentType: ComponentType.Button, time: 90000 });
@@ -505,9 +505,10 @@ async function runDetectiveRound(
             await investMsg.edit({ components: [new ActionRowBuilder<ButtonBuilder>().addComponents(skipButton, emergencyButton)] }).catch(() => {});
         }
 
-        // ✅ السطر 404 بعد الإصلاح
+        // ✅ تم تعديل هذا الجزء للتعامل مع المتغير بدون خطأ TypeScript
         if (emergencyCalledBy) {
-            await sendToChannel(channel, `🚨 **اجتماع طارئ!** قام <@${(emergencyCalledBy as User).id}> بقطع وقت التحقيق للذهاب للتصويت فوراً!`);
+            const caller = emergencyCalledBy as User;
+            await sendToChannel(channel, `🚨 **اجتماع طارئ!** قام <@${caller.id}> بقطع وقت التحقيق للذهاب للتصويت فوراً!`);
         } else if (skipEarly) {
             await sendToChannel(channel, "⏩ **اكتمل نصاب التخطي! الانتقال للتصويت فوراً.**");
         }
@@ -610,7 +611,6 @@ async function runDetectiveRound(
         }
 
         let maxVotes = 0;
-        // ✅ تحديد نوع topCandidate صراحةً
         let topCandidate: string | null = null;
         let isTie = false;
 
@@ -633,7 +633,6 @@ async function runDetectiveRound(
         let finalConvictedCandidate: string | null = null;
 
         if (topCandidate && !isTie) {
-            // ✅ تحديد نوع accusedUser صراحةً لتجنب خطأ السطر 518
             const accusedUser: User | undefined = activePlayers.find(p => p.id === topCandidate);
 
             if (accusedUser) {
