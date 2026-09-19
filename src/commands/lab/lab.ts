@@ -661,7 +661,7 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
             return await updateScreen(buildMoreMenu(user, player));
         }
 
-        // Market (البورصة المحدثة بدون أخطاء رموز)
+        // Market
         if (i.customId === 'btn_open_market') {
             const currentPrices = getMarketPrices();
             let priceListStr = Object.entries(currentPrices).slice(0, 7).map(([id, p]: [string, any]) => {
