@@ -457,6 +457,7 @@ async function runDetectiveRound(
         });
 
         let skipEarly = false;
+        // 🔴 حل المشكلة الأساسي هنا (تحديد نوع المتغير صراحة)
         let emergencyCalledBy: User | null = null;
 
         const investCollector = channel.createMessageComponentCollector({ componentType: ComponentType.Button, time: 90000 });
@@ -512,9 +513,9 @@ async function runDetectiveRound(
             await investMsg.edit({ components: [new ActionRowBuilder<ButtonBuilder>().addComponents(skipButton, emergencyButton)] }).catch(() => {});
         }
 
-        const caller = emergencyCalledBy as User | null;
-        if (caller) {
-            await sendToChannel(channel, `🚨 **اجتماع طارئ!** قام <@${caller.id}> بقطع وقت التحقيق للذهاب للتصويت فوراً!`);
+        // 🔴 استخدام المتغير بأمان بعد تحسين النوع
+        if (emergencyCalledBy) {
+            await sendToChannel(channel, `🚨 **اجتماع طارئ!** قام <@${emergencyCalledBy.id}> بقطع وقت التحقيق للذهاب للتصويت فوراً!`);
         } else if (skipEarly) {
             await sendToChannel(channel, "⏩ **اكتمل نصاب التخطي! الانتقال للتصويت فوراً.**");
         }
