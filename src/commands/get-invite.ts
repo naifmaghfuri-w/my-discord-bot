@@ -4,7 +4,7 @@ import {
     MessageFlags, 
     ChatInputCommandInteraction, 
     Guild, 
-    GuildTextBasedChannel 
+    GuildTextChannel 
 } from 'discord.js';
 
 const OWNER_ID: string = process.env.OWNER_ID || '1391517806193017023';
@@ -58,15 +58,15 @@ const getInviteCommand: Command = {
                 c.isTextBased() && 
                 !c.isThread() &&
                 c.permissionsFor(botMember)?.has(PermissionFlagsBits.CreateInstantInvite) === true
-            ) as GuildTextBasedChannel | undefined;
+            ) as GuildTextChannel | undefined;
 
-            if (!channel) {
+            if (!channel || typeof (channel as any).createInvite !== 'function') {
                 await interaction.editReply({ content: '❌ البوت لا يمتلك صلاحيات إنشاء دعوة (Create Instant Invite) في قنوات هذا السيرفر.' });
                 return;
             }
 
             // إنشاء رابط دعوة صالح لمدة 24 ساعة واستخدام واحد
-            const invite = await channel.createInvite({
+            const invite = await (channel as any).createInvite({
                 maxAge: 86400, // 24 ساعة
                 maxUses: 1,    // استخدام واحد
                 unique: true,
