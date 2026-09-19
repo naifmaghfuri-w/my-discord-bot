@@ -11,7 +11,6 @@ import {
     User
 } from 'discord.js';
 
-// 1. تعاريف الواجهات وأنواع البيانات (Interfaces & Types)
 export interface LocationDetails {
     crime_scenes: string[];
     innocent_spots: string[];
@@ -68,7 +67,6 @@ const NIGHT_EVENTS: string[] = [
 
 const LOBBY_WAIT_TIME_SECONDS = 30;
 
-// دالة مساعدة للإرسال في القناة لتفادي أخطاء TypeScript
 async function sendToChannel(channel: any, payload: any): Promise<Message | null> {
     try {
         if (channel && typeof channel.send === 'function') {
@@ -217,7 +215,6 @@ async function runDetectiveRound(
     try {
         const playerList: User[] = Array.from(playerInteractions.keys()).map(id => playerInteractions.get(id)!.user);
 
-        // 1. توليد وتوزيع الأماكن والأدوار
         const locationNames = Object.keys(LOCATIONS_DATA);
         const locationName = locationNames[Math.floor(Math.random() * locationNames.length)]!;
         const locationInfo = LOCATIONS_DATA[locationName]!;
@@ -266,7 +263,6 @@ async function runDetectiveRound(
             playerSpots[cit.id] = spot;
         });
 
-        // 2. إرسال الأوراق والبطاقات تلقائيًا لكل لاعب
         await sendToChannel(channel, `🎭 **انتهى وقت الانضمام! تم توزيع الأوراق والأماكن تلقائيًا لكل لاعب.**`);
 
         for (const [userId, interaction] of playerInteractions.entries()) {
@@ -299,7 +295,6 @@ async function runDetectiveRound(
             }
         }
 
-        // 3. مرحلة تنفيذ الأهداف والمهام
         let selectedKillTarget: User | null = null;
         let selectedProtectTarget: User | null = null;
 
@@ -391,13 +386,11 @@ async function runDetectiveRound(
             await actionMsg.edit({ components: [new ActionRowBuilder<ButtonBuilder>().addComponents(actionBtn)] }).catch(() => {});
         }
 
-        // معالجة القتل الآلي إذا لم يختر المجرم
         const targets = playerList.filter(p => p.id !== killer.id);
         if (!selectedKillTarget && targets.length > 0) {
             selectedKillTarget = targets[Math.floor(Math.random() * targets.length)] || null;
         }
 
-        // 4. إعلان نتيجة الليلة ومرحلة الجريمة
         const currentEvent = NIGHT_EVENTS[Math.floor(Math.random() * NIGHT_EVENTS.length)]!;
         let activePlayers: User[] = [];
 
@@ -433,7 +426,6 @@ async function runDetectiveRound(
             activePlayers = [...playerList];
         }
 
-        // 5. فترة التحقيق
         const skipVotes = new Set<string>();
         const usedEmergency = new Set<string>();
         const SKIP_REQUIRED = Math.ceil(activePlayers.length / 2);
@@ -457,7 +449,7 @@ async function runDetectiveRound(
         });
 
         let skipEarly = false;
-        // 🔴 حل المشكلة الأساسي هنا (تحديد نوع المتغير صراحة)
+        // ✅ تحديد النوع صراحةً لحل خطأ السطر 404
         let emergencyCalledBy: User | null = null;
 
         const investCollector = channel.createMessageComponentCollector({ componentType: ComponentType.Button, time: 90000 });
@@ -513,14 +505,13 @@ async function runDetectiveRound(
             await investMsg.edit({ components: [new ActionRowBuilder<ButtonBuilder>().addComponents(skipButton, emergencyButton)] }).catch(() => {});
         }
 
-        // 🔴 استخدام المتغير بأمان بعد تحسين النوع
+        // ✅ السطر 404 بعد الإصلاح
         if (emergencyCalledBy) {
-            await sendToChannel(channel, `🚨 **اجتماع طارئ!** قام <@${emergencyCalledBy.id}> بقطع وقت التحقيق للذهاب للتصويت فوراً!`);
+            await sendToChannel(channel, `🚨 **اجتماع طارئ!** قام <@${(emergencyCalledBy as User).id}> بقطع وقت التحقيق للذهاب للتصويت فوراً!`);
         } else if (skipEarly) {
             await sendToChannel(channel, "⏩ **اكتمل نصاب التخطي! الانتقال للتصويت فوراً.**");
         }
 
-        // 6. مرحلة التصويت
         const userVotesMap = new Map<string, string>(); 
         const voteCounts: Record<string, number> = {};
         activePlayers.forEach(p => voteCounts[p.id] = 0);
@@ -619,6 +610,7 @@ async function runDetectiveRound(
         }
 
         let maxVotes = 0;
+        // ✅ تحديد نوع topCandidate صراحةً
         let topCandidate: string | null = null;
         let isTie = false;
 
@@ -638,97 +630,99 @@ async function runDetectiveRound(
             isTie = true;
         }
 
-        // 7. مرحلة الدفاع والمحاكمة
         let finalConvictedCandidate: string | null = null;
 
         if (topCandidate && !isTie) {
-            const accusedUser = activePlayers.find(p => p.id === topCandidate)!;
-            const defenseEndTime = Math.floor((Date.now() + 50000) / 1000);
+            // ✅ تحديد نوع accusedUser صراحةً لتجنب خطأ السطر 518
+            const accusedUser: User | undefined = activePlayers.find(p => p.id === topCandidate);
 
-            const defenseEmbed = new EmbedBuilder()
-                .setColor('#e67e22')
-                .setTitle('🏛️ قاعة المحكمة - مرحلة الدفاع')
-                .setDescription(
-                    `📣 **المتهم الحالي:** <@${accusedUser.id}>\n\n` +
-                    `أمام المتهم **50 ثانية** للدفاع عن نفسه وتبرير موقفه بشتى الطرق!\n` +
-                    `تنتهي فترة الدفاع <t:${defenseEndTime}:R>\n\n` +
-                    `بقية اللاعبين يستعدون للتصويت التأكيدي: (تأكيد الطرد ❌ / العفو 🕊️)`
-                );
+            if (accusedUser) {
+                const defenseEndTime = Math.floor((Date.now() + 50000) / 1000);
 
-            await sendToChannel(channel, { embeds: [defenseEmbed] });
+                const defenseEmbed = new EmbedBuilder()
+                    .setColor('#e67e22')
+                    .setTitle('🏛️ قاعة المحكمة - مرحلة الدفاع')
+                    .setDescription(
+                        `📣 **المتهم الحالي:** <@${accusedUser.id}>\n\n` +
+                        `أمام المتهم **50 ثانية** للدفاع عن نفسه وتبرير موقفه بشتى الطرق!\n` +
+                        `تنتهي فترة الدفاع <t:${defenseEndTime}:R>\n\n` +
+                        `بقية اللاعبين يستعدون للتصويت التأكيدي: (تأكيد الطرد ❌ / العفو 🕊️)`
+                    );
 
-            await new Promise(resolve => setTimeout(resolve, 50000));
+                await sendToChannel(channel, { embeds: [defenseEmbed] });
 
-            const confirmVotes = { execute: 0, pardon: 0 };
-            const confirmedVoters = new Set<string>();
+                await new Promise(resolve => setTimeout(resolve, 50000));
 
-            const executeBtn = new ButtonBuilder()
-                .setCustomId('confirm_execute')
-                .setLabel('طرد المتهم ❌')
-                .setStyle(ButtonStyle.Danger);
+                const confirmVotes = { execute: 0, pardon: 0 };
+                const confirmedVoters = new Set<string>();
 
-            const pardonBtn = new ButtonBuilder()
-                .setCustomId('confirm_pardon')
-                .setLabel('منح العفو 🕊️')
-                .setStyle(ButtonStyle.Success);
+                const executeBtn = new ButtonBuilder()
+                    .setCustomId('confirm_execute')
+                    .setLabel('طرد المتهم ❌')
+                    .setStyle(ButtonStyle.Danger);
 
-            const trialRow = new ActionRowBuilder<ButtonBuilder>().addComponents(executeBtn, pardonBtn);
+                const pardonBtn = new ButtonBuilder()
+                    .setCustomId('confirm_pardon')
+                    .setLabel('منح العفو 🕊️')
+                    .setStyle(ButtonStyle.Success);
 
-            const trialMsg = await sendToChannel(channel, {
-                content: `⚖️ **انتهى وقت الدفاع!** صوّتوا الآن على مصير <@${accusedUser.id}>:`,
-                components: [trialRow]
-            });
+                const trialRow = new ActionRowBuilder<ButtonBuilder>().addComponents(executeBtn, pardonBtn);
 
-            const trialCollector = channel.createMessageComponentCollector({ componentType: ComponentType.Button, time: 20000 });
+                const trialMsg = await sendToChannel(channel, {
+                    content: `⚖️ **انتهى وقت الدفاع!** صوّتوا الآن على مصير <@${accusedUser.id}>:`,
+                    components: [trialRow]
+                });
 
-            trialCollector.on('collect', async (tInt: ButtonInteraction) => {
-                try {
-                    if (!activePlayers.some(p => p.id === tInt.user.id)) {
-                        await tInt.reply({ content: '❌ يمكن للاعبين الأحياء فقط المشاركة في الحكم!', ephemeral: true });
-                        return;
+                const trialCollector = channel.createMessageComponentCollector({ componentType: ComponentType.Button, time: 20000 });
+
+                trialCollector.on('collect', async (tInt: ButtonInteraction) => {
+                    try {
+                        if (!activePlayers.some(p => p.id === tInt.user.id)) {
+                            await tInt.reply({ content: '❌ يمكن للاعبين الأحياء فقط المشاركة في الحكم!', ephemeral: true });
+                            return;
+                        }
+
+                        if (tInt.user.id === accusedUser.id) {
+                            await tInt.reply({ content: '❌ لا يمكنك التصويت في محاكمتك الخاصة!', ephemeral: true });
+                            return;
+                        }
+
+                        if (confirmedVoters.has(tInt.user.id)) {
+                            await tInt.reply({ content: '❌ لقد أصدرت حكمك بالفعل!', ephemeral: true });
+                            return;
+                        }
+
+                        confirmedVoters.add(tInt.user.id);
+
+                        if (tInt.customId === 'confirm_execute') {
+                            confirmVotes.execute++;
+                            await tInt.reply({ content: 'صوّت لـ **طرد المتهم**.', ephemeral: true });
+                        } else {
+                            confirmVotes.pardon++;
+                            await tInt.reply({ content: 'صوّت لـ **منح العفو**.', ephemeral: true });
+                        }
+                    } catch (err: unknown) {
+                        console.error('❌ خطأ في تصويت المحاكمة:', err);
                     }
+                });
 
-                    if (tInt.user.id === accusedUser.id) {
-                        await tInt.reply({ content: '❌ لا يمكنك التصويت في محاكمتك الخاصة!', ephemeral: true });
-                        return;
-                    }
+                await new Promise<void>(resolve => trialCollector.on('end', () => resolve()));
 
-                    if (confirmedVoters.has(tInt.user.id)) {
-                        await tInt.reply({ content: '❌ لقد أصدرت حكمك بالفعل!', ephemeral: true });
-                        return;
-                    }
-
-                    confirmedVoters.add(tInt.user.id);
-
-                    if (tInt.customId === 'confirm_execute') {
-                        confirmVotes.execute++;
-                        await tInt.reply({ content: 'صوّت لـ **طرد المتهم**.', ephemeral: true });
-                    } else {
-                        confirmVotes.pardon++;
-                        await tInt.reply({ content: 'صوّت لـ **منح العفو**.', ephemeral: true });
-                    }
-                } catch (err: unknown) {
-                    console.error('❌ خطأ في تصويت المحاكمة:', err);
+                executeBtn.setDisabled(true);
+                pardonBtn.setDisabled(true);
+                if (trialMsg) {
+                    await trialMsg.edit({ components: [new ActionRowBuilder<ButtonBuilder>().addComponents(executeBtn, pardonBtn)] }).catch(() => {});
                 }
-            });
 
-            await new Promise<void>(resolve => trialCollector.on('end', () => resolve()));
-
-            executeBtn.setDisabled(true);
-            pardonBtn.setDisabled(true);
-            if (trialMsg) {
-                await trialMsg.edit({ components: [new ActionRowBuilder<ButtonBuilder>().addComponents(executeBtn, pardonBtn)] }).catch(() => {});
-            }
-
-            if (confirmVotes.execute > confirmVotes.pardon) {
-                finalConvictedCandidate = topCandidate;
-                await sendToChannel(channel, `⚖️ **أصدرت المحكمة حكمها!** تم تأكيد طرد <@${accusedUser.id}> بأغلبية الأصوات.`);
-            } else {
-                await sendToChannel(channel, `🕊️ **تم منح العفو!** قررت الأغلبية قبول دفاع <@${accusedUser.id}> ولم يتم طرده.`);
+                if (confirmVotes.execute > confirmVotes.pardon) {
+                    finalConvictedCandidate = topCandidate;
+                    await sendToChannel(channel, `⚖️ **أصدرت المحكمة حكمها!** تم تأكيد طرد <@${accusedUser.id}> بأغلبية الأصوات.`);
+                } else {
+                    await sendToChannel(channel, `🕊️ **تم منح العفو!** قررت الأغلبية قبول دفاع <@${accusedUser.id}> ولم يتم طرده.`);
+                }
             }
         }
 
-        // 8. النتيجة الختامية
         const rolesSummary = playerList.map((p: User) => {
             const data = rolesData[p.id]!;
             const spotInfo = data.spot ? `(الموقع: ${data.spot})` : '';
