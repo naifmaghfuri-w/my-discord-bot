@@ -12,7 +12,7 @@ import {
     MessageComponentInteraction,
     StringSelectMenuInteraction,
     ButtonInteraction,
-    TextBasedChannel
+    Message
 } from 'discord.js';
 
 // تعريف أنواع البيانات
@@ -35,6 +35,18 @@ const topicsOutOfLoop: CategoryMap = {
     "دول وعواصم": ["السعودية", "الإمارات", "مصر", "اليابان", "تركيا", "باريس", "لندن"],
     "ملابس وإكسسوارات": ["فستان", "كاب", "شنطة", "نظارة", "حذاء", "قميص", "ساعة"]
 };
+
+// دالة مساعدة للإرسال في القناة لتفادي أخطاء Type Safety
+async function sendToChannel(channel: any, payload: any): Promise<Message | null> {
+    try {
+        if (channel && typeof channel.send === 'function') {
+            return await channel.send(payload);
+        }
+    } catch (e) {
+        console.error('❌ خطأ في الإرسال إلى القناة:', e);
+    }
+    return null;
+}
 
 export async function startOutOfLoopGame(
     selectInteraction: StringSelectMenuInteraction, 
@@ -105,7 +117,7 @@ export async function startOutOfLoopGame(
             await selectInteraction.update({ embeds: [buildLobbyEmbed()], components: [categoryRow, buttonRow] });
         }
 
-        const channel = (initialInteraction.channel || selectInteraction.channel) as TextBasedChannel;
+        const channel = (initialInteraction.channel || selectInteraction.channel) as any;
         if (!channel) return;
 
         const collector = channel.createMessageComponentCollector({ time: lobbyDurationMs });
@@ -148,7 +160,7 @@ export async function startOutOfLoopGame(
 
         collector.on('end', async () => {
             if (players.size < 2) {
-                await channel.send({
+                await sendToChannel(channel, {
                     embeds: [
                         new EmbedBuilder()
                             .setColor('#e74c3c')
@@ -160,12 +172,12 @@ export async function startOutOfLoopGame(
             }
 
             const categoryNames = Object.keys(topicsOutOfLoop);
-            const chosenCategory = selectedCategory || categoryNames[Math.floor(Math.random() * categoryNames.length)];
-            const wordList = topicsOutOfLoop[chosenCategory];
-            const secretWord = wordList[Math.floor(Math.random() * wordList.length)];
+            const chosenCategory = selectedCategory || categoryNames[Math.floor(Math.random() * categoryNames.length)]!;
+            const wordList = topicsOutOfLoop[chosenCategory]!;
+            const secretWord = wordList[Math.floor(Math.random() * wordList.length)]!;
 
             const playerArray = Array.from(players.keys());
-            const imposterId = playerArray[Math.floor(Math.random() * playerArray.length)];
+            const imposterId = playerArray[Math.floor(Math.random() * playerArray.length)]!;
 
             const gameStartEmbed = new EmbedBuilder()
                 .setColor('#2ecc71')
@@ -176,7 +188,7 @@ export async function startOutOfLoopGame(
                     `⏱️ **سيبدأ الآن دور الأسئلة بين اللاعبين بالترتيب!**`
                 );
 
-            await channel.send({ embeds: [gameStartEmbed] });
+            await sendToChannel(channel, { embeds: [gameStartEmbed] });
 
             // إرسال الكلمة السرية للخاص
             for (const pId of playerArray) {
@@ -185,11 +197,11 @@ export async function startOutOfLoopGame(
 
                 if (pId === imposterId) {
                     await user.send(`🤫 **أنت برا السالفة!**\nالتصنيف هو: **${chosenCategory}**\nحاول تخمين الكلمة من إجاباتهم واعرف السالفة!`).catch(() => {
-                        channel.send({ content: `⚠️ <@${pId}> الخاص لديك مغلق! لم نتمكن من إرسال حالتك في اللعبة.`, flags: MessageFlags.Ephemeral });
+                        sendToChannel(channel, { content: `⚠️ <@${pId}> الخاص لديك مغلق! لم نتمكن من إرسال حالتك في اللعبة.`, flags: MessageFlags.Ephemeral });
                     });
                 } else {
                     await user.send(`💡 **السالفة هي:** **${secretWord}**\nالتصنيف: **${chosenCategory}**\nاسألوا بعضكم لكشف من هو برا السالفة!`).catch(() => {
-                        channel.send({ content: `⚠️ <@${pId}> الخاص لديك مغلق! لم نتمكن من إرسال الكلمة.`, flags: MessageFlags.Ephemeral });
+                        sendToChannel(channel, { content: `⚠️ <@${pId}> الخاص لديك مغلق! لم نتمكن من إرسال الكلمة.`, flags: MessageFlags.Ephemeral });
                     });
                 }
             }
@@ -198,8 +210,8 @@ export async function startOutOfLoopGame(
             const turnDurationMs = 60000; 
             
             for (let i = 0; i < playerArray.length; i++) {
-                const p1 = playerArray[i]; 
-                const p2 = playerArray[(i + 1) % playerArray.length]; 
+                const p1 = playerArray[i]!; 
+                const p2 = playerArray[(i + 1) % playerArray.length]!; 
 
                 const skipButton = new ButtonBuilder()
                     .setCustomId(`skip_turn_${i}`)
@@ -213,28 +225,30 @@ export async function startOutOfLoopGame(
                     .setTitle(`📢 دور الأسئلة [${i + 1}/${playerArray.length}]`)
                     .setDescription(`👉 <@${p1}> قم بتوجيه سؤال إلى <@${p2}> يتعلق بالسالفة!\n⏳ معك **دقيقة واحدة (60 ثانية)**، اضغط على الزر للتخطي فور الانتهاء.`);
 
-                const roundMsg = await channel.send({ embeds: [askEmbed], components: [row] });
+                const roundMsg = await sendToChannel(channel, { embeds: [askEmbed], components: [row] });
 
-                await new Promise<void>(resolve => {
-                    const turnCollector = roundMsg.createMessageComponentCollector({
-                        componentType: ComponentType.Button,
-                        time: turnDurationMs
-                    });
+                if (roundMsg) {
+                    await new Promise<void>(resolve => {
+                        const turnCollector = roundMsg.createMessageComponentCollector({
+                            componentType: ComponentType.Button,
+                            time: turnDurationMs
+                        });
 
-                    turnCollector.on('collect', async (bInt: ButtonInteraction) => {
-                        if (bInt.user.id !== p1 && bInt.user.id !== p2) {
-                            return bInt.reply({ content: '❌ فقط اللاعب المشارك في هذا الدور يمكنه تخطي الوقت!', flags: MessageFlags.Ephemeral });
-                        }
-                        await bInt.reply({ content: 'تم تخطي باقي الوقت والانتقال للدور التالي!', flags: MessageFlags.Ephemeral });
-                        turnCollector.stop('skipped');
-                    });
+                        turnCollector.on('collect', async (bInt: ButtonInteraction) => {
+                            if (bInt.user.id !== p1 && bInt.user.id !== p2) {
+                                return bInt.reply({ content: '❌ فقط اللاعب المشارك في هذا الدور يمكنه تخطي الوقت!', flags: MessageFlags.Ephemeral });
+                            }
+                            await bInt.reply({ content: 'تم تخطي باقي الوقت والانتقال للدور التالي!', flags: MessageFlags.Ephemeral });
+                            turnCollector.stop('skipped');
+                        });
 
-                    turnCollector.on('end', async () => {
-                        skipButton.setDisabled(true);
-                        await roundMsg.edit({ components: [new ActionRowBuilder<ButtonBuilder>().addComponents(skipButton)] }).catch(() => {});
-                        resolve();
+                        turnCollector.on('end', async () => {
+                            skipButton.setDisabled(true);
+                            await roundMsg.edit({ components: [new ActionRowBuilder<ButtonBuilder>().addComponents(skipButton)] }).catch(() => {});
+                            resolve();
+                        });
                     });
-                });
+                }
             }
 
             // --- مرحلة التصويت ---
@@ -256,11 +270,13 @@ export async function startOutOfLoopGame(
                 .setTitle('🗳️ انتهى وقت الأسئلة! حان وقت التصويت')
                 .setDescription(`صوّتوا الآن لمعرفة من هو الشخص الذي **برا السالفة**! (أمامكم 60 ثانية)`);
 
-            const voteMsg = await channel.send({ embeds: [voteEmbed], components: [voteRow] });
+            const voteMsg = await sendToChannel(channel, { embeds: [voteEmbed], components: [voteRow] });
 
             const votes: Record<string, number> = {};
             playerArray.forEach(id => votes[id] = 0);
             const playerVotes: Map<string, string> = new Map();
+
+            if (!voteMsg) return;
 
             const voteCollector = voteMsg.createMessageComponentCollector({
                 componentType: ComponentType.StringSelect,
@@ -275,7 +291,7 @@ export async function startOutOfLoopGame(
                     return vInt.reply({ content: '⚠️ لقد قمت بالتصويت بالفعل!', flags: MessageFlags.Ephemeral });
                 }
 
-                const selected = vInt.values[0];
+                const selected = vInt.values[0]!;
                 playerVotes.set(vInt.user.id, selected);
                 votes[selected] = (votes[selected] || 0) + 1;
 
@@ -312,17 +328,22 @@ export async function startOutOfLoopGame(
                         .setTitle('🚨 تم كشفك! فرصة التخمين الأخيرة')
                         .setDescription(`<@${imposterId}> لقد كشفك الجميع!\nأمامك **30 ثانية** لكتابة الكلمة السرية الصح في الشات العام لسرقة الفوز! (التصنيف: **${chosenCategory}**)`);
 
-                    await channel.send({ content: `<@${imposterId}>`, embeds: [lastChanceEmbed] });
+                    await sendToChannel(channel, { content: `<@${imposterId}>`, embeds: [lastChanceEmbed] });
 
                     let guessedSuccessfully = false;
 
                     await new Promise<void>(resolveGuess => {
+                        if (typeof channel.createMessageCollector !== 'function') {
+                            resolveGuess();
+                            return;
+                        }
+
                         const chatCollector = channel.createMessageCollector({
-                            filter: m => m.author.id === imposterId,
+                            filter: (m: any) => m.author.id === imposterId,
                             time: 30000
                         });
 
-                        chatCollector.on('collect', async m => {
+                        chatCollector.on('collect', async (m: any) => {
                             if (m.content.trim().toLowerCase() === secretWord.toLowerCase()) {
                                 guessedSuccessfully = true;
                                 await m.react('🎉').catch(() => {});
@@ -381,7 +402,7 @@ export async function startOutOfLoopGame(
 }
 
 async function sendSummaryEmbed(
-    channel: TextBasedChannel, 
+    channel: any, 
     imposterWon: boolean, 
     imposterId: string, 
     secretWord: string, 
@@ -400,5 +421,5 @@ async function sendSummaryEmbed(
         )
         .setFooter({ text: 'برا السالفة v1.2 •' });
 
-    await channel.send({ embeds: [summaryEmbed] });
+    await sendToChannel(channel, { embeds: [summaryEmbed] });
 }
