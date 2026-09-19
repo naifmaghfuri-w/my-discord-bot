@@ -26,11 +26,12 @@ export interface Command {
     handleGamesCommand?: (context: GameContext) => Promise<void>;
 }
 
-const gamesCommand = new SlashCommandBuilder()
+export const gamesCommand = new SlashCommandBuilder()
     .setName('games')
-    .setDescription('عرض قائمة الألعاب المتاحة وااختيار لعبة لبدئها') as SlashCommandBuilder;
+    .setDescription('عرض قائمة الألعاب المتاحة واختيار لعبة لبدئها') as SlashCommandBuilder;
 
-async function handleGamesCommand(context: GameContext): Promise<void> {
+// تم إضافة export هنا لتسهيل استدعائها عند كتابة "العاب" كرسالة
+export async function handleGamesCommand(context: GameContext): Promise<void> {
     try {
         const author: User = 'user' in context ? context.user : context.author;
 
