@@ -1,4 +1,4 @@
-import { Client, Message, PermissionsBitField, TextChannel } from 'discord.js';
+import { Client, Message, PermissionsBitField, SendableChannels } from 'discord.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // تعريف الأنواع المخصصة لتجنب أخطاء TypeScript
@@ -26,9 +26,9 @@ try { getPrivateChatPanel = require('../commands/privateChat')?.getPrivateChatPa
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-// إعداد نموذج Gemini الرسمى السريع (تم تعديل الاسم لتفادي خطأ API)
+// إعداد نموذج Gemini
 const model = genAI.getGenerativeModel({
-    model: 'gemini-3.5-flash-lite',
+    model: 'gemini-1.5-flash',
     systemInstruction: `أنتِ فتاة اسمك "بيتو" كإنسانة طبيعية تتكلمين عربي بكلام واضح وخليك ذكية وتتطورين واحفظي الأشياء التي يحكولك احفظيها زي أسمائهم وكلامك مختصر.
 قواعد التفاعل الذكي:
 - لاتكثري من أسئلة شو أخبارك ومنورنا وكيف حالك، خليك في الموضوع دائماً.
@@ -49,7 +49,11 @@ export default async function handleMessageCreate(client: Client, message: Messa
     if ((content === '!setup-panel' || content === 'لوحة الدردشات') && typeof getPrivateChatPanel === 'function') {
         if (!message.member?.permissions.has(PermissionsBitField.Flags.Administrator)) return;
         const panelData = getPrivateChatPanel();
-        await message.channel.send(panelData);
+        
+        // التحقق من صلاحية القناة للإرسال لتجنب خطأ TS2339
+        if (message.channel.isSendable()) {
+            await message.channel.send(panelData);
+        }
         await message.delete().catch(() => {});
         return;
     }
@@ -78,8 +82,8 @@ export default async function handleMessageCreate(client: Client, message: Messa
                     return replyMessage;
                 },
                 followUp: async (options: any) => {
-                    if (message.channel instanceof TextChannel || 'send' in message.channel) {
-                        return await message.channel.send(options);
+                    if (message.channel.isSendable()) {
+                        return await (message.channel as SendableChannels).send(options);
                     }
                 },
                 editReply: async (options: any) => {
@@ -88,7 +92,7 @@ export default async function handleMessageCreate(client: Client, message: Messa
                 },
                 deferReply: async () => {
                     fakeInteraction.deferred = true;
-                    if ('sendTyping' in message.channel) {
+                    if ('sendTyping' in message.channel && typeof message.channel.sendTyping === 'function') {
                         await message.channel.sendTyping().catch(() => {});
                     }
                 }
@@ -123,7 +127,7 @@ export default async function handleMessageCreate(client: Client, message: Messa
 
     if (isMentioned || isDots || isCalledByName) {
         try {
-            if ('sendTyping' in message.channel) {
+            if ('sendTyping' in message.channel && typeof message.channel.sendTyping === 'function') {
                 await message.channel.sendTyping().catch(() => {});
             }
 
