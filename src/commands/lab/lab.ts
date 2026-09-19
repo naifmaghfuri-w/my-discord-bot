@@ -657,7 +657,8 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
             player.automatedProduct = i.customId === 'btn_set_auto_gold' ? 'pure_gold' : 'benzene';
             player.lastAutoClaim = Date.now();
             updatePlayerData(user.id, player);
-            await notifyOnly(`⚙️ تم ضبط الورشة لإنتاج **${labData.items[player.automatedProduct].name}** بنجاح!`);
+            const prodName = labData.items[player.automatedProduct]?.name || player.automatedProduct;
+            await notifyOnly(`⚙️ تم ضبط الورشة لإنتاج **${prodName}** بنجاح!`);
             return await updateScreen(buildMoreMenu(user, player));
         }
 
@@ -665,10 +666,10 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
         if (i.customId === 'btn_open_market') {
             const currentPrices = getMarketPrices();
             let priceListStr = Object.entries(currentPrices).slice(0, 7).map(([id, p]: [string, any]) => {
-                const baseP = labData.items[id].price;
+                const baseP = labData.items[id]?.price || 0;
                 const diff = p - baseP;
                 const status = diff >= 0 ? `📈 (+${diff})` : `📉 (${diff})`;
-                return `• **${labData.items[id].name}**: \`${p}\` ${status}`;
+                return `• **${labData.items[id]?.name || id}**: \`${p}\` ${status}`;
             }).join('\n');
 
             const marketEmbed = new EmbedBuilder()
@@ -901,7 +902,7 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
                     updatePlayerData(winnerId, winnerPlayer);
                     updatePlayerData(loserId, loserPlayer);
 
-                    await channel.send({ content: `🎉 **مبروك <@${winnerId}>!** كتبت الرمز الصحيح \`${randomItem.symbol}\` بسرعة وفزت بالتحدي وبمبلغ **+${betAmount}** <:emoji_40:1548935096768274532>!` });
+                    await channel.send({ content: `🎉 **مبروك <@${winnerId}>!** كتبت الرمز الصحيح \`${randomItem.symbol}\` بسرعة وفزت بالتحدي وبمبلغ **+${betAmount}** <:emoji_40:1548935096768274532>!` }).catch(() => {});
                 });
 
                 duelCollector.on('end', collected => {
@@ -1217,7 +1218,8 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
 
             for (const [mat, qty] of Object.entries(reaction.req)) {
                 if (!player.inv[mat] || player.inv[mat] < qty) {
-                    return await notifyOnly(`❌ لا تملك المواد الكافية! تحتاج إلى (${labData.items[mat]?.name \vert{}\vert{} mat} x${qty})`);
+                    const matName = labData.items[mat]?.name || mat;
+                    return await notifyOnly(`❌ لا تملك المواد الكافية! تحتاج إلى (${matName} x${qty})`);
                 }
             }
 
