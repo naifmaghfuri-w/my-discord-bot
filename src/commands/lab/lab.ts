@@ -3,14 +3,10 @@ import {
     ActionRowBuilder, 
     ButtonBuilder, 
     ButtonStyle,
-    ModalBuilder,
-    TextInputBuilder,
-    TextInputStyle,
     MessageFlags,
     User,
     CommandInteraction,
     MessageComponentInteraction,
-    ModalSubmitInteraction,
     TextChannel,
     Message,
     EmbedBuilder
@@ -18,7 +14,6 @@ import {
 
 import labData from './data';
 import { 
-    getMarketPrices, 
     processItemStabilityAndDecay, 
     getPlayerData, 
     updatePlayerData,
@@ -38,7 +33,19 @@ import {
     MenuResponse
 } from './ui';
 
-interface PendingTask {
+// 1. تعريف واجهات الأنواع لضمان التوافق التام
+export interface QueueItem {
+    id?: string;
+    finishTime?: number;
+    busyUntil?: number;
+    yield?: Record<string, number>;
+    xp?: number;
+    [key: string]: any;
+}
+
+export interface PendingTask {
+    id?: string;
+    finishTime?: number;
     busyUntil: number;
     yield: Record<string, number>;
     xp: number;
@@ -63,25 +70,33 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
     if (!player.ownedEquipment) player.ownedEquipment = {};
     if (!player.upgrades) player.upgrades = {};
 
-    const decayedNames: string[] = processItemStabilityAndDecay(player);
+    processItemStabilityAndDecay(player);
     const currentNow = Math.floor(Date.now() / 1000);
 
-    // معالجة قائمة التفاعلات الجارية بدون أخطاء TS18046
+    // معالجة قائمة التفاعلات الجارية مع إجراء التحويل الآمن للأنواع (Type Casting عبر unknown)
     if (player.pendingQueue && player.pendingQueue.length > 0) {
-        let updatedQueue: PendingTask[] = [];
-        for (const task of player.pendingQueue as PendingTask[]) {
-            if (currentNow >= task.busyUntil) {
-                for (const [itemId, qty] of Object.entries(task.yield || {})) {
-                    player.inv[itemId] = (player.inv[itemId] || 0) + (qty as number);
-                    if (!player.codex.includes(itemId)) player.codex.push(itemId);
+        const rawQueue = player.pendingQueue as unknown as QueueItem[];
+        const updatedQueue: QueueItem[] = [];
+
+        for (const item of rawQueue) {
+            const busyUntil = item.busyUntil ?? item.finishTime ?? 0;
+
+            if (currentNow >= busyUntil) {
+                if (item.yield) {
+                    for (const [itemId, qty] of Object.entries(item.yield)) {
+                        player.inv[itemId] = (player.inv[itemId] || 0) + (qty as number);
+                        if (!player.codex.includes(itemId)) player.codex.push(itemId);
+                    }
                 }
-                player.xp += task.xp;
-                player.abilityPoints += 1;
+                player.xp = (player.xp || 0) + (item.xp || 0);
+                player.abilityPoints = (player.abilityPoints || 0) + 1;
             } else {
-                updatedQueue.push(task);
+                updatedQueue.push(item);
             }
         }
-        player.pendingQueue = updatedQueue;
+
+        // إعادة الإسناد بأمان
+        player.pendingQueue = updatedQueue as unknown as typeof player.pendingQueue;
         updatePlayerData(user.id, player);
     }
 
@@ -116,14 +131,6 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
                 await i.update(data).catch(() => {});
             } else {
                 await responseMsg.edit(data).catch(() => {});
-            }
-        };
-
-        const notifyOnly = async (contentStr: string) => {
-            if (!i.replied && !i.deferred) {
-                await i.reply({ content: contentStr, flags: MessageFlags.Ephemeral }).catch(() => {});
-            } else {
-                await i.followUp({ content: contentStr, flags: MessageFlags.Ephemeral }).catch(() => {});
             }
         };
 
