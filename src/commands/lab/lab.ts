@@ -58,13 +58,13 @@ export interface PlayerData {
     pendingQueue?: PendingTask[];
     unlockedReactions: string[];
     inv: Inventory;
-    ownedEquipment: Record<string, boolean>;
+    ownedEquipment: Record<string, number | boolean>;
     equipmentLevels: Record<string, number>;
     upgrades: Record<string, boolean>;
     unlockedBadges: string[];
     itemTimestamps: Record<string, number>;
     lastAutoClaim?: number;
-    automatedProduct?: string;
+    automatedProduct?: string | null;
     achievements: {
         cautious?: number;
         [key: string]: number | undefined;
@@ -116,6 +116,7 @@ type CommandContext = CommandInteraction | {
 // ==========================================
 
 function buildMainMenu(user: User, player: PlayerData): MenuResponse {
+    const totalItems = Object.keys(labData.items || {}).length;
     const embed = new EmbedBuilder()
         .setTitle('🧪 Lab v1.5')
         .setDescription(`أهلاً بك **${user.username}** 👋`)
@@ -126,7 +127,7 @@ function buildMainMenu(user: User, player: PlayerData): MenuResponse {
             { name: ' ', value: `\`${player.abilityPoints} AP\``, inline: true },
             { name: '\u200B', value: `${player.coins} <:emoji_40:1548935096768274532>`, inline: true },
             { name: '📜 السمعة الأكاديمية', value: `\`${player.academicReputation || 0} pts\``, inline: true },
-            { name: '📘 الموسوعة', value: `\`${player.codex.length} / ${Object.keys(labData.items).length}\``, inline: true }
+            { name: '📘 الموسوعة', value: `\`${player.codex.length} / ${totalItems}\``, inline: true }
         )
         .setThumbnail(user.displayAvatarURL())
         .setFooter({ text: 'اختر إجراءً سريعاً أو افتح القائمة الإضافية' });
@@ -292,7 +293,7 @@ function buildShopScreen(player: PlayerData, index: number): MenuResponse {
             buyBtnLabel = `❌ الرصيد غير كافي (${currentItem.price})`;
         }
     } else if (currentItem.type === 'equipment') {
-        const isOwned = player.ownedEquipment && player.ownedEquipment[currentItem.id];
+        const isOwned = Boolean(player.ownedEquipment && player.ownedEquipment[currentItem.id]);
         if (isOwned) {
             buyBtnDisabled = true;
             buyBtnLabel = '✅ تمتلك هذا الجهاز بالفعل';
@@ -394,12 +395,12 @@ function buildReactionsScreen(player: PlayerData, index: number): MenuResponse {
         .map(([id, qty]) => `• ${labData.items[id]?.name || id}: \`${qty}\` (لديك: \`${player.inv[id] || 0}\`)`)
         .join('\n');
 
-    const equipOwned = player.ownedEquipment && player.ownedEquipment[reaction.tool];
+    const equipOwned = Boolean(player.ownedEquipment && player.ownedEquipment[reaction.tool]);
     const equipName = labData.equipment[reaction.tool]?.name || reaction.tool;
 
     const embed = new EmbedBuilder()
         .setTitle(`⚗️ اختر تفاعلاً: ${reaction.name}`)
-        .setDescription(`**الجهاز المطلوب:** ${equipName}${equipOwned ? '✅' : '❌ (غير مملوك)'}\n**الوقت المطلوب:** \`${player.upgrades.speed ? Math.ceil(reaction.timeSec / 2) : reaction.timeSec} ثانية\``)
+        .setDescription(`**الجهاز المطلوب:** ${equipName}${equipOwned ? ' ✅' : ' ❌ (غير مملوك)'}\n**الوقت المطلوب:** \`${player.upgrades.speed ? Math.ceil(reaction.timeSec / 2) : reaction.timeSec} ثانية\``)
         .setColor(0x3498db)
         .addFields(
             { name: '🧪 المواد المطلوبة للتفاعل', value: reqList },
@@ -419,9 +420,9 @@ function buildReactionsScreen(player: PlayerData, index: number): MenuResponse {
 
 function buildCodexScreen(player: PlayerData, page: number = 0): MenuResponse {
     const discovered = player.codex || [];
-    const itemKeys = Object.keys(labData.items);
+    const itemKeys = Object.keys(labData.items || {});
     const itemsPerPage = 6;
-    const totalPages = Math.ceil(itemKeys.length / itemsPerPage);
+    const totalPages = Math.max(1, Math.ceil(itemKeys.length / itemsPerPage));
 
     const currentPageKeys = itemKeys.slice(page * itemsPerPage, (page + 1) * itemsPerPage);
     let codexList = '';
@@ -573,7 +574,7 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
             if (!i.replied && !i.deferred) {
                 await i.update(data).catch(() => {});
             } else {
-                await i.message.edit(data).catch(() => {});
+                await responseMsg.edit(data).catch(() => {});
             }
         };
 
@@ -1154,7 +1155,7 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
                 if (player.coins >= eqItem.price) {
                     player.coins -= eqItem.price;
                     if (!player.ownedEquipment) player.ownedEquipment = {};
-                    player.ownedEquipment[id] = true;
+                    player.ownedEquipment[id] = 1;
                     player.equipmentLevels[id] = 1;
                     updatePlayerData(user.id, player);
                     await notifyOnly(`🎉 **تم شراء الجهاز (${eqItem.name}) بنجاح!**`);
