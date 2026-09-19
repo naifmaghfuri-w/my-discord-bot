@@ -159,9 +159,10 @@ export default async function handleInteractionCreate(client: Client, interactio
     } catch (error) {
         console.error(`❌ خطأ أثناء تنفيذ الإنتراكشن:`, error);
 
+        // ✅ تم التعديل هنا: تمرير الخاصية ephemeral مباشرة كـ Boolean أو وضع MessageFlags داخل مصفوفة
         const errorMessage = {
             content: '❌ حدث خطأ غير متوقع أثناء تنفيذ هذا الطلب!',
-            flags: MessageFlags.Ephemeral
+            flags: [MessageFlags.Ephemeral]
         };
 
         if (interaction.isRepliable()) {
