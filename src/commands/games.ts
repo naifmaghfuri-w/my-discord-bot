@@ -30,7 +30,6 @@ export const gamesCommand = new SlashCommandBuilder()
     .setName('games')
     .setDescription('عرض قائمة الألعاب المتاحة واختيار لعبة لبدئها') as SlashCommandBuilder;
 
-// تم إضافة export هنا لتسهيل استدعائها عند كتابة "العاب" كرسالة
 export async function handleGamesCommand(context: GameContext): Promise<void> {
     try {
         const author: User = 'user' in context ? context.user : context.author;
@@ -66,7 +65,8 @@ export async function handleGamesCommand(context: GameContext): Promise<void> {
         let response: Message | InteractionResponse;
 
         if ('reply' in context && typeof context.reply === 'function') {
-            response = await context.reply({ embeds: [gamesEmbed], components: [row], fetchReply: true });
+            // استخدام withResponse لحل تحذير fetchReply
+            response = await context.reply({ embeds: [gamesEmbed], components: [row], withResponse: true } as any);
         } else {
             const channel = context.channel as TextBasedChannel | null;
             if (!channel || typeof (channel as any).send !== 'function') {
@@ -76,7 +76,11 @@ export async function handleGamesCommand(context: GameContext): Promise<void> {
             response = await (channel as any).send({ embeds: [gamesEmbed], components: [row] });
         }
 
-        const menuCollector = response.createMessageComponentCollector({ 
+        // استخراج الرسالة المستهدفة للـ Collector
+        const targetMessage = 'resource' in response ? response.resource?.message : response;
+        if (!targetMessage) return;
+
+        const menuCollector = targetMessage.createMessageComponentCollector({ 
             componentType: ComponentType.StringSelect, 
             time: 60000 
         });
@@ -95,9 +99,16 @@ export async function handleGamesCommand(context: GameContext): Promise<void> {
 
                 if (selectedValue === 'out_of_loop') {
                     menuCollector.stop('selected');
+                    // تأكيد التفاعل فوراً لعدم انتهاء مهلة 3 ثوانٍ الخاصة بديسكورد
+                    if (!selectInteraction.replied && !selectInteraction.deferred) {
+                        await selectInteraction.deferUpdate().catch(() => null);
+                    }
                     await (startOutOfLoopGame as any)(selectInteraction, context);
                 } else if (selectedValue === 'roulette_game') {
                     menuCollector.stop('selected');
+                    if (!selectInteraction.replied && !selectInteraction.deferred) {
+                        await selectInteraction.deferUpdate().catch(() => null);
+                    }
                     await (executeRouletteGame as any)(selectInteraction);
                 } else if (selectedValue === 'hxh_game') {
                     const hxhEmbed = new EmbedBuilder()
@@ -121,7 +132,9 @@ export async function handleGamesCommand(context: GameContext): Promise<void> {
                 const disabledRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
                     selectMenu.setDisabled(true).setPlaceholder('انتهت مهلة اختيار اللعبة ⏱️')
                 );
-                response.edit({ components: [disabledRow] }).catch(() => null);
+                if (targetMessage && typeof targetMessage.edit === 'function') {
+                    targetMessage.edit({ components: [disabledRow] }).catch(() => null);
+                }
             }
         });
 
