@@ -47,9 +47,10 @@ export interface PlayerData {
     xp: number;
     coins: number;
     abilityPoints: number;
-    academicReputation?: number; // 👈 جعلها اختيارية لمنع خطأ undefined مع اللاعبين القدامى
+    academicReputation?: number;
     unlockedReactions: string[];
-    ownedEquipment: Record<string, number>;
+    // تم التعديل لتقبل أرقام أو بولين لتتوافق تماماً مع ملف lab.ts و helpers.ts
+    ownedEquipment: Record<string, number | boolean>;
     equipmentLevels: Record<string, number>;
     inv: Record<string, number>;
     itemTimestamps: Record<string, number>;
@@ -116,7 +117,7 @@ export function saveDatabase(immediate: boolean = false): void {
     }
 
     if (saveTimeout) clearTimeout(saveTimeout);
-    saveTimeout = setTimeout(performSave, 1000); // إمهال ثانية قبل الحفظ على القرص
+    saveTimeout = setTimeout(performSave, 1000);
 }
 
 export function getMarketPrices(): Record<string, number> {
@@ -208,7 +209,7 @@ export function getPlayerData(userId: string): PlayerData {
             abilityPoints: 2,
             academicReputation: 0,
             unlockedReactions: ['r_nacl'],
-            ownedEquipment: { beaker: 1 },
+            ownedEquipment: { beaker: true }, // استخدام قيمة بولينية للبداية لتتوافق مع الأنظمة
             equipmentLevels: { beaker: 1 },
             inv: { na: 2, cl: 2, h2o_imp: 3, fe: 2, o2: 1 },
             itemTimestamps: {},
@@ -226,7 +227,6 @@ export function getPlayerData(userId: string): PlayerData {
 
     const player = db[userId];
 
-    // ضمان المكونات والقيم الافتراضية لبيانات اللاعبين القدامى
     if (player.academicReputation === undefined) { player.academicReputation = 0; isModified = true; }
     if (!player.equipmentLevels) { player.equipmentLevels = { beaker: 1 }; isModified = true; }
     if (!player.achievements) { player.achievements = { cautious: 0, trader: 0, explorer: false }; isModified = true; }
@@ -234,11 +234,9 @@ export function getPlayerData(userId: string): PlayerData {
     if (!player.itemTimestamps) { player.itemTimestamps = {}; isModified = true; }
     if (!player.pendingQueue) { player.pendingQueue = []; isModified = true; }
 
-    // معالجة تلف المواد عند جلب البيانات
     const decayed = processItemStabilityAndDecay(player);
     if (decayed.length > 0) isModified = true;
 
-    // تجديد المهمة اليومية
     if (!player.quest || (Date.now() - (player.quest.lastReset || 0)) > ONE_DAY_MS) {
         player.quest = generateDailyQuest(player.level || 1);
         isModified = true;
@@ -254,7 +252,6 @@ export function getPlayerData(userId: string): PlayerData {
 export function updatePlayerData(userId: string, data: PlayerData): void {
     const db = loadDatabase();
     
-    // تأكيد تعيين القيمة لمنع أي تعارض types
     if (data.academicReputation === undefined) {
         data.academicReputation = 0;
     }
