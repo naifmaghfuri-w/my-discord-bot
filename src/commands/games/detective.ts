@@ -8,8 +8,7 @@ import {
     Interaction,
     ButtonInteraction,
     StringSelectMenuInteraction,
-    User,
-    TextBasedChannel
+    User
 } from 'discord.js';
 
 // 1. تعاريف الواجهات وأنواع البيانات (Interfaces & Types)
@@ -513,7 +512,6 @@ async function runDetectiveRound(
             await investMsg.edit({ components: [new ActionRowBuilder<ButtonBuilder>().addComponents(skipButton, emergencyButton)] }).catch(() => {});
         }
 
-        // ✅ تم حل التسمية والنوع هنا لمنع الخطأ TS2339
         const caller = emergencyCalledBy as User | null;
         if (caller) {
             await sendToChannel(channel, `🚨 **اجتماع طارئ!** قام <@${caller.id}> بقطع وقت التحقيق للذهاب للتصويت فوراً!`);
