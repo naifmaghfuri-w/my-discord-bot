@@ -13,9 +13,8 @@ import {
     TextBasedChannel
 } from 'discord.js';
 
-// استدعاء الألعاب مع حماية الاستيرادات
+// استدعاء الألعاب المتبقية
 import { startOutOfLoopGame } from './games/outOfLoop';
-import { startDetectiveGame } from './games/detective';
 import { executeRouletteGame } from './games/roulette';
 
 export type GameContext = ChatInputCommandInteraction | Message;
@@ -29,7 +28,7 @@ export interface Command {
 
 const gamesCommand = new SlashCommandBuilder()
     .setName('games')
-    .setDescription('عرض قائمة الألعاب المتاحة واختيار لعبة لبدئها') as SlashCommandBuilder;
+    .setDescription('عرض قائمة الألعاب المتاحة وااختيار لعبة لبدئها') as SlashCommandBuilder;
 
 async function handleGamesCommand(context: GameContext): Promise<void> {
     try {
@@ -44,11 +43,6 @@ async function handleGamesCommand(context: GameContext): Promise<void> {
                     .setDescription('لعبة معرفة من هو الشخص الذي برا السالفة')
                     .setValue('out_of_loop')
                     .setEmoji('🕵️‍♂️'),
-                new StringSelectMenuOptionBuilder()
-                    .setLabel('المحققين')
-                    .setDescription('لعبة التحقيق واستجواب المشاركين لكشف الجاني')
-                    .setValue('detective_game')
-                    .setEmoji('🔍'),
                 new StringSelectMenuOptionBuilder()
                     .setLabel('روليت')
                     .setDescription('لعبة العجلة لطرد اللاعبين حتى يتبقى الفائز')
@@ -101,9 +95,6 @@ async function handleGamesCommand(context: GameContext): Promise<void> {
                 if (selectedValue === 'out_of_loop') {
                     menuCollector.stop('selected');
                     await (startOutOfLoopGame as any)(selectInteraction, context);
-                } else if (selectedValue === 'detective_game') {
-                    menuCollector.stop('selected');
-                    await (startDetectiveGame as any)(selectInteraction, context);
                 } else if (selectedValue === 'roulette_game') {
                     menuCollector.stop('selected');
                     await (executeRouletteGame as any)(selectInteraction);
