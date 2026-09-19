@@ -10,7 +10,8 @@ import {
     TextInputStyle, 
     Interaction,
     ButtonInteraction,
-    ModalSubmitInteraction
+    ModalSubmitInteraction,
+    SendableChannels
 } from 'discord.js';
 
 // تعريف واجهة بيانات العضو الغائب
@@ -70,12 +71,15 @@ export const afkSystem = {
 
             await message.reply({ content: welcomeText }).catch(() => null);
 
-            // تنبيه الأشخاص الذين طلبوا "نبهني عند عودته"
+            // تنبيه الأشخاص الذين طلبوا "نبهني عند عودته" مع حماية TypeScript والقناة
             if (userData.notifiedUsers && userData.notifiedUsers.size > 0) {
                 const notifyList = Array.from(userData.notifiedUsers).map(id => `<@${id}>`).join(' ');
-                await message.channel.send({ 
-                    content: `🔔 **تنبيه:** العضو ${message.author} عاد من الغياب الآن!\n${notifyList}` 
-                }).catch(() => null);
+                
+                if (message.channel.isSendable()) {
+                    await (message.channel as SendableChannels).send({ 
+                        content: `🔔 **تنبيه:** العضو ${message.author} عاد من الغياب الآن!\n${notifyList}` 
+                    }).catch(() => null);
+                }
             }
             return;
         }
@@ -163,17 +167,17 @@ export const afkSystem = {
                 const afkData = afkUsers.get(targetUserId);
 
                 if (!afkData) {
-                    await btnInteraction.reply({ content: '❌ هذا العضو لم يعد في وضع الغياب المؤقت.', ephemeral: true });
+                    await btnInteraction.reply({ content: '❌ هذا العضو لم يعد في وضع الغياب المؤقت.', flags: 64 });
                     return true;
                 }
 
                 if (btnInteraction.user.id === targetUserId) {
-                    await btnInteraction.reply({ content: '❌ لا يمكنك طلب تنبيه لنفسك!', ephemeral: true });
+                    await btnInteraction.reply({ content: '❌ لا يمكنك طلب تنبيه لنفسك!', flags: 64 });
                     return true;
                 }
 
                 afkData.notifiedUsers.add(btnInteraction.user.id);
-                await btnInteraction.reply({ content: '🔔 تم تسجيل طلبك! سيتم تنبيهك في القناة فور عودة العضو.', ephemeral: true });
+                await btnInteraction.reply({ content: '🔔 تم تسجيل طلبك! سيتم تنبيهك في القناة فور عودة العضو.', flags: 64 });
                 return true;
             }
 
@@ -183,12 +187,12 @@ export const afkSystem = {
                 const targetUserId = btnInteraction.customId.replace('afk_message_', '');
                 
                 if (!afkUsers.has(targetUserId)) {
-                    await btnInteraction.reply({ content: '❌ هذا العضو لم يعد في وضع الغياب المؤقت.', ephemeral: true });
+                    await btnInteraction.reply({ content: '❌ هذا العضو لم يعد في وضع الغياب المؤقت.', flags: 64 });
                     return true;
                 }
 
                 if (btnInteraction.user.id === targetUserId) {
-                    await btnInteraction.reply({ content: '❌ لا يمكنك ترك رسالة لنفسك!', ephemeral: true });
+                    await btnInteraction.reply({ content: '❌ لا يمكنك ترك رسالة لنفسك!', flags: 64 });
                     return true;
                 }
 
@@ -217,14 +221,14 @@ export const afkSystem = {
                 const afkData = afkUsers.get(targetUserId);
 
                 if (!afkData) {
-                    await modalInteraction.reply({ content: '❌ العضو عاد من الغياب قبل إرسال الرسالة.', ephemeral: true });
+                    await modalInteraction.reply({ content: '❌ العضو عاد من الغياب قبل إرسال الرسالة.', flags: 64 });
                     return true;
                 }
 
                 const userText = modalInteraction.fields.getTextInputValue('afk_msg_input');
                 afkData.leftMessages.push({ from: modalInteraction.user.id, text: userText });
 
-                await modalInteraction.reply({ content: '✅ تم حفظ رسالتك بنجاح! وسوف يستلمها العضو فور عودته.', ephemeral: true });
+                await modalInteraction.reply({ content: '✅ تم حفظ رسالتك بنجاح! وسوف يستلمها العضو فور عودته.', flags: 64 });
                 return true;
             }
         } catch (err: unknown) {
