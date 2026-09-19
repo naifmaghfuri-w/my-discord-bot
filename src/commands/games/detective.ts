@@ -1,5 +1,4 @@
 import { 
-    Client, 
     Message, 
     EmbedBuilder, 
     ActionRowBuilder, 
@@ -9,7 +8,8 @@ import {
     Interaction,
     ButtonInteraction,
     StringSelectMenuInteraction,
-    User
+    User,
+    TextBasedChannel
 } from 'discord.js';
 
 // 1. تعاريف الواجهات وأنواع البيانات (Interfaces & Types)
@@ -400,6 +400,7 @@ async function runDetectiveRound(
 
         // 4. إعلان نتيجة الليلة ومرحلة الجريمة
         const currentEvent = NIGHT_EVENTS[Math.floor(Math.random() * NIGHT_EVENTS.length)]!;
+        // الإصلاح هنا: تم تصريح النوع صراحة كـ User[] بدلاً من تركها مصفوفة فارغة never[]
         let activePlayers: User[] = [];
 
         if (selectedProtectTarget && selectedKillTarget && selectedKillTarget.id === selectedProtectTarget.id) {
