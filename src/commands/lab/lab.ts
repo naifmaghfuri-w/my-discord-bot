@@ -38,6 +38,12 @@ import {
     MenuResponse
 } from './ui';
 
+interface PendingTask {
+    busyUntil: number;
+    yield: Record<string, number>;
+    xp: number;
+}
+
 type CommandContext = CommandInteraction | {
     replied?: boolean;
     deferred?: boolean;
@@ -60,10 +66,10 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
     const decayedNames: string[] = processItemStabilityAndDecay(player);
     const currentNow = Math.floor(Date.now() / 1000);
 
-    // معالجة قائمة التفاعلات الجارية
+    // معالجة قائمة التفاعلات الجارية بدون أخطاء TS18046
     if (player.pendingQueue && player.pendingQueue.length > 0) {
-        let updatedQueue = [];
-        for (const task of player.pendingQueue) {
+        let updatedQueue: PendingTask[] = [];
+        for (const task of player.pendingQueue as PendingTask[]) {
             if (currentNow >= task.busyUntil) {
                 for (const [itemId, qty] of Object.entries(task.yield || {})) {
                     player.inv[itemId] = (player.inv[itemId] || 0) + (qty as number);
