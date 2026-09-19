@@ -16,13 +16,14 @@ import {
     Message
 } from 'discord.js';
 
-// استيراد الملفات المساعدة
+// استيراد البيانات والمساعدة من helpers.ts
 import labData from './data';
 import { 
     getMarketPrices, 
     processItemStabilityAndDecay, 
     getPlayerData, 
-    updatePlayerData 
+    updatePlayerData,
+    PlayerData 
 } from './helpers';
 
 // ==========================================
@@ -37,39 +38,6 @@ export interface PendingTask {
     busyUntil: number;
     yield: Record<string, number>;
     xp: number;
-}
-
-export interface Quest {
-    item: string;
-    count: number;
-    progress: number;
-    rewardCoins: number;
-    rewardXp: number;
-    completed: boolean;
-}
-
-export interface PlayerData {
-    level: number;
-    xp: number;
-    abilityPoints: number;
-    coins: number;
-    academicReputation?: number;
-    codex: string[];
-    pendingQueue?: PendingTask[];
-    unlockedReactions: string[];
-    inv: Inventory;
-    ownedEquipment: Record<string, number | boolean>;
-    equipmentLevels: Record<string, number>;
-    upgrades: Record<string, boolean>;
-    unlockedBadges: string[];
-    itemTimestamps: Record<string, number>;
-    lastAutoClaim?: number;
-    automatedProduct?: string | null;
-    achievements: {
-        cautious?: number;
-        [key: string]: number | undefined;
-    };
-    quest: Quest;
 }
 
 export interface ShopItem {
@@ -514,7 +482,6 @@ function buildAchievementsScreen(player: PlayerData): MenuResponse {
 export async function handleLabSession(context: CommandContext, user: User): Promise<void> {
     let player: PlayerData = getPlayerData(user.id);
 
-    // حماية الحقول الأساسية
     if (!player.inv) player.inv = {};
     if (!player.codex) player.codex = [];
     if (!player.unlockedReactions) player.unlockedReactions = [];
@@ -586,8 +553,7 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
         }
 
         player = getPlayerData(user.id);
-        
-        // إعادة التأكد من كائنات التخزين
+
         if (!player.inv) player.inv = {};
         if (!player.codex) player.codex = [];
         if (!player.unlockedReactions) player.unlockedReactions = [];
@@ -662,7 +628,7 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
 
             const now = Date.now();
             const minutesPassed = Math.floor((now - (player.lastAutoClaim || now)) / 60000);
-            let claimedText = "لم تقم بضبط خط إنتاج آلي بعد.";
+            let claimedText = 'لم تقم بضبط خط إنتاج آلي بعد.';
 
             if (player.automatedProduct && minutesPassed > 0) {
                 const producedQty = Math.min(minutesPassed, 50);
@@ -695,7 +661,7 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
             return await updateScreen(buildMoreMenu(user, player));
         }
 
-        // Market
+        // Market (البورصة المحدثة بدون أخطاء رموز)
         if (i.customId === 'btn_open_market') {
             const currentPrices = getMarketPrices();
             let priceListStr = Object.entries(currentPrices).slice(0, 7).map(([id, p]: [string, any]) => {
@@ -792,7 +758,7 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
                     await submitted.reply({ content: `📈 **تم شراء ${qty}x من ${itemInfo.name} بسعر البورصة (${currentPrice}/وحدة) بنجاح!**`, flags: MessageFlags.Ephemeral });
                 } else if (typeStr.includes('بيع') || typeStr.toLowerCase() === 'sell') {
                     if (!player.inv[itemId] || player.inv[itemId] < qty) {
-                        return await submitted.reply({ content: `❌ لا تملك هذه الكمية من المادة في مستودعك!`, flags: MessageFlags.Ephemeral });
+                        return await submitted.reply({ content: '❌ لا تملك هذه الكمية من المادة في مستودعك!', flags: MessageFlags.Ephemeral });
                     }
                     player.inv[itemId] -= qty;
                     if (player.inv[itemId] <= 0) delete player.inv[itemId];
@@ -831,7 +797,7 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
             player.inv['nitroglycerin'] -= 1;
             player.academicReputation = (player.academicReputation || 0) + 50;
             updatePlayerData(user.id, player);
-            await notifyOnly('🎉 تم نشر الورقة البحثية بنجاح!حصلت على **+50 نقطة سمعة أكاديمية**.');
+            await notifyOnly('🎉 تم نشر الورقة البحثية بنجاح! حصلت على **+50 نقطة سمعة أكاديمية**.');
             return await updateScreen(buildMoreMenu(user, player));
         }
 
