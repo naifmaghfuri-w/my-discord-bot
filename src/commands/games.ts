@@ -9,10 +9,11 @@ import {
     ChatInputCommandInteraction,
     Message,
     InteractionResponse,
-    User
+    User,
+    TextBasedChannel
 } from 'discord.js';
 
-// استدعاء ملفات الألعاب من المجلد الفرعي (games/)
+// استدعاء الألعاب مع حماية الاستيرادات
 import { startOutOfLoopGame } from './games/outOfLoop';
 import { startDetectiveGame } from './games/detective';
 import { executeRouletteGame } from './games/roulette';
@@ -28,7 +29,7 @@ export interface Command {
 
 const gamesCommand = new SlashCommandBuilder()
     .setName('games')
-    .setDescription('عرض قائمة الألعاب المتاحة وااختيار لعبة لبدئها') as SlashCommandBuilder;
+    .setDescription('عرض قائمة الألعاب المتاحة واختيار لعبة لبدئها') as SlashCommandBuilder;
 
 async function handleGamesCommand(context: GameContext): Promise<void> {
     try {
@@ -68,10 +69,16 @@ async function handleGamesCommand(context: GameContext): Promise<void> {
             .setDescription('اختر اللعبة التي تريد تشغيلها من القائمة بالأسفل:');
 
         let response: Message | InteractionResponse;
+
         if ('reply' in context && typeof context.reply === 'function') {
             response = await context.reply({ embeds: [gamesEmbed], components: [row], fetchReply: true });
         } else {
-            response = await context.channel.send({ embeds: [gamesEmbed], components: [row] });
+            const channel = context.channel as TextBasedChannel | null;
+            if (!channel || typeof (channel as any).send !== 'function') {
+                console.error('❌ القناة غير متاحة للإرسال.');
+                return;
+            }
+            response = await (channel as any).send({ embeds: [gamesEmbed], components: [row] });
         }
 
         const menuCollector = response.createMessageComponentCollector({ 
@@ -93,13 +100,13 @@ async function handleGamesCommand(context: GameContext): Promise<void> {
 
                 if (selectedValue === 'out_of_loop') {
                     menuCollector.stop('selected');
-                    await startOutOfLoopGame(selectInteraction, context);
+                    await (startOutOfLoopGame as any)(selectInteraction, context);
                 } else if (selectedValue === 'detective_game') {
                     menuCollector.stop('selected');
-                    await startDetectiveGame(selectInteraction, context);
+                    await (startDetectiveGame as any)(selectInteraction, context);
                 } else if (selectedValue === 'roulette_game') {
                     menuCollector.stop('selected');
-                    await executeRouletteGame(selectInteraction);
+                    await (executeRouletteGame as any)(selectInteraction);
                 } else if (selectedValue === 'hxh_game') {
                     const hxhEmbed = new EmbedBuilder()
                         .setColor('#ff0000')
