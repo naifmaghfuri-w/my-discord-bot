@@ -400,7 +400,6 @@ async function runDetectiveRound(
 
         // 4. إعلان نتيجة الليلة ومرحلة الجريمة
         const currentEvent = NIGHT_EVENTS[Math.floor(Math.random() * NIGHT_EVENTS.length)]!;
-        // الإصلاح هنا: تم تصريح النوع صراحة كـ User[] بدلاً من تركها مصفوفة فارغة never[]
         let activePlayers: User[] = [];
 
         if (selectedProtectTarget && selectedKillTarget && selectedKillTarget.id === selectedProtectTarget.id) {
@@ -514,8 +513,10 @@ async function runDetectiveRound(
             await investMsg.edit({ components: [new ActionRowBuilder<ButtonBuilder>().addComponents(skipButton, emergencyButton)] }).catch(() => {});
         }
 
-        if (emergencyCalledBy) {
-            await sendToChannel(channel, `🚨 **اجتماع طارئ!** قام <@${(emergencyCalledBy as User).id}> بقطع وقت التحقيق للذهاب للتصويت فوراً!`);
+        // ✅ تم حل التسمية والنوع هنا لمنع الخطأ TS2339
+        const caller = emergencyCalledBy as User | null;
+        if (caller) {
+            await sendToChannel(channel, `🚨 **اجتماع طارئ!** قام <@${caller.id}> بقطع وقت التحقيق للذهاب للتصويت فوراً!`);
         } else if (skipEarly) {
             await sendToChannel(channel, "⏩ **اكتمل نصاب التخطي! الانتقال للتصويت فوراً.**");
         }
