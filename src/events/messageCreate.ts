@@ -28,7 +28,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 // إعداد نموذج Gemini
 const model = genAI.getGenerativeModel({
-    model: 'gemini-1.5-flash',
+    model: 'gemini-3.5-flash-lite',
     systemInstruction: `أنتِ فتاة اسمك "بيتو" كإنسانة طبيعية تتكلمين عربي بكلام واضح وخليك ذكية وتتطورين واحفظي الأشياء التي يحكولك احفظيها زي أسمائهم وكلامك مختصر.
 قواعد التفاعل الذكي:
 - لاتكثري من أسئلة شو أخبارك ومنورنا وكيف حالك، خليك في الموضوع دائماً.
