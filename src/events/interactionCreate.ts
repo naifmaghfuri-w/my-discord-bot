@@ -1,4 +1,4 @@
-import { Interaction, MessageFlags, Client } from 'discord.js';
+import { Interaction, Client } from 'discord.js';
 
 // تعريف الواجهات البرمجية للموديولات
 export interface ExecutableCommand {
@@ -159,10 +159,10 @@ export default async function handleInteractionCreate(client: Client, interactio
     } catch (error) {
         console.error(`❌ خطأ أثناء تنفيذ الإنتراكشن:`, error);
 
-        // ✅ تم التعديل هنا: تمرير الخاصية ephemeral مباشرة كـ Boolean أو وضع MessageFlags داخل مصفوفة
+        // ✅ تم الاعتماد على ephemeral: true كحل متوافق وبدون مشاكل types
         const errorMessage = {
             content: '❌ حدث خطأ غير متوقع أثناء تنفيذ هذا الطلب!',
-            flags: [MessageFlags.Ephemeral]
+            ephemeral: true
         };
 
         if (interaction.isRepliable()) {
