@@ -11,11 +11,15 @@ import {
     MessageComponentInteraction,
     StringSelectMenuInteraction,
     ButtonInteraction,
-    TextBasedChannel
+    GuildTextBasedChannel,
+    NewsChannel,
+    TextChannel,
+    DMChannel,
+    Message
 } from 'discord.js';
 import { createCanvas, loadImage, Canvas, SKRSContext2D } from '@napi-rs/canvas';
 
-// تعريف واجهات البيانات (Interfaces)
+// تعريف الواجهات
 export interface Player {
     id: string;
     number: number;
@@ -32,6 +36,8 @@ export interface ShopItem {
     price: number;
     desc: string;
 }
+
+type SendableChannel = GuildTextBasedChannel | NewsChannel | TextChannel | DMChannel;
 
 // أيقونة العملة
 const CURRENCY_EMOJI: string = '<:J_:1548935096768274532>';
@@ -61,6 +67,18 @@ const SHOP_ITEMS: Record<string, ShopItem> = {
     SHIELD: { id: 'shield', name: 'درع الحماية 🛡️', price: 100, desc: 'حماية لمرة واحدة من الطرد' },
     REVIVE: { id: 'revive', name: 'إحياء لاعب 🧟', price: 200, desc: 'إعادة لاعب خرج من اللعبة' }
 };
+
+// دالة مساعدة للإرسال الآمن في القنوات ومنع أخطاء Type Safety
+async function sendToChannel(channel: any, payload: any): Promise<Message | null> {
+    try {
+        if (channel && typeof channel.send === 'function') {
+            return await channel.send(payload);
+        }
+    } catch (e) {
+        console.error('❌ خطأ في الإرسال إلى القناة:', e);
+    }
+    return null;
+}
 
 // دالة رسم العجلة (350x350)
 async function drawWheel(players: Player[], rotationAngle: number = 0, centerAvatarUrl: string | null = null): Promise<Buffer> {
@@ -329,7 +347,6 @@ export async function executeRouletteGame(interaction: CommandInteraction): Prom
         if (i.customId === 'open_shop') {
             let player = players.find(p => p.id === userId);
             if (!player) {
-                // إنشاء كائن لاعب افتراضي وتتبعه حتى تتم إضافة الميزات له بشكل صحيح
                 player = { id: userId, number: 0, username, avatarUrl, hasShield: false, hasDouble: false, hasRevive: false };
             }
             return await openShopModal(i, player);
@@ -361,9 +378,9 @@ export async function executeRouletteGame(interaction: CommandInteraction): Prom
             const takenNumbers = players.map(p => p.number);
             const availableNumbers = Array.from({ length: 20 }, (_, idx) => idx + 1).filter(n => !takenNumbers.includes(n));
             
-            chosenNumber = availableNumbers[Math.floor(Math.random() * availableNumbers.length)];
+            chosenNumber = availableNumbers[Math.floor(Math.random() * availableNumbers.length)]!;
         } else if (i.customId.startsWith('num_')) {
-            chosenNumber = parseInt(i.customId.split('_')[1], 10);
+            chosenNumber = parseInt(i.customId.split('_')[1]!, 10);
             
             if (players.some(p => p.number === chosenNumber)) {
                 return i.reply({ content: 'هذا الرقم تم اختياره بالفعل من لاعب آخر!', flags: MessageFlags.Ephemeral });
@@ -403,13 +420,13 @@ export async function executeRouletteGame(interaction: CommandInteraction): Prom
 
 async function runGameLoop(interaction: CommandInteraction, players: Player[], eliminatedPlayers: Player[]): Promise<void> {
     let round = 1;
-    const channel = interaction.channel as TextBasedChannel;
+    const channel = interaction.channel as SendableChannel;
 
     if (!channel) return;
 
     while (players.length > 1) {
         const chosenIndex = Math.floor(Math.random() * players.length);
-        const chosenPlayer = players[chosenIndex];
+        const chosenPlayer = players[chosenIndex]!;
 
         const sliceAngle = (2 * Math.PI) / players.length;
         const targetAngle = -(chosenIndex * sliceAngle + sliceAngle / 2);
@@ -463,11 +480,16 @@ async function runGameLoop(interaction: CommandInteraction, players: Player[], e
             .setImage('attachment://wheel.png')
             .setColor('#D4AF37');
 
-        const wheelMsg = await channel.send({
+        const wheelMsg = await sendToChannel(channel, {
             embeds: [roundEmbed],
             files: [attachment],
             components: components
         });
+
+        if (!wheelMsg) {
+            round++;
+            continue;
+        }
 
         try {
             const selectInteraction = await wheelMsg.awaitMessageComponent({
@@ -531,7 +553,7 @@ async function runGameLoop(interaction: CommandInteraction, players: Player[], e
             }
 
             if (players.length === 1) {
-                const winner = players[0];
+                const winner = players[0]!;
                 addBalance(winner.id, 100);
 
                 const winnerEmbed = new EmbedBuilder()
@@ -539,14 +561,14 @@ async function runGameLoop(interaction: CommandInteraction, players: Player[], e
                     .setDescription(`🎉 **الفائز النهائي بالروليت هو:** <@${winner.id}> (الرقم **${winner.number}**)!\n حصل على **100** ${CURRENCY_EMOJI} كمكافأة!`)
                     .setColor('#57F287');
 
-                await channel.send({ embeds: [winnerEmbed] });
+                await sendToChannel(channel, { embeds: [winnerEmbed] });
                 break;
             }
 
             round++;
 
         } catch {
-            await channel.send({
+            await sendToChannel(channel, {
                 content: `⏰ انتهى الوقت ولم يقم الرقم **${chosenPlayer.number}** باختيار أحد، تم تخطي دور هذه الجولة!`
             });
             round++;
