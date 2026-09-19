@@ -47,7 +47,7 @@ export interface PlayerData {
     xp: number;
     coins: number;
     abilityPoints: number;
-    academicReputation: number;
+    academicReputation?: number; // 👈 جعلها اختيارية لمنع خطأ undefined مع اللاعبين القدامى
     unlockedReactions: string[];
     ownedEquipment: Record<string, number>;
     equipmentLevels: Record<string, number>;
@@ -226,7 +226,8 @@ export function getPlayerData(userId: string): PlayerData {
 
     const player = db[userId];
 
-    // ضمان المكونات لبيانات اللاعبين القدامى
+    // ضمان المكونات والقيم الافتراضية لبيانات اللاعبين القدامى
+    if (player.academicReputation === undefined) { player.academicReputation = 0; isModified = true; }
     if (!player.equipmentLevels) { player.equipmentLevels = { beaker: 1 }; isModified = true; }
     if (!player.achievements) { player.achievements = { cautious: 0, trader: 0, explorer: false }; isModified = true; }
     if (!player.unlockedBadges) { player.unlockedBadges = []; isModified = true; }
@@ -252,6 +253,12 @@ export function getPlayerData(userId: string): PlayerData {
 
 export function updatePlayerData(userId: string, data: PlayerData): void {
     const db = loadDatabase();
+    
+    // تأكيد تعيين القيمة لمنع أي تعارض types
+    if (data.academicReputation === undefined) {
+        data.academicReputation = 0;
+    }
+
     db[userId] = data;
     saveDatabase();
 }
