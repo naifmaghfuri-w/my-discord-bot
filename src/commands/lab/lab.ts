@@ -127,7 +127,7 @@ function buildMainMenu(user: User, player: PlayerData): MenuResponse {
             { name: ' ', value: `\`${player.abilityPoints} AP\``, inline: true },
             { name: '\u200B', value: `${player.coins} <:emoji_40:1548935096768274532>`, inline: true },
             { name: '📜 السمعة الأكاديمية', value: `\`${player.academicReputation || 0} pts\``, inline: true },
-            { name: '📘 الموسوعة', value: `\`${player.codex.length} / ${totalItems}\``, inline: true }
+            { name: '📘 الموسوعة', value: `\`${(player.codex || []).length} / ${totalItems}\``, inline: true }
         )
         .setThumbnail(user.displayAvatarURL())
         .setFooter({ text: 'اختر إجراءً سريعاً أو افتح القائمة الإضافية' });
@@ -214,14 +214,14 @@ function buildMoreMenu(user: User, player: PlayerData): MenuResponse {
 
 function buildLevelScreen(player: PlayerData, index: number): MenuResponse {
     const reaction: LabReaction = labData.reactions[index];
-    const isUnlocked = player.unlockedReactions.includes(reaction.id);
+    const isUnlocked = (player.unlockedReactions || []).includes(reaction.id);
     const isLevelReached = player.level >= reaction.reqLevel;
 
-    const reqList = Object.entries(reaction.req)
+    const reqList = Object.entries(reaction.req || {})
         .map(([id, qty]) => `• ${labData.items[id]?.name || id}: \`${qty}\``)
         .join('\n');
 
-    const yieldList = Object.entries(reaction.yield)
+    const yieldList = Object.entries(reaction.yield || {})
         .map(([id, qty]) => `• ${labData.items[id]?.name || id}: \`${qty}\``)
         .join('\n');
 
@@ -269,22 +269,31 @@ function buildLevelScreen(player: PlayerData, index: number): MenuResponse {
 
 function buildShopScreen(player: PlayerData, index: number): MenuResponse {
     const shopList: ShopItem[] = [
-        ...Object.entries(labData.items)
+        ...Object.entries(labData.items || {})
             .filter(([_, item]: [string, any]) => item.buyable && (item.reqLevel || 1) <= player.level)
             .map(([id, item]: [string, any]) => ({ type: 'item' as const, id, ...item })),
-        ...Object.entries(labData.equipment)
+        ...Object.entries(labData.equipment || {})
             .filter(([_, eq]: [string, any]) => eq.reqLevel <= player.level)
             .map(([id, eq]: [string, any]) => ({ type: 'equipment' as const, id, ...eq })),
-        ...Object.values(labData.upgrades)
+        ...Object.values(labData.upgrades || {})
             .map((up: any) => ({ type: 'upgrade' as const, ...up }))
     ];
 
-    const currentItem = shopList[index];
+    if (shopList.length === 0) {
+        const emptyEmbed = new EmbedBuilder().setTitle('🛒 المتجر').setDescription('لا توجد عناصر متاحة حالياً في المتجر لمستواك.').setColor(0xe74c3c);
+        const navRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder().setCustomId('btn_back_main').setLabel('↩️ الرئيسية').setStyle(ButtonStyle.Danger)
+        );
+        return { embeds: [emptyEmbed], components: [navRow] };
+    }
+
+    const safeIndex = Math.min(Math.max(0, index), shopList.length - 1);
+    const currentItem = shopList[safeIndex];
     let buyBtnDisabled = false;
     let buyBtnLabel = `🛒 شراء بـ ${currentItem.price}`;
 
     if (currentItem.type === 'upgrade') {
-        const isOwned = player.upgrades[currentItem.id.replace('up_', '')];
+        const isOwned = (player.upgrades || {})[currentItem.id.replace('up_', '')];
         if (isOwned) {
             buyBtnDisabled = true;
             buyBtnLabel = '✅ تمتلك هذه الترقية';
@@ -317,19 +326,19 @@ function buildShopScreen(player: PlayerData, index: number): MenuResponse {
             { 
                 name: '🎒 الكمية / الحالة لديك', 
                 value: currentItem.type === 'item' 
-                    ? `\`${player.inv[currentItem.id] || 0}\`` 
+                    ? `\`${(player.inv || {})[currentItem.id] || 0}\`` 
                     : (currentItem.type === 'equipment' 
-                        ? (player.ownedEquipment[currentItem.id] ? '`مملوك`' : '`غير مملوك`') 
-                        : (player.upgrades[currentItem.id.replace('up_', '')] ? '`مفعّل`' : '`غير مفعّل`')), 
+                        ? ((player.ownedEquipment || {})[currentItem.id] ? '`مملوك`' : '`غير مملوك`') 
+                        : ((player.upgrades || {})[currentItem.id.replace('up_', '')] ? '`مفعّل`' : '`غير مفعّل`')), 
                 inline: true 
             }
         )
-        .setFooter({ text: `رصيدك الحالي: ${player.coins} <:emoji_40:1548935096768274532> | عنصر ${index + 1} من ${shopList.length}` });
+        .setFooter({ text: `رصيدك الحالي: ${player.coins} <:emoji_40:1548935096768274532> | عنصر ${safeIndex + 1} من ${shopList.length}` });
 
     const navRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId('btn_shop_prev').setLabel('⬅️ السابق').setStyle(ButtonStyle.Secondary).setDisabled(index === 0),
+        new ButtonBuilder().setCustomId('btn_shop_prev').setLabel('⬅️ السابق').setStyle(ButtonStyle.Secondary).setDisabled(safeIndex === 0),
         new ButtonBuilder().setCustomId(`btn_buy_shop_${currentItem.type}_${currentItem.id}`).setLabel(buyBtnLabel).setStyle(ButtonStyle.Success).setDisabled(buyBtnDisabled),
-        new ButtonBuilder().setCustomId('btn_shop_next').setLabel('التالي ➡️').setStyle(ButtonStyle.Secondary).setDisabled(index === shopList.length - 1),
+        new ButtonBuilder().setCustomId('btn_shop_next').setLabel('التالي ➡️').setStyle(ButtonStyle.Secondary).setDisabled(safeIndex === shopList.length - 1),
         new ButtonBuilder().setCustomId('btn_back_main').setLabel('↩️ الرئيسية').setStyle(ButtonStyle.Danger)
     );
 
@@ -340,7 +349,7 @@ function buildCalibScreen(reaction: LabReaction, tempIndex: number, pressIndex: 
     const currentTemp = labData.TEMP_STEPS[tempIndex];
     const currentPress = labData.PRESS_STEPS[pressIndex];
 
-    const reqList = Object.entries(reaction.req)
+    const reqList = Object.entries(reaction.req || {})
         .map(([id, qty]) => `• **${labData.items[id]?.name || id}**: \`${qty}\``)
         .join('\n');
 
@@ -351,7 +360,7 @@ function buildCalibScreen(reaction: LabReaction, tempIndex: number, pressIndex: 
         .addFields(
             { name: '🔥 درجة الحرارة الحالية', value: `\`${currentTemp} °C\``, inline: true },
             { name: '💨 الضغط الجوي الحالي', value: `\`${currentPress} atm\``, inline: true },
-            { name: '🧪 المواد المطلوبة', value: reqList, inline: false }
+            { name: '🧪 المواد المطلوبة', value: reqList || 'لا يوجد', inline: false }
         );
 
     const tempRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -375,7 +384,7 @@ function buildCalibScreen(reaction: LabReaction, tempIndex: number, pressIndex: 
 }
 
 function buildReactionsScreen(player: PlayerData, index: number): MenuResponse {
-    const unlockedList: LabReaction[] = labData.reactions.filter((r: LabReaction) => player.unlockedReactions.includes(r.id));
+    const unlockedList: LabReaction[] = (labData.reactions || []).filter((r: LabReaction) => (player.unlockedReactions || []).includes(r.id));
 
     if (unlockedList.length === 0) {
         const emptyEmbed = new EmbedBuilder()
@@ -390,9 +399,10 @@ function buildReactionsScreen(player: PlayerData, index: number): MenuResponse {
         return { embeds: [emptyEmbed], components: [row] };
     }
 
-    const reaction = unlockedList[index];
-    const reqList = Object.entries(reaction.req)
-        .map(([id, qty]) => `• ${labData.items[id]?.name || id}: \`${qty}\` (لديك: \`${player.inv[id] || 0}\`)`)
+    const safeIndex = Math.min(Math.max(0, index), unlockedList.length - 1);
+    const reaction = unlockedList[safeIndex];
+    const reqList = Object.entries(reaction.req || {})
+        .map(([id, qty]) => `• ${labData.items[id]?.name || id}: \`${qty}\` (لديك: \`${(player.inv || {})[id] || 0}\`)`)
         .join('\n');
 
     const equipOwned = Boolean(player.ownedEquipment && player.ownedEquipment[reaction.tool]);
@@ -400,18 +410,18 @@ function buildReactionsScreen(player: PlayerData, index: number): MenuResponse {
 
     const embed = new EmbedBuilder()
         .setTitle(`⚗️ اختر تفاعلاً: ${reaction.name}`)
-        .setDescription(`**الجهاز المطلوب:** ${equipName}${equipOwned ? ' ✅' : ' ❌ (غير مملوك)'}\n**الوقت المطلوب:** \`${player.upgrades.speed ? Math.ceil(reaction.timeSec / 2) : reaction.timeSec} ثانية\``)
+        .setDescription(`**الجهاز المطلوب:** ${equipName}${equipOwned ? ' ✅' : ' ❌ (غير مملوك)'}\n**الوقت المطلوب:** \`${(player.upgrades || {}).speed ? Math.ceil(reaction.timeSec / 2) : reaction.timeSec} ثانية\``)
         .setColor(0x3498db)
         .addFields(
-            { name: '🧪 المواد المطلوبة للتفاعل', value: reqList },
+            { name: '🧪 المواد المطلوبة للتفاعل', value: reqList || 'لا يوجد' },
             { name: '⭐ خبرة التفاعل', value: `\`+${reaction.xp} XP\``, inline: true }
         )
-        .setFooter({ text: `تفاعل ${index + 1} من ${unlockedList.length}` });
+        .setFooter({ text: `تفاعل ${safeIndex + 1} من ${unlockedList.length}` });
 
     const navRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId('btn_react_prev').setLabel('⬅️ السابق').setStyle(ButtonStyle.Secondary).setDisabled(index === 0),
+        new ButtonBuilder().setCustomId('btn_react_prev').setLabel('⬅️ السابق').setStyle(ButtonStyle.Secondary).setDisabled(safeIndex === 0),
         new ButtonBuilder().setCustomId(`btn_select_calib_${reaction.id}`).setLabel('🎛️ بدء المعايرة').setStyle(ButtonStyle.Success).setDisabled(!equipOwned),
-        new ButtonBuilder().setCustomId('btn_react_next').setLabel('التالي ➡️').setStyle(ButtonStyle.Secondary).setDisabled(index === unlockedList.length - 1),
+        new ButtonBuilder().setCustomId('btn_react_next').setLabel('التالي ➡️').setStyle(ButtonStyle.Secondary).setDisabled(safeIndex === unlockedList.length - 1),
         new ButtonBuilder().setCustomId('btn_open_lab_hub').setLabel('↩️ المعمل').setStyle(ButtonStyle.Danger)
     );
 
@@ -430,7 +440,7 @@ function buildCodexScreen(player: PlayerData, page: number = 0): MenuResponse {
     currentPageKeys.forEach(id => {
         const item = labData.items[id];
         if (discovered.includes(id)) {
-            codexList += `✅ **${item.name}** (${item.state})\n_${item.desc || 'مادة كيميائية مخبرية'}_\n\n`;
+            codexList += `✅ **${item?.name || id}** (${item?.state \vert{}\vert{} 'عادي'})\n_${item?.desc || 'مادة كيميائية مخبرية'}_\n\n`;
         } else {
             codexList += `❓ **مركب مجهول** - (لم تقم بتصنيعه أو اكتشافه بعد)\n\n`;
         }
@@ -455,9 +465,9 @@ function buildEquipUpgradeScreen(player: PlayerData): MenuResponse {
     let equipList = '';
     const owned = player.ownedEquipment || {};
 
-    Object.entries(labData.equipment).forEach(([id, eq]: [string, any]) => {
+    Object.entries(labData.equipment || {}).forEach(([id, eq]: [string, any]) => {
         if (owned[id]) {
-            const currentLv = player.equipmentLevels[id] || 1;
+            const currentLv = (player.equipmentLevels || {})[id] || 1;
             const upgradeCost = currentLv * 250;
             equipList += `⚙️ **${eq.name}** (مستوى Lv.${currentLv})\n• كفاءة الجهاز: \`+${currentLv * 10}%\` | تكلفة الترقية التالية: \`${upgradeCost}\`\n\n`;
         }
@@ -480,14 +490,14 @@ function buildEquipUpgradeScreen(player: PlayerData): MenuResponse {
 function buildAchievementsScreen(player: PlayerData): MenuResponse {
     let achList = '';
 
-    Object.entries(labData.achievements).forEach(([id, ach]: [string, any]) => {
-        const isUnlocked = player.unlockedBadges.includes(id);
+    Object.entries(labData.achievements || {}).forEach(([id, ach]: [string, any]) => {
+        const isUnlocked = (player.unlockedBadges || []).includes(id);
         achList += `${isUnlocked ? '✅' : '🔒'} **${ach.name}**\n_${ach.desc}_\n💰 المكافأة: \`${ach.reward}\` ${isUnlocked ? '(تمت المطالبة)' : ''}\n\n`;
     });
 
     const embed = new EmbedBuilder()
         .setTitle('🎖️ الإنجازات والألقاب الكيميائية')
-        .setDescription(achList)
+        .setDescription(achList || '_لا توجد إنجازات متاحة حالياً_')
         .setColor(0xe67e22);
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -503,6 +513,18 @@ function buildAchievementsScreen(player: PlayerData): MenuResponse {
 
 export async function handleLabSession(context: CommandContext, user: User): Promise<void> {
     let player: PlayerData = getPlayerData(user.id);
+
+    // حماية الحقول الأساسية
+    if (!player.inv) player.inv = {};
+    if (!player.codex) player.codex = [];
+    if (!player.unlockedReactions) player.unlockedReactions = [];
+    if (!player.ownedEquipment) player.ownedEquipment = {};
+    if (!player.equipmentLevels) player.equipmentLevels = {};
+    if (!player.upgrades) player.upgrades = {};
+    if (!player.unlockedBadges) player.unlockedBadges = [];
+    if (!player.itemTimestamps) player.itemTimestamps = {};
+    if (!player.achievements) player.achievements = {};
+
     const decayedNames: string[] = processItemStabilityAndDecay(player);
     const currentNow = Math.floor(Date.now() / 1000);
 
@@ -510,10 +532,12 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
         let updatedQueue: PendingTask[] = [];
         for (const task of player.pendingQueue) {
             if (currentNow >= task.busyUntil) {
-                for (const [itemId, qty] of Object.entries(task.yield)) {
+                for (const [itemId, qty] of Object.entries(task.yield || {})) {
                     player.inv[itemId] = (player.inv[itemId] || 0) + qty;
                     if (!player.codex.includes(itemId)) player.codex.push(itemId);
-                    if (!player.quest.completed && player.quest.item === itemId) player.quest.progress += qty;
+                    if (player.quest && !player.quest.completed && player.quest.item === itemId) {
+                        player.quest.progress += qty;
+                    }
                 }
                 player.xp += task.xp;
                 player.abilityPoints += 1;
@@ -536,10 +560,10 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
 
     if (context.replied || context.deferred) {
         responseMsg = await context.followUp({ ...initialMenu, fetchReply: true });
-    } else if (context.isCommand && context.isCommand()) {
-        responseMsg = await context.reply({ ...initialMenu, fetchReply: true });
+    } else if (typeof (context as CommandInteraction).isCommand === 'function') {
+        responseMsg = await (context as CommandInteraction).reply({ ...initialMenu, fetchReply: true });
     } else {
-        responseMsg = await context.reply(initialMenu);
+        responseMsg = await context.reply({ ...initialMenu, fetchReply: true });
     }
 
     if (decayedNames.length > 0 && context.channel) {
@@ -562,6 +586,14 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
         }
 
         player = getPlayerData(user.id);
+        
+        // إعادة التأكد من كائنات التخزين
+        if (!player.inv) player.inv = {};
+        if (!player.codex) player.codex = [];
+        if (!player.unlockedReactions) player.unlockedReactions = [];
+        if (!player.ownedEquipment) player.ownedEquipment = {};
+        if (!player.upgrades) player.upgrades = {};
+
         const backMoreBtnRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
             new ButtonBuilder().setCustomId('btn_open_more_menu').setLabel('الرجوع للقائمة الإضافية ↩️').setStyle(ButtonStyle.Secondary)
         );
@@ -735,7 +767,7 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
                     return await submitted.reply({ content: '❌ يرجى كتابة كمية صحيحة!', flags: MessageFlags.Ephemeral });
                 }
 
-                const matchedItemEntry = Object.entries(labData.items).find(([id, item]: [string, any]) => 
+                const matchedItemEntry = Object.entries(labData.items || {}).find(([id, item]: [string, any]) => 
                     id === queryStr || (item.symbol && item.symbol.toLowerCase() === queryStr)
                 );
 
@@ -774,7 +806,7 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
 
                 return await responseMsg.edit(buildMainMenu(user, player)).catch(() => {});
             } catch (err) {
-                return await notifyOnly('⏳ انتهت المهلة الزمنية لإدخال البيانات.');
+                return;
             }
         }
 
@@ -799,7 +831,7 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
             player.inv['nitroglycerin'] -= 1;
             player.academicReputation = (player.academicReputation || 0) + 50;
             updatePlayerData(user.id, player);
-            await notifyOnly('🎉 تم نشر الورقة البحثية بنجاح! حصلت على **+50 نقطة سمعة أكاديمية**.');
+            await notifyOnly('🎉 تم نشر الورقة البحثية بنجاح!حصلت على **+50 نقطة سمعة أكاديمية**.');
             return await updateScreen(buildMoreMenu(user, player));
         }
 
@@ -873,11 +905,11 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
                 }
 
                 let opponent: PlayerData = getPlayerData(targetIdRaw);
-                if (opponent.coins < betAmount) {
+                if ((opponent.coins || 0) < betAmount) {
                     return await submitted.reply({ content: `❌ الخصم لا يملك رصيد كافي للرهان (${betAmount})!`, flags: MessageFlags.Ephemeral });
                 }
 
-                const validItems = Object.values(labData.items).filter((item: any) => item.symbol && item.symbol !== 'X' && item.symbol !== 'WASTE');
+                const validItems = Object.values(labData.items || {}).filter((item: any) => item.symbol && item.symbol !== 'X' && item.symbol !== 'WASTE');
                 const randomItem: any = validItems[Math.floor(Math.random() * validItems.length)];
 
                 await submitted.reply({ 
@@ -897,8 +929,8 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
                     let winnerPlayer: PlayerData = getPlayerData(winnerId);
                     let loserPlayer: PlayerData = getPlayerData(loserId);
 
-                    winnerPlayer.coins += betAmount;
-                    loserPlayer.coins -= betAmount;
+                    winnerPlayer.coins = (winnerPlayer.coins || 0) + betAmount;
+                    loserPlayer.coins = (loserPlayer.coins || 0) - betAmount;
 
                     updatePlayerData(winnerId, winnerPlayer);
                     updatePlayerData(loserId, loserPlayer);
@@ -913,7 +945,7 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
                 });
 
             } catch (err) {
-                return await notifyOnly('⏳ انتهت المهلة الزمنية للتحدي.');
+                return;
             }
             return;
         }
@@ -1021,7 +1053,7 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
                 await submitted.reply({ content: `🎁 **تم إهداء ${amount} بنجاح إلى <@${targetIdRaw}>!**`, flags: MessageFlags.Ephemeral });
                 return await responseMsg.edit(buildMainMenu(user, player)).catch(() => {});
             } catch (err) {
-                return await notifyOnly('⏳ انتهت المهلة الزمنية لتنفيذ العملية.');
+                return;
             }
         }
 
@@ -1043,7 +1075,7 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
                 if (!player.codex.includes('secret_compound')) player.codex.push('secret_compound');
                 if (!player.unlockedBadges.includes('explorer')) {
                     player.unlockedBadges.push('explorer');
-                    player.coins += labData.achievements.explorer.reward;
+                    player.coins += labData.achievements?.explorer?.reward || 100;
                 }
                 player.xp += 200;
                 updatePlayerData(user.id, player);
@@ -1081,7 +1113,7 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
 
             const levelInput = new TextInputBuilder()
                 .setCustomId('input_level_num')
-                .setLabel('أدخل رقم التفاعل/المستوى (1 - 16)')
+                .setLabel('أدخل رقم التفاعل/المستوى')
                 .setStyle(TextInputStyle.Short)
                 .setPlaceholder('مثال: 5')
                 .setRequired(true);
@@ -1105,7 +1137,7 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
                 await submitted.deferUpdate();
                 return await responseMsg.edit(buildLevelScreen(player, lvlIndex)).catch(() => {});
             } catch (err) {
-                return await notifyOnly('⏳ انتهت المهلة الزمنية.');
+                return;
             }
         }
 
@@ -1113,7 +1145,7 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
             const rId = i.customId.replace('btn_unlock_reaction_', '');
             const reaction: LabReaction = labData.reactions.find((r: LabReaction) => r.id === rId);
 
-            if (player.abilityPoints >= reaction.costAbility) {
+            if (reaction && player.abilityPoints >= reaction.costAbility) {
                 player.abilityPoints -= reaction.costAbility;
                 player.unlockedReactions.push(reaction.id);
                 updatePlayerData(user.id, player);
@@ -1144,7 +1176,7 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
 
             if (type === 'upgrade') {
                 const upItem = labData.upgrades[id];
-                if (player.coins >= upItem.price) {
+                if (upItem && player.coins >= upItem.price) {
                     player.coins -= upItem.price;
                     player.upgrades[id] = true;
                     updatePlayerData(user.id, player);
@@ -1152,7 +1184,7 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
                 }
             } else if (type === 'equipment') {
                 const eqItem = labData.equipment[id];
-                if (player.coins >= eqItem.price) {
+                if (eqItem && player.coins >= eqItem.price) {
                     player.coins -= eqItem.price;
                     if (!player.ownedEquipment) player.ownedEquipment = {};
                     player.ownedEquipment[id] = 1;
@@ -1162,7 +1194,7 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
                 }
             } else {
                 const item = labData.items[id];
-                if (player.coins >= item.price) {
+                if (item && player.coins >= item.price) {
                     player.coins -= item.price;
                     player.inv[id] = (player.inv[id] || 0) + 1;
                     if (item.shelfLife) player.itemTimestamps[id] = Date.now();
@@ -1197,19 +1229,19 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
         }
 
         if (i.customId === 'btn_temp_down') {
-            tempIndex--;
+            tempIndex = Math.max(0, tempIndex - 1);
             if (selectedReaction) return await updateScreen(buildCalibScreen(selectedReaction, tempIndex, pressIndex));
         }
         if (i.customId === 'btn_temp_up') {
-            tempIndex++;
+            tempIndex = Math.min(labData.TEMP_STEPS.length - 1, tempIndex + 1);
             if (selectedReaction) return await updateScreen(buildCalibScreen(selectedReaction, tempIndex, pressIndex));
         }
         if (i.customId === 'btn_press_down') {
-            pressIndex--;
+            pressIndex = Math.max(0, pressIndex - 1);
             if (selectedReaction) return await updateScreen(buildCalibScreen(selectedReaction, tempIndex, pressIndex));
         }
         if (i.customId === 'btn_press_up') {
-            pressIndex++;
+            pressIndex = Math.min(labData.PRESS_STEPS.length - 1, pressIndex + 1);
             if (selectedReaction) return await updateScreen(buildCalibScreen(selectedReaction, tempIndex, pressIndex));
         }
 
@@ -1217,7 +1249,7 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
             if (!selectedReaction) return;
             const reaction = selectedReaction;
 
-            for (const [mat, qty] of Object.entries(reaction.req)) {
+            for (const [mat, qty] of Object.entries(reaction.req || {})) {
                 if (!player.inv[mat] || player.inv[mat] < qty) {
                     const matName = labData.items[mat]?.name || mat;
                     return await notifyOnly(`❌ لا تملك المواد الكافية! تحتاج إلى (${matName} x${qty})`);
@@ -1227,7 +1259,7 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
             const currentTemp = labData.TEMP_STEPS[tempIndex];
             const currentPress = labData.PRESS_STEPS[pressIndex];
 
-            for (const [mat, qty] of Object.entries(reaction.req)) {
+            for (const [mat, qty] of Object.entries(reaction.req || {})) {
                 player.inv[mat] -= qty;
                 if (player.inv[mat] <= 0) delete player.inv[mat];
             }
@@ -1247,7 +1279,7 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
             player.achievements.cautious = (player.achievements.cautious || 0) + 1;
             if (player.achievements.cautious >= 10 && !player.unlockedBadges.includes('cautious')) {
                 player.unlockedBadges.push('cautious');
-                player.coins += labData.achievements.cautious.reward;
+                player.coins += labData.achievements?.cautious?.reward || 500;
             }
 
             let duration = player.upgrades.speed ? Math.ceil(reaction.timeSec / 2) : reaction.timeSec;
@@ -1273,6 +1305,10 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
         // Quests & Sales
         if (i.customId === 'btn_open_quest') {
             const q = player.quest;
+            if (!q) {
+                return await notifyOnly('❌ لا يوجد مهمة يومية قائمة حالياً!');
+            }
+
             const itemNeeded = labData.items[q.item];
 
             const questEmbed = new EmbedBuilder()
@@ -1295,7 +1331,7 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
         }
 
         if (i.customId === 'btn_claim_quest') {
-            if (player.quest.progress >= player.quest.count && !player.quest.completed) {
+            if (player.quest && player.quest.progress >= player.quest.count && !player.quest.completed) {
                 player.coins += player.quest.rewardCoins;
                 player.xp += player.quest.rewardXp;
                 player.quest.completed = true;
@@ -1309,7 +1345,7 @@ export async function handleLabSession(context: CommandContext, user: User): Pro
             let totalEarned = 0;
             let soldList: string[] = [];
 
-            Object.keys(player.inv).forEach(id => {
+            Object.keys(player.inv || {}).forEach(id => {
                 const itemInfo = labData.items[id];
                 if (itemInfo && !itemInfo.buyable && player.inv[id] > 0 && itemInfo.price > 0) {
                     const qty = player.inv[id];
