@@ -1,0 +1,19 @@
+services:
+  # خدمة ويب مجانية (تنام بعد 15 دقيقة بدون طلبات، انظر README)
+  # للتشغيل الدائم: غيّر type إلى worker و plan إلى starter، واحذف healthCheckPath
+  - type: web
+    name: discord-bot
+    runtime: node
+    plan: free
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: CLIENT_ID
+        sync: false
+      - key: MONGODB_URI
+        sync: false
