@@ -1,0 +1,88 @@
+import {
+  ActionRowBuilder,
+  MessageFlags,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+  type ButtonInteraction,
+  type ModalSubmitInteraction,
+} from "discord.js";
+import { addMessage, addNotify, getAfk } from "./service";
+import { MESSAGE_PREFIX, MODAL_PREFIX, NOTIFY_PREFIX } from "./notice";
+import { logger } from "../utils/logger";
+
+/** true لو تعامل الكود مع هذا الزر (حتى يعرف المستدعي أنه ما يحتاج يكمل بحث ثاني) */
+export async function handleAfkButton(interaction: ButtonInteraction): Promise<boolean> {
+  const { customId, guildId } = interaction;
+  if (!guildId) return false;
+
+  if (customId.startsWith(NOTIFY_PREFIX)) {
+    const targetId = customId.slice(NOTIFY_PREFIX.length);
+
+    if (targetId === interaction.user.id) {
+      await interaction.reply({ content: "😅 ما تقدر تنبه نفسك.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+
+    const still = await getAfk(guildId, targetId);
+    if (!still) {
+      await interaction.reply({ content: "✅ هذا العضو رجع بالفعل من وضع الغياب.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+
+    await addNotify(guildId, targetId, interaction.user.id);
+    await interaction.reply({
+      content: "تم! 🔔 سأقوم بمنشنتك فور عودة العضو.",
+      flags: MessageFlags.Ephemeral,
+    });
+    return true;
+  }
+
+  if (customId.startsWith(MESSAGE_PREFIX)) {
+    const targetId = customId.slice(MESSAGE_PREFIX.length);
+
+    const still = await getAfk(guildId, targetId);
+    if (!still) {
+      await interaction.reply({ content: "✅ هذا العضو رجع بالفعل من وضع الغياب.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+
+    const modal = new ModalBuilder().setCustomId(`${MODAL_PREFIX}${targetId}`).setTitle("ترك رسالة للمستخدم");
+    const input = new TextInputBuilder()
+      .setCustomId("content")
+      .setLabel("ما هي رسالتك؟")
+      .setStyle(TextInputStyle.Paragraph)
+      .setMaxLength(200)
+      .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(input));
+    await interaction.showModal(modal);
+    return true;
+  }
+
+  return false;
+}
+
+export async function handleAfkModal(interaction: ModalSubmitInteraction): Promise<boolean> {
+  const { customId, guildId } = interaction;
+  if (!guildId || !customId.startsWith(MODAL_PREFIX)) return false;
+
+  const targetId = customId.slice(MODAL_PREFIX.length);
+  const content = interaction.fields.getTextInputValue("content").trim();
+
+  if (!content) {
+    await interaction.reply({ content: "❌ ما تقدر ترسل رسالة فاضية.", flags: MessageFlags.Ephemeral });
+    return true;
+  }
+
+  const ok = await addMessage(guildId, targetId, interaction.user.id, content).catch((err) => {
+    logger.error("فشل حفظ رسالة AFK", err);
+    return false;
+  });
+
+  await interaction.reply({
+    content: ok ? "✅ تم إرسال رسالتك، بتوصله فور عودته." : "❌ حصل خطأ، أو العضو رجع قبل ما ترسل.",
+    flags: MessageFlags.Ephemeral,
+  });
+  return true;
+}
