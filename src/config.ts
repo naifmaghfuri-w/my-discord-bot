@@ -13,7 +13,7 @@ export const config = {
   /** Render يمرر المنفذ تلقائياً عبر PORT */
   port: process.env.PORT ? Number(process.env.PORT) : undefined,
   /** قاعة الانجازات: كل بطاقات إكمال المهام تنزل هنا فقط */
-  questsChannelId: process.env.QUESTS_CHANNEL_ID || "1551185659354419200",
+  questsChannelId: process.env.QUESTS_CHANNEL_ID || "1550924300939436062",
   /** قناة العد لمهمة "عد في قناة العد" (اختياري) */
   countingChannelId: process.env.COUNTING_CHANNEL_ID || undefined,
   /** المنطقة الزمنية لتجديد المهام اليومية عند منتصف الليل */
