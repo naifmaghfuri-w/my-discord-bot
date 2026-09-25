@@ -15,7 +15,7 @@ export const config = {
   /** قاعة الانجازات: كل بطاقات إكمال المهام تنزل هنا فقط */
   questsChannelId: process.env.QUESTS_CHANNEL_ID || "1550924300939436062",
   /** قناة العد لمهمة "عد في قناة العد" (اختياري) */
-  countingChannelId: process.env.COUNTING_CHANNEL_ID || undefined,
+  countingChannelId: process.env.COUNTING_CHANNEL_ID || "1551168908545761310",
   /** المنطقة الزمنية لتجديد المهام اليومية عند منتصف الليل */
   timezone: process.env.TIMEZONE || "Asia/Riyadh",
   /** معرفك أنت (المالك): يُستخدم لتقييد أوامر حساسة مثل /leaveserver */
