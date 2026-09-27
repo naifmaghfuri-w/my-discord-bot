@@ -22,6 +22,10 @@ export const config = {
   timezone: process.env.TIMEZONE || "Asia/Riyadh",
   /** معرفك أنت (المالك): يُستخدم لتقييد أوامر حساسة مثل /leaveserver */
   ownerId: process.env.OWNER_ID || undefined,
+  /** رتبة "عيد ميلاد" تُعطى تلقائياً 24 ساعة (اختياري، بدونها ميزة الرتبة التلقائية معطّلة) */
+  birthdayRoleId: process.env.BIRTHDAY_ROLE_ID || undefined,
+  /** قناة الاحتفال بعيد الميلاد (اختياري، بدونها ما فيه إعلان علني) */
+  birthdayChannelId: process.env.BIRTHDAY_CHANNEL_ID || undefined,
   /** getter: لا يُطلب إلا عند تشغيل البوت (أمر deploy لا يحتاجه) */
   get mongoUri(): string {
     return required("MONGODB_URI");
