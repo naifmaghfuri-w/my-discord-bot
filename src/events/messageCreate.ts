@@ -1,12 +1,14 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Events, type Message } from "discord.js";
 import { INBOX_PREFIX, sendAfkNotices } from "../afk/notice";
 import { clearAfk, createInbox, formatDuration, getAfk, setAfk } from "../afk/service";
+import { buildBirthdayPanel, buildSetupMessage } from "../birthday/views";
 import type { BotClient } from "../client";
 import { config } from "../config";
 import { buildMenuMessage } from "../menu/interactions";
 import { QUEST_SETTINGS, type QuestId } from "../quests/definitions";
 import { progressQuest, toAnnouncer } from "../quests/service";
 import { progressWeeklyQuest } from "../quests/weeklyService";
+import { getBirthday, isValidBirthday, setBirthday } from "../services/birthday";
 import { recordMessage } from "../services/stats";
 import type { BotEvent } from "../types";
 import { logger } from "../utils/logger";
@@ -16,6 +18,8 @@ const UNICODE_EMOJI = /\p{Extended_Pictographic}/gu;
 const MEOW = /م+ي+ا+و+/;
 /** يفعّل AFK إذا الرسالة "afk" لحالها أو "afk سبب..." (بدون سلاش) */
 const AFK_TRIGGER = /^afk(?:\s+([\s\S]+))?$/i;
+/** عيد الميلاد: "ميلاد" أو "birthday" أو "dob"، مع تاريخ اختياري بعدها (بدون سلاش أو زر) */
+const BIRTHDAY_TRIGGER = /^(ميلاد|birthday|dob)(?:\s+([\s\S]+))?$/i;
 
 const lastCounted = new Map<string, number>();
 
@@ -57,6 +61,42 @@ const event: BotEvent = {
     // --- القائمة الرئيسية بكتابة "p" لحالها ---
     if (rawContent.trim().toLowerCase() === "p") {
       await message.channel.send(buildMenuMessage()).catch(() => undefined);
+      return;
+    }
+
+    // --- عيد الميلاد بكتابة "ميلاد" أو "birthday" أو "dob" (بدون سلاش أو زر) ---
+    const birthdayTrigger = BIRTHDAY_TRIGGER.exec(rawContent.trim());
+    if (birthdayTrigger) {
+      const dateArg = birthdayTrigger[2]?.trim();
+
+      if (dateArg) {
+        const match = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/.exec(dateArg);
+        if (!match) {
+          await message.channel
+            .send("❌ الصيغة غلط. اكتب: `ميلاد يوم/شهر/سنة`، مثال: `ميلاد 15/8/2001`")
+            .catch(() => undefined);
+          return;
+        }
+        const day = Number(match[1]);
+        const month = Number(match[2]);
+        const year = Number(match[3]);
+        if (!isValidBirthday(day, month, year)) {
+          await message.channel.send("❌ التاريخ غير صحيح.").catch(() => undefined);
+          return;
+        }
+        await setBirthday(userId, guildId, day, month, year).catch((err) => logger.error("فشل حفظ عيد الميلاد", err));
+        const panel = buildBirthdayPanel({ day, month, year }, message.member?.displayName ?? message.author.username, message.author.displayAvatarURL());
+        await message.channel.send(panel).catch(() => undefined);
+        return;
+      }
+
+      const existing = await getBirthday(userId, guildId).catch(() => null);
+      if (!existing) {
+        await message.channel.send(buildSetupMessage()).catch(() => undefined);
+        return;
+      }
+      const panel = buildBirthdayPanel(existing, message.member?.displayName ?? message.author.username, message.author.displayAvatarURL());
+      await message.channel.send(panel).catch(() => undefined);
       return;
     }
 
