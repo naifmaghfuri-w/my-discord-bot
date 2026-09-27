@@ -1,16 +1,12 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from "discord.js";
-import { BIRTHDAY_EMOJI, CURRENCY, jenny, XP, xp as xpText } from "../constants";
+import { EmbedBuilder } from "discord.js";
+import { CURRENCY, jenny, XP, xp as xpText } from "../constants";
 import { DailyQuest } from "../database/models/DailyQuest";
+import { WeeklyQuest } from "../database/models/WeeklyQuest";
 import { ALL_QUESTS_BONUS, QUESTS } from "../quests/definitions";
 import { nextResetUnix, todayKey } from "../quests/time";
+import { WEEKLY_QUESTS } from "../quests/weekly";
+import { nextWeekResetUnix, weekKey } from "../quests/weeklyTime";
 import { getProfile, xpNeeded } from "../services/economy";
-import { getBirthday, getUpcomingBirthdays } from "../services/birthday";
-import { SETBIRTHDAY_BUTTON } from "./ids";
-
-const MONTH_NAMES = [
-  "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو",
-  "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر",
-];
 
 /** بطاقة "إنجازاتي" — نفس محتوى أمر /quests القديم */
 export async function buildAchievementsEmbed(userId: string, guildId: string): Promise<EmbedBuilder> {
@@ -48,46 +44,22 @@ export async function buildBalanceContent(userId: string, guildId: string, usern
   ].join("\n");
 }
 
-export interface BirthdayPanel {
-  embed: EmbedBuilder;
-  components: ActionRowBuilder<ButtonBuilder>[];
-}
+/** بطاقة "المهام الأسبوعية" */
+export async function buildWeeklyEmbed(userId: string, guildId: string): Promise<EmbedBuilder> {
+  const doc = await WeeklyQuest.findOne({ guildId, userId, weekKey: weekKey() });
+  const progress = doc?.progress ?? {};
+  const completed = doc?.completed ?? [];
 
-/** بطاقة "عيد الميلاد": تاريخك الحالي + أقرب 5 أعياد ميلاد بالسيرفر + زر تحديد التاريخ */
-export async function buildBirthdayPanel(userId: string, guildId: string): Promise<BirthdayPanel> {
-  const [mine, upcoming] = await Promise.all([
-    getBirthday(userId, guildId),
-    getUpcomingBirthdays(guildId, 5),
-  ]);
+  const lines = WEEKLY_QUESTS.map((q) => {
+    const done = completed.includes(q.id);
+    const current = Math.min(progress[q.id] ?? 0, q.target);
+    const count = !done ? `  \`${current}/${q.target}\`` : "";
+    return `${done ? "✅" : "⬜"} ${q.icon} **${q.title}**${count}\n┗ ${jenny(q.coins)} • ${xpText(q.xp)}`;
+  });
 
-  const mineText = mine ? `**${mine.day} ${MONTH_NAMES[mine.month - 1]}**` : "لم يُحدد بعد";
-
-  const upcomingLines = upcoming.length
-    ? upcoming
-        .map((b) => {
-          const when = b.daysUntil === 0 ? "🎉 اليوم!" : `بعد ${b.daysUntil} يوم`;
-          return `<@${b.userId}> — ${b.day} ${MONTH_NAMES[b.month - 1]} (${when})`;
-        })
-        .join("\n")
-    : "ما فيه أحد حدد عيد ميلاده بعد.";
-
-  const embed = new EmbedBuilder()
-    .setColor(0xf472b6)
-    .setTitle(`${BIRTHDAY_EMOJI} عيد الميلاد`)
-    .addFields(
-      { name: "عيد ميلادك", value: mineText },
-      { name: "القادمون في السيرفر", value: upcomingLines },
-    );
-
-  const components = [
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(SETBIRTHDAY_BUTTON)
-        .setLabel("حدد عيد ميلادك")
-        .setEmoji({ id: "1553179328840474695" })
-        .setStyle(ButtonStyle.Success),
-    ),
-  ];
-
-  return { embed, components };
+  return new EmbedBuilder()
+    .setColor(0x8b5cf6)
+    .setTitle("📆 المهام الأسبوعية")
+    .setDescription(`⏰ تتجدد <t:${nextWeekResetUnix()}:R>\n\n${lines.join("\n\n")}`)
+    .setFooter({ text: `${completed.length}/${WEEKLY_QUESTS.length} مكتملة` });
 }
