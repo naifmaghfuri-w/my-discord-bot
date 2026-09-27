@@ -21,7 +21,7 @@ const command: Command = {
     const target = interaction.options.getUser("target", true);
 
     if (target.bot) {
-      await interaction.reply(" ما تقدر تسرق بوت.");
+      await interaction.reply("😅 ما تقدر تسرق بوت.");
       return;
     }
 
@@ -29,9 +29,10 @@ const command: Command = {
 
     if (!result.ok) {
       const messages: Record<string, string> = {
-        self: " ما تقدر تسرق نفسك.",
+        self: "😅 ما تقدر تسرق نفسك.",
         cooldown: `⏳ لازم تنتظر ${formatMinutes((result as { msLeft: number }).msLeft)} قبل ما تسرق مرة ثانية.`,
         victim_too_poor: `💸 محفظة ${target} فاضية تقريباً، ما تستاهل السرقة.`,
+        victim_immune: `🛡️ ${target} محمي من السرقة حالياً (${formatMinutes((result as { msLeft: number }).msLeft)} متبقية).`,
         robber_too_poor: "💸 محفظتك فاضية، لازم يكون عندك شوي فلوس قبل ما تسرق.",
       };
       await interaction.reply(messages[result.reason] ?? "❌ ما قدرت أنفذ السرقة.");
@@ -40,7 +41,7 @@ const command: Command = {
 
     if (result.success) {
       await interaction.reply(
-        ` نجحت! سرقت ${jenny(result.amount)} من محفظة ${target}.`,
+        `🦹 نجحت! سرقت ${jenny(result.amount)} من محفظة ${target}.`,
       );
       return;
     }

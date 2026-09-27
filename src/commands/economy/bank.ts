@@ -1,5 +1,6 @@
 import {
   ActionRowBuilder,
+  EmbedBuilder,
   InteractionContextType,
   MessageFlags,
   ModalBuilder,
@@ -13,6 +14,7 @@ import { BALANCE_MODAL, SETPIN_MODAL, WITHDRAW_MODAL_PREFIX } from "../../bank/i
 import type { Command } from "../../types";
 import { getGuild } from "../../utils/guild";
 import { getProfile } from "../../services/economy";
+import { getRecentTransactions, transactionLabel } from "../../services/transactions";
 
 function pinInput(customId: string, label: string): ActionRowBuilder<TextInputBuilder> {
   const input = new TextInputBuilder()
@@ -46,7 +48,8 @@ const command: Command = {
         .setName("withdraw")
         .setDescription("اسحب من البنك لمحفظتك (يحتاج رقمك السري)")
         .addIntegerOption((o) => o.setName("amount").setDescription("المبلغ").setRequired(true).setMinValue(1)),
-    ),
+    )
+    .addSubcommand((s) => s.setName("history").setDescription("آخر 10 عمليات مالية لك")),
   cooldown: 3,
 
   async execute(interaction) {
@@ -128,6 +131,21 @@ const command: Command = {
         .setTitle("تأكيد السحب")
         .addComponents(pinInput("pin", "أدخل رقمك السري"));
       await interaction.showModal(modal);
+      return;
+    }
+
+    if (sub === "history") {
+      const list = await getRecentTransactions(guildId, userId, 10);
+      if (list.length === 0) {
+        await interaction.reply({ content: "📄 ما فيه عمليات مسجّلة بعد.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      const lines = list.map((t) => {
+        const who = t.counterpartyId ? ` — <@${t.counterpartyId}>` : "";
+        return `${transactionLabel(t.type)}: ${jenny(t.amount)}${who}\n<t:${Math.floor(t.createdAt.getTime() / 1000)}:R>`;
+      });
+      const embed = new EmbedBuilder().setColor(0x94a3b8).setTitle("📄 آخر عملياتك").setDescription(lines.join("\n\n"));
+      await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
       return;
     }
   },

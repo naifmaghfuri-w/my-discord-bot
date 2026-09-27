@@ -23,7 +23,8 @@ const command: Command = {
       return;
     }
 
-    await interaction.reply(`🎁 استلمت ${jenny(result.amount)}!`);
+    const interestLine = result.interest > 0 ? `\n📈 + ${jenny(result.interest)} فائدة بنكية` : "";
+    await interaction.reply(`🎁 استلمت ${jenny(result.amount)}!${interestLine}`);
   },
 };
 
