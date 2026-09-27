@@ -20,6 +20,9 @@ export interface IUserProfile {
   /** يوم وشهر الميلاد (بدون سنة، للخصوصية) */
   birthdayDay?: number;
   birthdayMonth?: number;
+  birthdayYear?: number;
+  /** آخر مرة أعطيناه رول عيد الميلاد (لمعرفة متى نشيله بعد 24 ساعة، ومنع تكراره بنفس السنة) */
+  lastBirthdayRoleAt?: Date;
   /** محمي من السرقة لين هذا الوقت (بعد ما يُسرق، أو بعد شراء حماية من المتجر) */
   robImmuneUntil?: Date;
 }
@@ -40,6 +43,8 @@ const schema = new Schema<IUserProfile>(
     lastRobAt: { type: Date },
     birthdayDay: { type: Number },
     birthdayMonth: { type: Number },
+    birthdayYear: { type: Number },
+    lastBirthdayRoleAt: { type: Date },
   },
   { timestamps: true },
 );
