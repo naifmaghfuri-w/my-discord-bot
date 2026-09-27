@@ -13,6 +13,13 @@ export const MONTH_NAMES = [
   "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر",
 ];
 
+const ENGLISH_MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+const ENGLISH_WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
 function actionRow(): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(BIRTHDAY_UPCOMING_BUTTON).setLabel("القادمة").setEmoji("🕐").setStyle(ButtonStyle.Secondary),
@@ -36,20 +43,35 @@ export function buildBirthdayPanel(b: Birthday, displayName: string, avatarURL: 
 
   const embed = new EmbedBuilder()
     .setColor(0xf472b6)
-    .setAuthor({ name: `${BIRTHDAY_EMOJI} عيد ميلاد ${displayName}` })
     .setThumbnail(avatarURL)
-    .setDescription(`**${b.day} ${MONTH_NAMES[b.month - 1]}**\n${whenLine}`);
+    .setDescription(
+      [`${BIRTHDAY_EMOJI} **عيد ميلاد ${displayName}**`, `**${b.day} ${MONTH_NAMES[b.month - 1]}**`, whenLine].join(
+        "\n",
+      ),
+    );
 
   return { embeds: [embed], components: [actionRow()] };
 }
 
-/** تعليمات أول مرة (ما عنده تاريخ محفوظ) */
-export function buildSetupMessage(): string {
-  return [
-    `${BIRTHDAY_EMOJI} ما سجّلت عيد ميلادك بعد.`,
-    "اكتب: `ميلاد يوم/شهر/سنة` — مثال: `ميلاد 15/8/2001`",
-    "(تقدر تستخدم `birthday` أو `dob` بدل `ميلاد` بنفس الطريقة)",
-  ].join("\n");
+export interface SetupMessage {
+  content: string;
+  components: ActionRowBuilder<ButtonBuilder>[];
+}
+
+/** رسالة أول مرة (ما عنده تاريخ محفوظ) — بالإنجليزي، مع زر يفتح نموذج التسجيل مباشرة */
+export function buildSetupMessage(): SetupMessage {
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(BIRTHDAY_EDIT_BUTTON)
+      .setLabel("Set your birthday")
+      .setEmoji({ id: "1553179328840474695" })
+      .setStyle(ButtonStyle.Success),
+  );
+
+  return {
+    content: "🎂 You haven't set your birthday yet. Press the button below to set it.",
+    components: [row],
+  };
 }
 
 /** بطاقة "القادمة": أقرب أعياد الميلاد بالسيرفر */
@@ -66,22 +88,25 @@ export async function buildUpcomingEmbed(guildId: string): Promise<EmbedBuilder>
 
   return new EmbedBuilder()
     .setColor(0xf472b6)
-    .setTitle(`${BIRTHDAY_EMOJI} أقرب أعياد الميلاد`)
-    .setDescription(lines.join("\n"))
+    .setDescription([`${BIRTHDAY_EMOJI} **أقرب أعياد الميلاد**`, "", ...lines].join("\n"))
     .setFooter({ text: `${total} عضو مسجّل` });
 }
 
-/** بطاقة "التفاصيل": العمر بالضبط وتاريخ العيد القادم */
+/** بطاقة "التفاصيل": تاريخ الميلاد، العمر الحالي، وعيد الميلاد القادم — بالإنجليزي */
 export function buildDetailsEmbed(b: Birthday, displayName: string): EmbedBuilder {
   const age = calculateAge(b);
+  const nextWeekdayEn = ENGLISH_WEEKDAYS[new Date(age.nextBirthdayUTC * 1000).getUTCDay()];
+
   return new EmbedBuilder()
     .setColor(0xf472b6)
-    .setTitle(`${BIRTHDAY_EMOJI} تفاصيل عمر ${displayName}`)
-    .setDescription(
-      [
-        `العمر بالتفصيل: **${age.years}** سنة و **${age.months}** شهر و **${age.days}** يوم`,
-        `عيد ميلادك القادم: يوم **${age.nextWeekday}** <t:${age.nextBirthdayUTC}:D> (بعد ${age.daysUntilNext} يوم)`,
-        `بيصير عمرك **${age.turningAge}** سنة`,
-      ].join("\n"),
+    .setDescription(`${BIRTHDAY_EMOJI} **${displayName}'s birthday details**`)
+    .addFields(
+      { name: "🎂 Date of Birth", value: `${ENGLISH_MONTHS[b.month - 1]} ${b.day}, ${b.year}` },
+      { name: "🕰️ Current Age", value: `${age.years} years, ${age.months} months, ${age.days} days` },
+      {
+        name: "📅 Next Birthday",
+        value: `${nextWeekdayEn}, <t:${age.nextBirthdayUTC}:D> (in ${age.daysUntilNext} days)`,
+      },
+      { name: "🎉 Turning", value: `${age.turningAge}` },
     );
 }
