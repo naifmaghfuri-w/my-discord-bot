@@ -9,6 +9,14 @@ import { logger } from "./utils/logger";
 
 const client = new BotClient();
 
+// مهم جداً: بدون هذا، أي خطأ شبكة أو خطأ منتهي الصلاحية (زي تفاعل انتهت مهلته) يطلع كـ
+// "uncaughtException" ويقدر يعطّل اتصال البوت بديسكورد بالكامل بصمت. هذا يمسكه بأمان بدل ما يوقف كل شيء.
+client.on("error", (err) => logger.error("⚠️ خطأ في اتصال ديسكورد (Client error)", err));
+client.on("shardError", (err) => logger.error("⚠️ خطأ في الشارد (Shard error)", err));
+client.on("shardDisconnect", (_event, id) => logger.warn(`⚠️ انقطع اتصال الشارد ${id}`));
+client.on("shardReconnecting", (id) => logger.info(`🔄 الشارد ${id} يعيد الاتصال...`));
+client.rest.on("error", (err) => logger.error("⚠️ خطأ في REST API لديسكورد", err));
+
 async function main() {
   // على Render توجد PORT دائماً؛ محلياً لا حاجة للخادم
   if (config.port) startHealthServer(config.port);
