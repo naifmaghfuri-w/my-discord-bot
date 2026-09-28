@@ -3,6 +3,7 @@ import { handleAfkButton, handleAfkModal } from "../afk/interactions";
 import { handleBankModal } from "../bank/interactions";
 import { handleBirthdayButton, handleBirthdayModal } from "../birthday/interactions";
 import type { BotClient } from "../client";
+import { handleFamilyButton } from "../family/interactions";
 import { handleMenuButton } from "../menu/interactions";
 import type { BotEvent } from "../types";
 import { logger } from "../utils/logger";
@@ -15,8 +16,11 @@ const event: BotEvent = {
   async execute(client: BotClient, interaction: Interaction) {
     if (interaction.isButton()) {
       try {
-        const handled = (await handleAfkButton(interaction)) || (await handleMenuButton(interaction));
-        if (!handled) await handleBirthdayButton(interaction);
+        const handled =
+          (await handleAfkButton(interaction)) ||
+          (await handleMenuButton(interaction)) ||
+          (await handleBirthdayButton(interaction));
+        if (!handled) await handleFamilyButton(interaction);
       } catch (err) {
         logger.error("خطأ في زر", err);
       }
