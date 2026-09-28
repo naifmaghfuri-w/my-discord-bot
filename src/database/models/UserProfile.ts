@@ -23,6 +23,10 @@ export interface IUserProfile {
   birthdayYear?: number;
   /** آخر مرة أعطيناه رول عيد الميلاد (لمعرفة متى نشيله بعد 24 ساعة، ومنع تكراره بنفس السنة) */
   lastBirthdayRoleAt?: Date;
+  /** الزوج/الزوجة الحالي (معرف مستخدم) */
+  spouseId?: string;
+  /** الوالدان (أب/أم) — حتى شخصين */
+  parentIds?: string[];
   /** محمي من السرقة لين هذا الوقت (بعد ما يُسرق، أو بعد شراء حماية من المتجر) */
   robImmuneUntil?: Date;
 }
@@ -45,6 +49,8 @@ const schema = new Schema<IUserProfile>(
     birthdayMonth: { type: Number },
     birthdayYear: { type: Number },
     lastBirthdayRoleAt: { type: Date },
+    spouseId: { type: String },
+    parentIds: { type: [String], default: [] },
   },
   { timestamps: true },
 );
@@ -55,5 +61,7 @@ schema.index({ userId: 1, guildId: 1 }, { unique: true });
 schema.index({ guildId: 1, coins: -1 });
 // رقم الحساب لازم يكون فريد على مستوى البوت كامل (لو مو undefined)
 schema.index({ accountNumber: 1 }, { unique: true, sparse: true });
+// لبحث أبناء عضو معيّن بسرعة (نظام العائلة)
+schema.index({ guildId: 1, parentIds: 1 });
 
 export const UserProfile = model<IUserProfile>("UserProfile", schema);
