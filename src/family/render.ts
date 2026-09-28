@@ -1,0 +1,156 @@
+import { createCanvas, loadImage, type Image, type SKRSContext2D } from "@napi-rs/canvas";
+import type { IUserProfile } from "../database/models/UserProfile";
+import { FONT_BOLD, FONT_REGULAR, ensureFontsRegistered } from "../quests/render/fonts";
+
+const WIDTH = 1100;
+const HEIGHT = 720;
+const NODE_R = 55;
+
+export interface FamilyMember {
+  userId: string;
+  username: string;
+  avatarURL: string;
+}
+
+export interface FamilyTreeInput {
+  ego: FamilyMember;
+  spouse: FamilyMember | null;
+  parents: FamilyMember[];
+  siblings: FamilyMember[];
+  children: FamilyMember[];
+}
+
+async function fetchAvatar(url: string): Promise<Image | null> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    return await loadImage(buf);
+  } catch {
+    return null;
+  }
+}
+
+function drawLine(ctx: SKRSContext2D, x1: number, y1: number, x2: number, y2: number, color = "#94a3b8") {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+}
+
+function drawNode(ctx: SKRSContext2D, x: number, y: number, member: FamilyMember, image: Image | null, ring: string) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, NODE_R + 4, 0, Math.PI * 2);
+  ctx.strokeStyle = ring;
+  ctx.lineWidth = 4;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(x, y, NODE_R, 0, Math.PI * 2);
+  ctx.closePath();
+  ctx.clip();
+  if (image) {
+    ctx.drawImage(image, x - NODE_R, y - NODE_R, NODE_R * 2, NODE_R * 2);
+  } else {
+    ctx.fillStyle = "#334155";
+    ctx.fillRect(x - NODE_R, y - NODE_R, NODE_R * 2, NODE_R * 2);
+  }
+  ctx.restore();
+
+  ctx.fillStyle = "#f8fafc";
+  ctx.font = `700 20px "${FONT_BOLD}"`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  const label = member.username.length > 14 ? `${member.username.slice(0, 13)}…` : member.username;
+  ctx.fillText(label, x, y + NODE_R + 10);
+}
+
+function background(ctx: SKRSContext2D) {
+  const grad = ctx.createLinearGradient(0, 0, 0, HEIGHT);
+  grad.addColorStop(0, "#1e1b2e");
+  grad.addColorStop(1, "#0b0a14");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+  const glow = ctx.createRadialGradient(WIDTH / 2, HEIGHT / 2, 50, WIDTH / 2, HEIGHT / 2, 500);
+  glow.addColorStop(0, "rgba(168,85,247,0.10)");
+  glow.addColorStop(1, "rgba(168,85,247,0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+}
+
+/** يرسم صورة شجرة العائلة (الوالدان، الإخوة، الزوج، الأبناء) */
+export async function renderFamilyTree(data: FamilyTreeInput): Promise<Buffer | null> {
+  if (!ensureFontsRegistered()) return null;
+
+  const canvas = createCanvas(WIDTH, HEIGHT);
+  const ctx = canvas.getContext("2d");
+  background(ctx);
+
+  ctx.fillStyle = "#e9d5ff";
+  ctx.font = `800 30px "${FONT_BOLD}"`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  ctx.fillText("🌳 شجرة العائلة", WIDTH / 2, 24);
+
+  const egoY = 380;
+  const egoX = WIDTH / 2;
+
+  // الوالدان
+  const parentY = 130;
+  const parentXs = data.parents.length === 2 ? [WIDTH / 2 - 110, WIDTH / 2 + 110] : [WIDTH / 2];
+  const parentImages: (Image | null)[] = [];
+  for (const p of data.parents) parentImages.push(await fetchAvatar(p.avatarURL));
+
+  if (data.parents.length === 2) drawLine(ctx, parentXs[0], parentY, parentXs[1], parentY, "#c084fc");
+  const parentMidX = data.parents.length ? (parentXs[0] + (parentXs[1] ?? parentXs[0])) / 2 : egoX;
+  if (data.parents.length) drawLine(ctx, parentMidX, parentY + NODE_R, egoX, egoY - NODE_R, "#c084fc");
+
+  data.parents.forEach((p, i) => drawNode(ctx, parentXs[i], parentY, p, parentImages[i], "#c084fc"));
+
+  // الإخوة حول نفس مستوى الوالدين تقريباً (يسار/يمين الوسط)
+  const sibY = 250;
+  const maxSibs = Math.min(data.siblings.length, 4);
+  for (let i = 0; i < maxSibs; i++) {
+    const side = i % 2 === 0 ? -1 : 1;
+    const offset = Math.ceil((i + 1) / 2);
+    const sx = egoX + side * (170 * offset);
+    const img = await fetchAvatar(data.siblings[i].avatarURL);
+    if (data.parents.length) drawLine(ctx, parentMidX, parentY + NODE_R, sx, sibY - NODE_R, "#64748b");
+    drawNode(ctx, sx, sibY, data.siblings[i], img, "#64748b");
+  }
+
+  // الزوج بجانب الشخص الرئيسي
+  if (data.spouse) {
+    const spouseX = egoX + 160;
+    const img = await fetchAvatar(data.spouse.avatarURL);
+    drawLine(ctx, egoX + NODE_R, egoY, spouseX - NODE_R, egoY, "#f472b6");
+    ctx.fillStyle = "#f472b6";
+    ctx.font = `24px "${FONT_REGULAR}"`;
+    ctx.fillText("💍", (egoX + spouseX) / 2, egoY - 14);
+    drawNode(ctx, spouseX, egoY, data.spouse, img, "#f472b6");
+  }
+
+  // الشخص الرئيسي
+  const egoImg = await fetchAvatar(data.ego.avatarURL);
+  drawNode(ctx, egoX, egoY, data.ego, egoImg, "#facc15");
+
+  // الأبناء
+  const childY = 590;
+  const n = data.children.length;
+  for (let i = 0; i < n; i++) {
+    const cx = WIDTH / 2 + (i - (n - 1) / 2) * 170;
+    const img = await fetchAvatar(data.children[i].avatarURL);
+    drawLine(ctx, egoX, egoY + NODE_R, cx, childY - NODE_R, "#4ade80");
+    drawNode(ctx, cx, childY, data.children[i], img, "#4ade80");
+  }
+
+  return canvas.encode("png");
+}
+
+export function toFamilyMember(profile: Pick<IUserProfile, "userId">, username: string, avatarURL: string): FamilyMember {
+  return { userId: profile.userId, username, avatarURL };
+}
