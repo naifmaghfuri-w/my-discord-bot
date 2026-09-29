@@ -138,14 +138,32 @@ export async function renderFamilyTree(data: FamilyTreeInput): Promise<Buffer | 
   const egoImg = await fetchAvatar(data.ego.avatarURL);
   drawNode(ctx, egoX, egoY, data.ego, egoImg, "#facc15");
 
-  // الأبناء
+  // الأبناء (نعرض حتى 6، والباقي يظهر كعدد إضافي حتى ما تطلع الصورة فوضى أو تتجاوز حدودها)
   const childY = 590;
-  const n = data.children.length;
-  for (let i = 0; i < n; i++) {
+  const MAX_CHILDREN_SHOWN = 6;
+  const shownChildren = data.children.slice(0, MAX_CHILDREN_SHOWN);
+  const extraChildren = data.children.length - shownChildren.length;
+  const n = shownChildren.length + (extraChildren > 0 ? 1 : 0);
+
+  for (let i = 0; i < shownChildren.length; i++) {
     const cx = WIDTH / 2 + (i - (n - 1) / 2) * 170;
-    const img = await fetchAvatar(data.children[i].avatarURL);
+    const img = await fetchAvatar(shownChildren[i].avatarURL);
     drawLine(ctx, egoX, egoY + NODE_R, cx, childY - NODE_R, "#4ade80");
-    drawNode(ctx, cx, childY, data.children[i], img, "#4ade80");
+    drawNode(ctx, cx, childY, shownChildren[i], img, "#4ade80");
+  }
+
+  if (extraChildren > 0) {
+    const cx = WIDTH / 2 + (shownChildren.length - (n - 1) / 2) * 170;
+    drawLine(ctx, egoX, egoY + NODE_R, cx, childY - NODE_R, "#4ade80");
+    ctx.beginPath();
+    ctx.arc(cx, childY, NODE_R, 0, Math.PI * 2);
+    ctx.fillStyle = "#166534";
+    ctx.fill();
+    ctx.fillStyle = "#f0fdf4";
+    ctx.font = `700 26px "${FONT_BOLD}"`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(`+${extraChildren}`, cx, childY);
   }
 
   return canvas.encode("png");

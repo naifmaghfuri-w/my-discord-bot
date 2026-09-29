@@ -20,7 +20,7 @@ export async function canPropose(fromId: string, toId: string, guildId: string, 
   const [from, to] = await Promise.all([getProfile(fromId, guildId), getProfile(toId, guildId)]);
   if (from.spouseId) return { ok: false, reason: "proposer_married" };
   if (to.spouseId) return { ok: false, reason: "target_married" };
-  if (from.coins < dowry) return { ok: false, reason: "insufficient_dowry" };
+  if (dowry < FAMILY.minDowry || from.coins < dowry) return { ok: false, reason: "insufficient_dowry" };
   return { ok: true };
 }
 
@@ -36,7 +36,17 @@ export async function marry(fromId: string, toId: string, guildId: string, dowry
   );
   if (!paid) return { ok: false, reason: "insufficient_dowry" };
 
-  await UserProfile.updateOne({ userId: toId, guildId }, { $inc: { coins: dowry }, $set: { spouseId: fromId } });
+  // نفس الحارس الذري على الطرف الثاني: لو تزوج من شخص ثاني في نفس اللحظة، نتراجع عن الطرف الأول
+  const confirmed = await UserProfile.findOneAndUpdate(
+    { userId: toId, guildId, spouseId: { $exists: false } },
+    { $inc: { coins: dowry }, $set: { spouseId: fromId } },
+    { new: true },
+  );
+  if (!confirmed) {
+    await UserProfile.updateOne({ userId: fromId, guildId }, { $inc: { coins: dowry }, $unset: { spouseId: "" } });
+    return { ok: false, reason: "target_married" };
+  }
+
   await logTransaction(guildId, fromId, "pay_sent", dowry, toId);
   await logTransaction(guildId, toId, "pay_received", dowry, fromId);
   return { ok: true };
