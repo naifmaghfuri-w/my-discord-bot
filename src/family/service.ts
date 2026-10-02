@@ -1,50 +1,92 @@
 import { UserProfile, type IUserProfile } from "../database/models/UserProfile";
 import { getProfile } from "../services/economy";
 import { logTransaction } from "../services/transactions";
+import type { Gender } from "./gender";
 
 export const FAMILY = {
   minDowry: 1,
   maxParents: 2,
+  maxWivesForMale: 4,
+  maxHusbandsForFemale: 1,
 } as const;
+
+function spouseCapacity(gender: Gender): number {
+  return gender === "male" ? FAMILY.maxWivesForMale : FAMILY.maxHusbandsForFemale;
+}
 
 export type MarryResult =
   | { ok: true }
   | { ok: false; reason: "self" }
-  | { ok: false; reason: "proposer_married" }
-  | { ok: false; reason: "target_married" }
+  | { ok: false; reason: "gender_unknown" }
+  | { ok: false; reason: "same_gender" }
+  | { ok: false; reason: "proposer_full" }
+  | { ok: false; reason: "target_full" }
+  | { ok: false; reason: "already_married_each_other" }
   | { ok: false; reason: "insufficient_dowry" };
 
 /** يتأكد إن الاقتراح ممكن قبل ما نعرض زر القبول (بدون تنفيذ) */
-export async function canPropose(fromId: string, toId: string, guildId: string, dowry: number): Promise<MarryResult> {
+export async function canPropose(
+  fromId: string,
+  toId: string,
+  guildId: string,
+  dowry: number,
+  fromGender: Gender,
+  toGender: Gender,
+): Promise<MarryResult> {
   if (fromId === toId) return { ok: false, reason: "self" };
+  if (!fromGender || !toGender) return { ok: false, reason: "gender_unknown" };
+  if (fromGender === toGender) return { ok: false, reason: "same_gender" };
+
   const [from, to] = await Promise.all([getProfile(fromId, guildId), getProfile(toId, guildId)]);
-  if (from.spouseId) return { ok: false, reason: "proposer_married" };
-  if (to.spouseId) return { ok: false, reason: "target_married" };
+  const fromSpouses = from.spouseIds ?? [];
+  const toSpouses = to.spouseIds ?? [];
+
+  if (fromSpouses.includes(toId)) return { ok: false, reason: "already_married_each_other" };
+  if (fromSpouses.length >= spouseCapacity(fromGender)) return { ok: false, reason: "proposer_full" };
+  if (toSpouses.length >= spouseCapacity(toGender)) return { ok: false, reason: "target_full" };
   if (dowry < FAMILY.minDowry || from.coins < dowry) return { ok: false, reason: "insufficient_dowry" };
   return { ok: true };
 }
 
-/** ينفّذ الزواج فعلياً بعد ما الطرف الثاني يضغط قبول (يعيد التحقق بشكل ذري) */
-export async function marry(fromId: string, toId: string, guildId: string, dowry: number): Promise<MarryResult> {
-  const check = await canPropose(fromId, toId, guildId, dowry);
+/** ينفّذ الزواج فعلياً (بعد كل موافقات القبول اللازمة)، بحارس ذري على الطرفين */
+export async function marry(
+  fromId: string,
+  toId: string,
+  guildId: string,
+  dowry: number,
+  fromGender: Gender,
+  toGender: Gender,
+): Promise<MarryResult> {
+  const check = await canPropose(fromId, toId, guildId, dowry, fromGender, toGender);
   if (!check.ok) return check;
 
   const paid = await UserProfile.findOneAndUpdate(
-    { userId: fromId, guildId, coins: { $gte: dowry }, spouseId: { $exists: false } },
-    { $inc: { coins: -dowry }, $set: { spouseId: toId } },
+    {
+      userId: fromId,
+      guildId,
+      coins: { $gte: dowry },
+      $expr: { $lt: [{ $size: { $ifNull: ["$spouseIds", []] } }, spouseCapacity(fromGender)] },
+    },
+    { $inc: { coins: -dowry }, $addToSet: { spouseIds: toId } },
     { new: true },
   );
   if (!paid) return { ok: false, reason: "insufficient_dowry" };
 
-  // نفس الحارس الذري على الطرف الثاني: لو تزوج من شخص ثاني في نفس اللحظة، نتراجع عن الطرف الأول
   const confirmed = await UserProfile.findOneAndUpdate(
-    { userId: toId, guildId, spouseId: { $exists: false } },
-    { $inc: { coins: dowry }, $set: { spouseId: fromId } },
+    {
+      userId: toId,
+      guildId,
+      $expr: { $lt: [{ $size: { $ifNull: ["$spouseIds", []] } }, spouseCapacity(toGender)] },
+    },
+    { $inc: { coins: dowry }, $addToSet: { spouseIds: fromId } },
     { new: true },
   );
   if (!confirmed) {
-    await UserProfile.updateOne({ userId: fromId, guildId }, { $inc: { coins: dowry }, $unset: { spouseId: "" } });
-    return { ok: false, reason: "target_married" };
+    await UserProfile.updateOne(
+      { userId: fromId, guildId },
+      { $inc: { coins: dowry }, $pull: { spouseIds: toId } },
+    );
+    return { ok: false, reason: "target_full" };
   }
 
   await logTransaction(guildId, fromId, "pay_sent", dowry, toId);
@@ -52,47 +94,103 @@ export async function marry(fromId: string, toId: string, guildId: string, dowry
   return { ok: true };
 }
 
-export async function divorce(userId: string, guildId: string): Promise<string | null> {
-  const profile = await getProfile(userId, guildId);
-  if (!profile.spouseId) return null;
-  const spouseId = profile.spouseId;
-  await UserProfile.updateOne({ userId, guildId }, { $unset: { spouseId: "" } });
-  await UserProfile.updateOne({ userId: spouseId, guildId }, { $unset: { spouseId: "" } });
-  return spouseId;
+async function unlinkSpouses(aId: string, bId: string, guildId: string): Promise<void> {
+  await UserProfile.updateOne({ userId: aId, guildId }, { $pull: { spouseIds: bId } });
+  await UserProfile.updateOne({ userId: bId, guildId }, { $pull: { spouseIds: aId } });
+}
+
+export type DivorceResult =
+  | { ok: true; exSpouseId: string }
+  | { ok: false; reason: "not_married" }
+  | { ok: false; reason: "not_found" }
+  | { ok: false; reason: "specify_wife" };
+
+/** طلاق: للزوج فقط. لو عنده أكثر من زوجة لازم يحدد وحدة */
+export async function talaqDivorce(husbandId: string, guildId: string, wifeId?: string): Promise<DivorceResult> {
+  const husband = await getProfile(husbandId, guildId);
+  const wives = husband.spouseIds ?? [];
+  if (wives.length === 0) return { ok: false, reason: "not_married" };
+
+  let target = wifeId;
+  if (!target) {
+    if (wives.length > 1) return { ok: false, reason: "specify_wife" };
+    target = wives[0];
+  }
+  if (!wives.includes(target)) return { ok: false, reason: "not_found" };
+
+  await unlinkSpouses(husbandId, target, guildId);
+  return { ok: true, exSpouseId: target };
+}
+
+/** خلع: للزوجة فقط (حد أقصى زوج واحد أصلاً، فما فيه لبس بمين) */
+export async function khulaDivorce(wifeId: string, guildId: string): Promise<DivorceResult> {
+  const wife = await getProfile(wifeId, guildId);
+  const husbands = wife.spouseIds ?? [];
+  if (husbands.length === 0) return { ok: false, reason: "not_married" };
+
+  const husbandId = husbands[0];
+  await unlinkSpouses(wifeId, husbandId, guildId);
+  return { ok: true, exSpouseId: husbandId };
 }
 
 export type AdoptResult =
   | { ok: true }
   | { ok: false; reason: "self" }
+  | { ok: false; reason: "gender_unknown" }
   | { ok: false; reason: "already_parent" }
+  | { ok: false; reason: "same_gender_parent" }
   | { ok: false; reason: "child_has_two_parents" }
   | { ok: false; reason: "not_stepparent" };
 
-/** يتأكد إن التبني ممكن (بدون تنفيذ) */
-export async function canAdopt(parentId: string, childId: string, guildId: string): Promise<AdoptResult> {
+/** يتأكد إن التبني ممكن (بدون تنفيذ). existingParentGenders: جنس كل والد مسجّل حالياً للطفل */
+export async function canAdopt(
+  parentId: string,
+  childId: string,
+  guildId: string,
+  parentGender: Gender,
+  existingParentGenders: Gender[],
+): Promise<AdoptResult> {
   if (parentId === childId) return { ok: false, reason: "self" };
-  const [parent, child] = await Promise.all([getProfile(parentId, guildId), getProfile(childId, guildId)]);
+  if (!parentGender) return { ok: false, reason: "gender_unknown" };
+
+  const child = await getProfile(childId, guildId);
   const existingParents = child.parentIds ?? [];
 
   if (existingParents.includes(parentId)) return { ok: false, reason: "already_parent" };
+  if (existingParentGenders.includes(parentGender)) return { ok: false, reason: "same_gender_parent" };
 
   if (existingParents.length === 0) return { ok: true };
   if (existingParents.length >= FAMILY.maxParents) return { ok: false, reason: "child_has_two_parents" };
 
   // عنده والد وحد مسجّل: لازم تكون متزوج منه عشان تصير الوالد الثاني (زوج أب/أم)
-  if (parent.spouseId && existingParents.includes(parent.spouseId)) return { ok: true };
+  const parent = await getProfile(parentId, guildId);
+  const spouses = parent.spouseIds ?? [];
+  if (existingParents.some((id) => spouses.includes(id))) return { ok: true };
   return { ok: false, reason: "not_stepparent" };
 }
 
-export async function adopt(parentId: string, childId: string, guildId: string): Promise<AdoptResult> {
-  const check = await canAdopt(parentId, childId, guildId);
+export async function adopt(
+  parentId: string,
+  childId: string,
+  guildId: string,
+  parentGender: Gender,
+  existingParentGenders: Gender[],
+): Promise<AdoptResult> {
+  const check = await canAdopt(parentId, childId, guildId, parentGender, existingParentGenders);
   if (!check.ok) return check;
 
-  await UserProfile.updateOne(
-    { userId: childId, guildId },
-    { $addToSet: { parentIds: parentId } },
-    { upsert: true },
-  );
+  await UserProfile.updateOne({ userId: childId, guildId }, { $addToSet: { parentIds: parentId } }, { upsert: true });
+  return { ok: true };
+}
+
+export type DisownResult = { ok: true } | { ok: false; reason: "not_your_child" };
+
+/** تبرؤ: الأب يفك رابط الأبوة مع ابنه/ابنته */
+export async function disown(fatherId: string, childId: string, guildId: string): Promise<DisownResult> {
+  const child = await getProfile(childId, guildId);
+  if (!(child.parentIds ?? []).includes(fatherId)) return { ok: false, reason: "not_your_child" };
+
+  await UserProfile.updateOne({ userId: childId, guildId }, { $pull: { parentIds: fatherId } });
   return { ok: true };
 }
 
@@ -117,21 +215,28 @@ export async function getSiblings(userId: string, guildId: string): Promise<IUse
   return siblings.filter((s) => (seen.has(s.userId) ? false : (seen.add(s.userId), true)));
 }
 
+export async function getSpouses(userId: string, guildId: string): Promise<IUserProfile[]> {
+  const profile = await getProfile(userId, guildId);
+  const ids = profile.spouseIds ?? [];
+  if (ids.length === 0) return [];
+  return UserProfile.find({ guildId, userId: { $in: ids } });
+}
+
 export interface FamilyView {
   parents: IUserProfile[];
-  spouse: IUserProfile | null;
+  spouses: IUserProfile[];
   siblings: IUserProfile[];
   children: IUserProfile[];
 }
 
-/** يجمع كل أطراف عائلة العضو (والدان، زوج، إخوة، أبناء) بأربع استعلامات متوازية */
+/** يجمع كل أطراف عائلة العضو (والدان، أزواج، إخوة، أبناء) */
 export async function getFamilyView(userId: string, guildId: string): Promise<FamilyView> {
-  const profile = await getProfile(userId, guildId);
-  const [parents, siblings, children, spouse] = await Promise.all([
+  const [parents, siblings, children, spouses] = await Promise.all([
     getParents(userId, guildId),
     getSiblings(userId, guildId),
     getChildren(userId, guildId),
-    profile.spouseId ? UserProfile.findOne({ userId: profile.spouseId, guildId }) : Promise.resolve(null),
+    getSpouses(userId, guildId),
   ]);
-  return { parents, siblings, children, spouse };
+  return { parents, siblings, children, spouses };
 }
+

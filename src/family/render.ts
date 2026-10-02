@@ -1,8 +1,9 @@
 import { createCanvas, loadImage, type Image, type SKRSContext2D } from "@napi-rs/canvas";
 import type { IUserProfile } from "../database/models/UserProfile";
-import { FONT_BOLD, FONT_REGULAR, ensureFontsRegistered } from "../quests/render/fonts";
+import { FONT_BOLD, ensureFontsRegistered } from "../quests/render/fonts";
+import type { Gender } from "./gender";
 
-const WIDTH = 1100;
+const WIDTH = 1250;
 const HEIGHT = 720;
 const NODE_R = 55;
 
@@ -10,14 +11,29 @@ export interface FamilyMember {
   userId: string;
   username: string;
   avatarURL: string;
+  gender: Gender;
 }
 
 export interface FamilyTreeInput {
   ego: FamilyMember;
-  spouse: FamilyMember | null;
+  spouses: FamilyMember[];
   parents: FamilyMember[];
   siblings: FamilyMember[];
   children: FamilyMember[];
+}
+
+type Role = "parent" | "sibling" | "spouse" | "child";
+
+const RELATION_LABELS: Record<Role, { male: string; female: string; unknown: string }> = {
+  parent: { male: "الأب", female: "الأم", unknown: "الوالد" },
+  sibling: { male: "الأخ", female: "الأخت", unknown: "الأخ/الأخت" },
+  spouse: { male: "الزوج", female: "الزوجة", unknown: "الزوج/الزوجة" },
+  child: { male: "الابن", female: "الابنة", unknown: "الابن/الابنة" },
+};
+
+function relationLabel(role: Role, gender: Gender): string {
+  const forms = RELATION_LABELS[role];
+  return gender === "male" ? forms.male : gender === "female" ? forms.female : forms.unknown;
 }
 
 async function fetchAvatar(url: string): Promise<Image | null> {
@@ -40,7 +56,22 @@ function drawLine(ctx: SKRSContext2D, x1: number, y1: number, x2: number, y2: nu
   ctx.stroke();
 }
 
-function drawNode(ctx: SKRSContext2D, x: number, y: number, member: FamilyMember, image: Image | null, ring: string) {
+function drawNode(
+  ctx: SKRSContext2D,
+  x: number,
+  y: number,
+  member: FamilyMember,
+  image: Image | null,
+  ring: string,
+  relation: string,
+) {
+  // تسمية العلاقة فوق الصورة
+  ctx.fillStyle = ring;
+  ctx.font = `700 18px "${FONT_BOLD}"`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "bottom";
+  ctx.fillText(relation, x, y - NODE_R - 8);
+
   ctx.save();
   ctx.beginPath();
   ctx.arc(x, y, NODE_R + 4, 0, Math.PI * 2);
@@ -82,7 +113,7 @@ function background(ctx: SKRSContext2D) {
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 }
 
-/** يرسم صورة شجرة العائلة (الوالدان، الإخوة، الزوج، الأبناء) */
+/** يرسم صورة شجرة العائلة (الوالدان، الإخوة، الأزواج، الأبناء) مع تسمية كل علاقة فوق صورتها */
 export async function renderFamilyTree(data: FamilyTreeInput): Promise<Buffer | null> {
   if (!ensureFontsRegistered()) return null;
 
@@ -97,11 +128,11 @@ export async function renderFamilyTree(data: FamilyTreeInput): Promise<Buffer | 
   ctx.fillText("🌳 شجرة العائلة", WIDTH / 2, 24);
 
   const egoY = 380;
-  const egoX = WIDTH / 2;
+  const egoX = WIDTH / 2 - 80;
 
   // الوالدان
   const parentY = 130;
-  const parentXs = data.parents.length === 2 ? [WIDTH / 2 - 110, WIDTH / 2 + 110] : [WIDTH / 2];
+  const parentXs = data.parents.length === 2 ? [egoX - 110, egoX + 110] : [egoX];
   const parentImages: (Image | null)[] = [];
   for (const p of data.parents) parentImages.push(await fetchAvatar(p.avatarURL));
 
@@ -109,7 +140,9 @@ export async function renderFamilyTree(data: FamilyTreeInput): Promise<Buffer | 
   const parentMidX = data.parents.length ? (parentXs[0] + (parentXs[1] ?? parentXs[0])) / 2 : egoX;
   if (data.parents.length) drawLine(ctx, parentMidX, parentY + NODE_R, egoX, egoY - NODE_R, "#c084fc");
 
-  data.parents.forEach((p, i) => drawNode(ctx, parentXs[i], parentY, p, parentImages[i], "#c084fc"));
+  data.parents.forEach((p, i) =>
+    drawNode(ctx, parentXs[i], parentY, p, parentImages[i], "#c084fc", relationLabel("parent", p.gender)),
+  );
 
   // الإخوة حول نفس مستوى الوالدين تقريباً (يسار/يمين الوسط)
   const sibY = 250;
@@ -120,23 +153,26 @@ export async function renderFamilyTree(data: FamilyTreeInput): Promise<Buffer | 
     const sx = egoX + side * (170 * offset);
     const img = await fetchAvatar(data.siblings[i].avatarURL);
     if (data.parents.length) drawLine(ctx, parentMidX, parentY + NODE_R, sx, sibY - NODE_R, "#64748b");
-    drawNode(ctx, sx, sibY, data.siblings[i], img, "#64748b");
+    drawNode(ctx, sx, sibY, data.siblings[i], img, "#64748b", relationLabel("sibling", data.siblings[i].gender));
   }
 
-  // الزوج بجانب الشخص الرئيسي
-  if (data.spouse) {
-    const spouseX = egoX + 160;
-    const img = await fetchAvatar(data.spouse.avatarURL);
+  // الأزواج (حتى 4) على يمين الشخص الرئيسي
+  const spouses = data.spouses.slice(0, 4);
+  for (let i = 0; i < spouses.length; i++) {
+    const spouseX = egoX + 150 + 120 * i;
+    const img = await fetchAvatar(spouses[i].avatarURL);
     drawLine(ctx, egoX + NODE_R, egoY, spouseX - NODE_R, egoY, "#f472b6");
     ctx.fillStyle = "#f472b6";
-    ctx.font = `24px "${FONT_REGULAR}"`;
-    ctx.fillText("💍", (egoX + spouseX) / 2, egoY - 14);
-    drawNode(ctx, spouseX, egoY, data.spouse, img, "#f472b6");
+    ctx.font = `20px "${FONT_BOLD}"`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("💍", (egoX + spouseX) / 2, egoY - 30);
+    drawNode(ctx, spouseX, egoY, spouses[i], img, "#f472b6", relationLabel("spouse", spouses[i].gender));
   }
 
   // الشخص الرئيسي
   const egoImg = await fetchAvatar(data.ego.avatarURL);
-  drawNode(ctx, egoX, egoY, data.ego, egoImg, "#facc15");
+  drawNode(ctx, egoX, egoY, data.ego, egoImg, "#facc15", "أنت");
 
   // الأبناء (نعرض حتى 6، والباقي يظهر كعدد إضافي حتى ما تطلع الصورة فوضى أو تتجاوز حدودها)
   const childY = 590;
@@ -146,14 +182,14 @@ export async function renderFamilyTree(data: FamilyTreeInput): Promise<Buffer | 
   const n = shownChildren.length + (extraChildren > 0 ? 1 : 0);
 
   for (let i = 0; i < shownChildren.length; i++) {
-    const cx = WIDTH / 2 + (i - (n - 1) / 2) * 170;
+    const cx = egoX + (i - (n - 1) / 2) * 170;
     const img = await fetchAvatar(shownChildren[i].avatarURL);
     drawLine(ctx, egoX, egoY + NODE_R, cx, childY - NODE_R, "#4ade80");
-    drawNode(ctx, cx, childY, shownChildren[i], img, "#4ade80");
+    drawNode(ctx, cx, childY, shownChildren[i], img, "#4ade80", relationLabel("child", shownChildren[i].gender));
   }
 
   if (extraChildren > 0) {
-    const cx = WIDTH / 2 + (shownChildren.length - (n - 1) / 2) * 170;
+    const cx = egoX + (shownChildren.length - (n - 1) / 2) * 170;
     drawLine(ctx, egoX, egoY + NODE_R, cx, childY - NODE_R, "#4ade80");
     ctx.beginPath();
     ctx.arc(cx, childY, NODE_R, 0, Math.PI * 2);
@@ -169,6 +205,11 @@ export async function renderFamilyTree(data: FamilyTreeInput): Promise<Buffer | 
   return canvas.encode("png");
 }
 
-export function toFamilyMember(profile: Pick<IUserProfile, "userId">, username: string, avatarURL: string): FamilyMember {
-  return { userId: profile.userId, username, avatarURL };
+export function toFamilyMember(
+  profile: Pick<IUserProfile, "userId">,
+  username: string,
+  avatarURL: string,
+  gender: Gender,
+): FamilyMember {
+  return { userId: profile.userId, username, avatarURL, gender };
 }

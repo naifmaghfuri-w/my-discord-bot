@@ -4,7 +4,7 @@ type EdgeType = "up" | "down" | "spouse";
 
 interface NodeInfo {
   parentIds: string[];
-  spouseId: string | null;
+  spouseIds: string[];
   childrenIds: string[];
 }
 
@@ -15,13 +15,13 @@ async function loadNode(userId: string, guildId: string, cache: Map<string, Node
   if (cached) return cached;
 
   const [profile, children] = await Promise.all([
-    UserProfile.findOne({ userId, guildId }, { parentIds: 1, spouseId: 1 }),
+    UserProfile.findOne({ userId, guildId }, { parentIds: 1, spouseIds: 1 }),
     UserProfile.find({ guildId, parentIds: userId }, { userId: 1 }),
   ]);
 
   const info: NodeInfo = {
     parentIds: profile?.parentIds ?? [],
-    spouseId: profile?.spouseId ?? null,
+    spouseIds: profile?.spouseIds ?? [],
     childrenIds: children.map((c) => c.userId),
   };
   cache.set(userId, info);
@@ -44,7 +44,7 @@ async function shortestPath(aId: string, bId: string, guildId: string): Promise<
       const neighbors: { id: string; type: EdgeType }[] = [
         ...info.parentIds.map((id) => ({ id, type: "up" as const })),
         ...info.childrenIds.map((id) => ({ id, type: "down" as const })),
-        ...(info.spouseId ? [{ id: info.spouseId, type: "spouse" as const }] : []),
+        ...info.spouseIds.map((id) => ({ id, type: "spouse" as const })),
       ];
 
       for (const n of neighbors) {
