@@ -8,6 +8,8 @@ export interface IUserProfile {
   xp: number;
   level: number;
   lastDaily?: Date;
+  /** آخر مرة لعب فيها عملة صورة أو كتابة (مرة كل 24 ساعة) */
+  lastCoinflipAt?: Date;
   /** رصيد البنك (آمن من السرقة، عكس coins اللي هي المحفظة) */
   bank: number;
   /** رقم الحساب البنكي، يتولد تلقائياً أول مرة يفتح فيها حساب */
@@ -24,7 +26,8 @@ export interface IUserProfile {
   /** آخر مرة أعطيناه رول عيد الميلاد (لمعرفة متى نشيله بعد 24 ساعة، ومنع تكراره بنفس السنة) */
   lastBirthdayRoleAt?: Date;
   /** الزوج/الزوجة الحالي (معرف مستخدم) */
-  spouseId?: string;
+  /** أزواج/زوجات العضو (مصفوفة: الذكر ممكن يوصل 4، الأنثى حد أقصى واحد) */
+  spouseIds?: string[];
   /** الوالدان (أب/أم) — حتى شخصين */
   parentIds?: string[];
   /** محمي من السرقة لين هذا الوقت (بعد ما يُسرق، أو بعد شراء حماية من المتجر) */
@@ -40,6 +43,7 @@ const schema = new Schema<IUserProfile>(
     xp: { type: Number, default: 0 },
     level: { type: Number, default: 1 },
     lastDaily: { type: Date },
+    lastCoinflipAt: { type: Date },
     bank: { type: Number, default: 0 },
     accountNumber: { type: String },
     pinHash: { type: String },
@@ -49,7 +53,7 @@ const schema = new Schema<IUserProfile>(
     birthdayMonth: { type: Number },
     birthdayYear: { type: Number },
     lastBirthdayRoleAt: { type: Date },
-    spouseId: { type: String },
+    spouseIds: { type: [String], default: [] },
     parentIds: { type: [String], default: [] },
   },
   { timestamps: true },
