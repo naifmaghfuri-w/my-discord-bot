@@ -5,10 +5,11 @@ import { buildBirthdayPanel, buildSetupMessage } from "../birthday/views";
 import type { BotClient } from "../client";
 import { config } from "../config";
 import { CURRENCY, jenny } from "../constants";
-import { ADOPT_ACCEPT_PREFIX, ADOPT_DECLINE_PREFIX, MARRY_ACCEPT_PREFIX, MARRY_DECLINE_PREFIX } from "../family/ids";
+import { getGender, type Gender } from "../family/gender";
 import { computeRelationship } from "../family/graph";
+import { ADOPT_ACCEPT_PREFIX, ADOPT_DECLINE_PREFIX, MARRY_ACCEPT_PREFIX, MARRY_DECLINE_PREFIX } from "../family/ids";
 import { renderFamilyTree, toFamilyMember } from "../family/render";
-import { canAdopt, canPropose, divorce, getFamilyView } from "../family/service";
+import { canAdopt, canPropose, disown, getFamilyView, getParents, khulaDivorce, talaqDivorce } from "../family/service";
 import { buildMenuMessage } from "../menu/interactions";
 import { QUEST_SETTINGS, type QuestId } from "../quests/definitions";
 import { progressQuest, toAnnouncer } from "../quests/service";
@@ -25,9 +26,11 @@ const MEOW = /م+ي+ا+و+/;
 const AFK_TRIGGER = /^afk(?:\s+([\s\S]+))?$/i;
 /** عيد الميلاد: "ميلاد" أو "birthday" أو "dob"، مع تاريخ اختياري بعدها (بدون سلاش أو زر) */
 const BIRTHDAY_TRIGGER = /^(ميلاد|birthday|dob)(?:\s+([\s\S]+))?$/i;
-/** نظام العائلة: زواج/طلاق/تبني/شجرة/قرابة (بدون سلاش) */
+/** نظام العائلة: زواج/طلاق/خلع/تبني/تبرؤ/شجرة/قرابة (بدون سلاش) */
 const MARRY_TRIGGER = /^تزوج\s+<@!?(\d+)>\s+مهر[:\s]+(\d+)$/i;
-const ADOPT_TRIGGER = /^تبنى\s+<@!?(\d+)>$/i;
+const TALAQ_TRIGGER = /^طلاق(?:\s+<@!?(\d+)>)?$/i;
+const ADOPT_TRIGGER = /^تبن[ىي]\s+<@!?(\d+)>$/i;
+const DISOWN_TRIGGER = /^تبرؤ\s+<@!?(\d+)>$/i;
 const RELATION_TRIGGER = /^قرابة\s+<@!?(\d+)>$/i;
 
 const lastCounted = new Map<string, number>();
@@ -109,8 +112,9 @@ const event: BotEvent = {
       return;
     }
 
-    // --- نظام العائلة: زواج/طلاق/تبني/شجرة/قرابة (بدون سلاش) ---
+    // --- نظام العائلة: زواج/طلاق/خلع/تبني/تبرؤ/شجرة/قرابة (بدون سلاش) ---
     const trimmed = rawContent.trim();
+    const guild = message.guild;
 
     const marryMatch = MARRY_TRIGGER.exec(trimmed);
     if (marryMatch) {
@@ -123,12 +127,22 @@ const event: BotEvent = {
         return;
       }
 
-      const check = await canPropose(userId, targetId, guildId, dowry);
+      const [fromMember, toMember] = await Promise.all([
+        message.member ?? guild.members.fetch(userId).catch(() => null),
+        guild.members.fetch(targetId).catch(() => null),
+      ]);
+      const fromGender: Gender = fromMember ? getGender(fromMember) : null;
+      const toGender: Gender = toMember ? getGender(toMember) : null;
+
+      const check = await canPropose(userId, targetId, guildId, dowry, fromGender, toGender);
       if (!check.ok) {
         const reasons: Record<string, string> = {
           self: "❌ ما تقدر تتزوج نفسك.",
-          proposer_married: "❌ أنت متزوج بالفعل، اكتب `طلاق` أول.",
-          target_married: `❌ ${target} متزوج بالفعل.`,
+          gender_unknown: "❌ لازم تكون أنت والطرف الثاني عندكم رتبة ذكر/أنثى محددة حتى يشتغل الزواج.",
+          same_gender: "❌ الزواج لازم يكون بين ذكر وأنثى.",
+          proposer_full: "❌ وصلت للحد الأقصى من الزوجات/الأزواج.",
+          target_full: `❌ ${target} وصل للحد الأقصى من الزوجات/الأزواج.`,
+          already_married_each_other: "❌ أنتما متزوجان من بعض بالفعل.",
           insufficient_dowry: "❌ رصيد محفظتك ما يكفي لهذا المهر.",
         };
         await message.channel.send(reasons[check.reason] ?? "❌ تعذّر إرسال العرض.").catch(() => undefined);
@@ -158,16 +172,56 @@ const event: BotEvent = {
       return;
     }
 
-    if (trimmed === "طلاق") {
-      const exSpouseId = await divorce(userId, guildId).catch((err) => {
-        logger.error("فشل الطلاق", err);
-        return null;
-      });
-      if (!exSpouseId) {
-        await message.channel.send("❌ أنت مو متزوج أصلاً.").catch(() => undefined);
-      } else {
-        await message.channel.send(`💔 تم الطلاق بين <@${userId}> و<@${exSpouseId}>.`).catch(() => undefined);
+    const talaqMatch = TALAQ_TRIGGER.exec(trimmed);
+    if (talaqMatch) {
+      const member = message.member ?? (await guild.members.fetch(userId).catch(() => null));
+      const gender = member ? getGender(member) : null;
+
+      if (gender !== "male") {
+        await message.channel.send("❌ أمر `طلاق` للزوج بس. الزوجة تستخدم `خلع`.").catch(() => undefined);
+        return;
       }
+
+      const wifeId = talaqMatch[1];
+      const result = await talaqDivorce(userId, guildId, wifeId).catch((err) => {
+        logger.error("فشل الطلاق", err);
+        return { ok: false as const, reason: "not_married" as const };
+      });
+
+      if (!result.ok) {
+        const reasons: Record<string, string> = {
+          not_married: "❌ أنت مو متزوج أصلاً.",
+          not_found: "❌ هذا الشخص مو زوجتك.",
+          specify_wife: "❌ عندك أكثر من زوجة، حدد وحدة: `طلاق @الزوجة`",
+        };
+        await message.channel.send(reasons[result.reason] ?? "❌ تعذّر الطلاق.").catch(() => undefined);
+        return;
+      }
+
+      await message.channel.send(`💔 تم الطلاق بين <@${userId}> و<@${result.exSpouseId}>.`).catch(() => undefined);
+      return;
+    }
+
+    if (trimmed === "خلع") {
+      const member = message.member ?? (await guild.members.fetch(userId).catch(() => null));
+      const gender = member ? getGender(member) : null;
+
+      if (gender !== "female") {
+        await message.channel.send("❌ أمر `خلع` للزوجة بس. الزوج يستخدم `طلاق`.").catch(() => undefined);
+        return;
+      }
+
+      const result = await khulaDivorce(userId, guildId).catch((err) => {
+        logger.error("فشل الخلع", err);
+        return { ok: false as const, reason: "not_married" as const };
+      });
+
+      if (!result.ok) {
+        await message.channel.send("❌ أنتِ مو متزوجة أصلاً.").catch(() => undefined);
+        return;
+      }
+
+      await message.channel.send(`💔 طلبت <@${userId}> الخلع من <@${result.exSpouseId}>، وتم.`).catch(() => undefined);
       return;
     }
 
@@ -181,11 +235,24 @@ const event: BotEvent = {
         return;
       }
 
-      const check = await canAdopt(userId, childId, guildId);
+      const parentMember = message.member ?? (await guild.members.fetch(userId).catch(() => null));
+      const parentGender: Gender = parentMember ? getGender(parentMember) : null;
+
+      const existingParents = await getParents(childId, guildId);
+      const existingGenders: Gender[] = await Promise.all(
+        existingParents.map(async (p) => {
+          const m = await guild.members.fetch(p.userId).catch(() => null);
+          return m ? getGender(m) : null;
+        }),
+      );
+
+      const check = await canAdopt(userId, childId, guildId, parentGender, existingGenders);
       if (!check.ok) {
         const reasons: Record<string, string> = {
           self: "❌ ما تقدر تتبنى نفسك.",
+          gender_unknown: "❌ لازم تكون عندك رتبة ذكر/أنثى محددة حتى يشتغل التبني.",
           already_parent: `❌ أنت والد/والدة ${target} بالفعل.`,
+          same_gender_parent: `❌ عند ${target} والد من نفس جنسك مسجّل بالفعل.`,
           child_has_two_parents: `❌ عند ${target} والدان مسجّلان بالفعل.`,
           not_stepparent: `❌ لازم تكون متزوج من والد/والدة ${target} الحالي عشان تصير الوالد الثاني.`,
         };
@@ -216,6 +283,33 @@ const event: BotEvent = {
       return;
     }
 
+    const disownMatch = DISOWN_TRIGGER.exec(trimmed);
+    if (disownMatch) {
+      const childId = disownMatch[1];
+      const member = message.member ?? (await guild.members.fetch(userId).catch(() => null));
+      const gender = member ? getGender(member) : null;
+
+      if (gender !== "male") {
+        await message.channel.send("❌ أمر `تبرؤ` للأب بس.").catch(() => undefined);
+        return;
+      }
+
+      const result = await disown(userId, childId, guildId).catch((err) => {
+        logger.error("فشل التبرؤ", err);
+        return { ok: false as const, reason: "not_your_child" as const };
+      });
+
+      if (!result.ok) {
+        await message.channel.send("❌ هذا الشخص مو ابنك.").catch(() => undefined);
+        return;
+      }
+
+      await message.channel
+        .send(`⚠️ تبرّأ <@${userId}> من <@${childId}>.`)
+        .catch(() => undefined);
+      return;
+    }
+
     if (trimmed === "شجرة") {
       const view = await getFamilyView(userId, guildId).catch(() => null);
       if (!view) {
@@ -225,20 +319,25 @@ const event: BotEvent = {
 
       const resolveMember = async (id: string) => {
         const u = await message.client.users.fetch(id).catch(() => null);
-        return u ? toFamilyMember({ userId: id }, u.username, u.displayAvatarURL({ size: 128 })) : null;
+        if (!u) return null;
+        const m = await guild.members.fetch(id).catch(() => null);
+        const gender: Gender = m ? getGender(m) : null;
+        return toFamilyMember({ userId: id }, u.username, u.displayAvatarURL({ size: 128 }), gender);
       };
 
+      const egoMember = message.member ?? (await guild.members.fetch(userId).catch(() => null));
       const ego = toFamilyMember(
         { userId },
-        message.member?.displayName ?? message.author.username,
+        egoMember?.displayName ?? message.author.username,
         message.author.displayAvatarURL({ size: 128 }),
+        egoMember ? getGender(egoMember) : null,
       );
-      const spouse = view.spouse ? await resolveMember(view.spouse.userId) : null;
+      const spouses = (await Promise.all(view.spouses.map((s) => resolveMember(s.userId)))).filter((x) => x !== null);
       const parents = (await Promise.all(view.parents.map((p) => resolveMember(p.userId)))).filter((x) => x !== null);
       const siblings = (await Promise.all(view.siblings.map((s) => resolveMember(s.userId)))).filter((x) => x !== null);
       const children = (await Promise.all(view.children.map((c) => resolveMember(c.userId)))).filter((x) => x !== null);
 
-      const buffer = await renderFamilyTree({ ego, spouse, parents, siblings, children }).catch((err) => {
+      const buffer = await renderFamilyTree({ ego, spouses, parents, siblings, children }).catch((err) => {
         logger.error("فشل توليد صورة شجرة العائلة", err);
         return null;
       });
