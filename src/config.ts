@@ -26,6 +26,9 @@ export const config = {
   birthdayRoleId: process.env.BIRTHDAY_ROLE_ID || undefined,
   /** قناة الاحتفال بعيد الميلاد (اختياري، بدونها ما فيه إعلان علني) */
   birthdayChannelId: process.env.BIRTHDAY_CHANNEL_ID || undefined,
+  /** رتب تحديد الجنس (لنظام العائلة: تبني، زواج، مواريث اللقب) */
+  maleRoleId: process.env.MALE_ROLE_ID || undefined,
+  femaleRoleId: process.env.FEMALE_ROLE_ID || undefined,
   /** getter: لا يُطلب إلا عند تشغيل البوت (أمر deploy لا يحتاجه) */
   get mongoUri(): string {
     return required("MONGODB_URI");
