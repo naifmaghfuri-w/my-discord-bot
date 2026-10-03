@@ -62,6 +62,33 @@ export async function verifyPin(userId: string, guildId: string, pin: string): P
   return timingSafeEqual(stored, attemptBuf);
 }
 
+/** يحذف الرمز السري (عرض الرصيد بعدها ما يطلب رمز لين يحدد وحد جديد) */
+export async function removePin(userId: string, guildId: string): Promise<void> {
+  await UserProfile.updateOne({ userId, guildId }, { $unset: { pinHash: "", pinSalt: "" } });
+}
+
+export type TransferResult =
+  | { ok: true }
+  | { ok: false; reason: "self" }
+  | { ok: false; reason: "insufficient" };
+
+/** تحويل مباشر من محفظتك لمحفظة عضو ثاني (بدون المرور على البنك) */
+export async function transferWallet(fromId: string, toId: string, guildId: string, amount: number): Promise<TransferResult> {
+  if (fromId === toId) return { ok: false, reason: "self" };
+
+  const updated = await UserProfile.findOneAndUpdate(
+    { userId: fromId, guildId, coins: { $gte: amount } },
+    { $inc: { coins: -amount } },
+    { new: true },
+  );
+  if (!updated) return { ok: false, reason: "insufficient" };
+
+  await UserProfile.updateOne({ userId: toId, guildId }, { $inc: { coins: amount } }, { upsert: true });
+  await logTransaction(guildId, fromId, "pay_sent", amount, toId);
+  await logTransaction(guildId, toId, "pay_received", amount, fromId);
+  return { ok: true };
+}
+
 export type MoveResult = { ok: true; coins: number; bank: number } | { ok: false; reason: "insufficient" };
 
 /** يحوّل من المحفظة (coins) للبنك (bank)، بشكل ذري */
