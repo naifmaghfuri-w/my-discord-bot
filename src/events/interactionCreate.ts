@@ -1,6 +1,6 @@
 import { Collection, Events, MessageFlags, type Interaction } from "discord.js";
 import { handleAfkButton, handleAfkModal } from "../afk/interactions";
-import { handleBankModal } from "../bank/interactions";
+import { handleBankButton, handleBankModal } from "../bank/interactions";
 import { handleBirthdayButton, handleBirthdayModal } from "../birthday/interactions";
 import type { BotClient } from "../client";
 import { handleFamilyButton } from "../family/interactions";
@@ -19,7 +19,8 @@ const event: BotEvent = {
         const handled =
           (await handleAfkButton(interaction)) ||
           (await handleMenuButton(interaction)) ||
-          (await handleBirthdayButton(interaction));
+          (await handleBirthdayButton(interaction)) ||
+          (await handleBankButton(interaction));
         if (!handled) await handleFamilyButton(interaction);
       } catch (err) {
         logger.error("خطأ في زر", err);

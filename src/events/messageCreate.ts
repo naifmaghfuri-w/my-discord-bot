@@ -1,6 +1,8 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Events, type Message } from "discord.js";
 import { INBOX_PREFIX, sendAfkNotices } from "../afk/notice";
 import { clearAfk, createInbox, formatDuration, getAfk, setAfk } from "../afk/service";
+import { hasPin, openAccount } from "../bank/service";
+import { buildAccountOpenedMessage, buildMainMenu, buildNeedsPinMessage } from "../bank/views";
 import { buildBirthdayPanel, buildSetupMessage } from "../birthday/views";
 import type { BotClient } from "../client";
 import { config } from "../config";
@@ -73,6 +75,32 @@ const event: BotEvent = {
     // --- القائمة الرئيسية بكتابة "p" لحالها ---
     if (rawContent.trim().toLowerCase() === "p") {
       await message.channel.send(buildMenuMessage()).catch(() => undefined);
+      return;
+    }
+
+    // --- البنك بكتابة "بنك" لحالها (بدون سلاش) ---
+    if (rawContent.trim() === "بنك") {
+      const opened = await openAccount(userId, guildId).catch((err) => {
+        logger.error("فشل فتح حساب بنكي", err);
+        return null;
+      });
+
+      if (!opened) {
+        await message.channel.send("❌ تعذّر فتح حسابك البنكي، حاول لاحقاً.").catch(() => undefined);
+        return;
+      }
+
+      if (!opened.alreadyExisted) {
+        await message.channel.send(buildAccountOpenedMessage(opened.accountNumber)).catch(() => undefined);
+        return;
+      }
+
+      if (!(await hasPin(userId, guildId))) {
+        await message.channel.send(buildNeedsPinMessage()).catch(() => undefined);
+        return;
+      }
+
+      await message.channel.send(buildMainMenu()).catch(() => undefined);
       return;
     }
 
