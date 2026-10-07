@@ -17,6 +17,8 @@ export interface ILabProfile {
   discovered: string[];
   /** العناصر من الدرجة الثانية اللي فتحها برموز المختبر */
   unlockedElements: string[];
+  /** المركبات النادرة جداً اللي نُشر عنها مقال */
+  published: string[];
 }
 
 const schema = new Schema<ILabProfile>(
@@ -31,6 +33,7 @@ const schema = new Schema<ILabProfile>(
     compounds: { type: Schema.Types.Mixed, default: {} },
     discovered: { type: [String], default: [] },
     unlockedElements: { type: [String], default: [] },
+    published: { type: [String], default: [] },
   },
   { minimize: false },
 );

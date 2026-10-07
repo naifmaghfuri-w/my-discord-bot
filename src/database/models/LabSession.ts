@@ -7,6 +7,8 @@ export interface ILabSession {
   mix: Record<string, number>;
   temp: number;
   pressure: number;
+  /** مضاعف خطوة الحرارة/الضغط (1 أو 5) */
+  stepMult: number;
   updatedAt: Date;
 }
 
@@ -17,6 +19,7 @@ const schema = new Schema<ILabSession>(
     mix: { type: Schema.Types.Mixed, default: {} },
     temp: { type: Number, default: 20 },
     pressure: { type: Number, default: 1 },
+    stepMult: { type: Number, default: 1 },
     updatedAt: { type: Date, default: () => new Date() },
   },
   { minimize: false },
