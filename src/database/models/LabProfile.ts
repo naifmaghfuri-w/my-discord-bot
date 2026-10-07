@@ -19,6 +19,15 @@ export interface ILabProfile {
   unlockedElements: string[];
   /** المركبات النادرة جداً اللي نُشر عنها مقال */
   published: string[];
+  /** عدّادات للإنجازات والمهام: crafts, fails, experiments, sold, trades, bought, hints */
+  stats: Record<string, number>;
+  /** مهام اليوم */
+  questDay: string;
+  questProgress: Record<string, number>;
+  questDone: string[];
+  achievements: string[];
+  /** عدد التلميحات المشتراة لكل مركب مجهول: { compoundId: عدد } */
+  hinted: Record<string, number>;
 }
 
 const schema = new Schema<ILabProfile>(
@@ -34,6 +43,12 @@ const schema = new Schema<ILabProfile>(
     discovered: { type: [String], default: [] },
     unlockedElements: { type: [String], default: [] },
     published: { type: [String], default: [] },
+    stats: { type: Schema.Types.Mixed, default: {} },
+    questDay: { type: String, default: "" },
+    questProgress: { type: Schema.Types.Mixed, default: {} },
+    questDone: { type: [String], default: [] },
+    achievements: { type: [String], default: [] },
+    hinted: { type: Schema.Types.Mixed, default: {} },
   },
   { minimize: false },
 );
