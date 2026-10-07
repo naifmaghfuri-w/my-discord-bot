@@ -9,7 +9,8 @@ export type TransactionType =
   | "rob_fine"
   | "pay_sent"
   | "pay_received"
-  | "shop_purchase";
+  | "shop_purchase"
+  | "lab_sale";
 
 export interface ITransaction {
   guildId: string;
