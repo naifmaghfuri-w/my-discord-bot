@@ -42,7 +42,7 @@ import type { ILabSession } from "../database/models/LabSession";
 type Row = ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>;
 
 export interface PanelResult {
-  content?: string | null;
+  content?: string;
   embeds: EmbedBuilder[];
   components: Row[];
   files: { attachment: Buffer; name: string }[];
@@ -147,7 +147,7 @@ export async function buildMainPanel(profile: ILabProfile, session: ILabSession,
     ),
   );
 
-  return { content: note ?? null, embeds: [embed], components: rows, files };
+  return { content: note, embeds: [embed], components: rows, files };
 }
 
 export function backRow(owner: string): ActionRowBuilder<ButtonBuilder> {
@@ -158,7 +158,7 @@ export function backRow(owner: string): ActionRowBuilder<ButtonBuilder> {
 
 /** كل العروض الفرعية تمسح صورة القارورة وتحدّث الرسالة بدون ملفات */
 function sub(embed: EmbedBuilder, components: Row[], note?: string): PanelResult {
-  return { content: note ?? null, embeds: [embed], components, files: [] };
+  return { content: note, embeds: [embed], components, files: [] };
 }
 
 export function buildWarehouseView(profile: ILabProfile, coins: number, note?: string): PanelResult {
@@ -355,7 +355,7 @@ export async function buildReactSuccessView(
   );
 
   return {
-    content: null,
+    content: undefined,
     embeds: [embed],
     components: [actionRow],
     files: image ? [{ attachment: image, name: "result.png" }] : [],
