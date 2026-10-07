@@ -2,7 +2,8 @@ export interface ElementDef {
   id: string;
   name: string;
   icon: string;
-  tier: 1 | 2;
+  /** 1 = يُباع بالمتجر، 2 = يُفتح برموز المختبر، 3 = ناتج تجارب فاشلة (غير قابل للشراء) */
+  tier: 1 | 2 | 3;
   price: number;
   unlockCost?: number;
   /** لون السائل في القارورة */
@@ -22,6 +23,12 @@ export const ELEMENTS: ElementDef[] = [
   { id: "copper", name: "نحاس", icon: "🟠", tier: 2, price: 30, unlockCost: 3, color: "#ea580c" },
   { id: "chlorine", name: "كلور", icon: "🟢", tier: 2, price: 30, unlockCost: 3, color: "#84cc16" },
   { id: "gold", name: "ذهب", icon: "🪙", tier: 2, price: 60, unlockCost: 4, color: "#fbbf24" },
+  { id: "lithium", name: "ليثيوم", icon: "🔶", tier: 2, price: 35, unlockCost: 3, color: "#f87171" },
+  { id: "silver", name: "فضة", icon: "🥈", tier: 2, price: 55, unlockCost: 4, color: "#e2e8f0" },
+  { id: "phosphorus", name: "فوسفور", icon: "🔴", tier: 2, price: 32, unlockCost: 3, color: "#ef4444" },
+  { id: "helium", name: "هيليوم", icon: "🎈", tier: 2, price: 45, unlockCost: 5, color: "#f0abfc" },
+  { id: "calcium", name: "كالسيوم", icon: "🦴", tier: 2, price: 28, unlockCost: 3, color: "#fde68a" },
+  { id: "waste", name: "نفايات كيميائية", icon: "☣️", tier: 3, price: 0, color: "#65a30d" },
 ];
 
 export const ELEMENT_MAP = Object.fromEntries(ELEMENTS.map((e) => [e.id, e]));

@@ -36,7 +36,7 @@ export async function resetSession(userId: string, guildId: string): Promise<voi
 export function isElementAvailable(profile: ILabProfile, elementId: string): boolean {
   const el = ELEMENT_MAP[elementId];
   if (!el) return false;
-  return el.tier === 1 || profile.unlockedElements.includes(elementId);
+  return el.tier !== 2 || profile.unlockedElements.includes(elementId);
 }
 
 export async function addToMix(userId: string, guildId: string, itemId: string): Promise<{ ok: boolean; reason?: string }> {
@@ -131,7 +131,7 @@ export interface GrantXpResult {
   tokensGained: number;
 }
 
-async function grantLabXp(userId: string, guildId: string, xp: number): Promise<GrantXpResult> {
+export async function grantLabXp(userId: string, guildId: string, xp: number): Promise<GrantXpResult> {
   const doc = await LabProfile.findOneAndUpdate(
     { userId, guildId },
     { $inc: { labXp: xp } },
@@ -159,16 +159,26 @@ async function grantLabXp(userId: string, guildId: string, xp: number): Promise<
   return { level, leveledUp: tokensGained > 0, tokensGained };
 }
 
+/** سمعة تُكتسب عند أول اكتشاف (النادر جداً يُكتسب بنشر مقال) */
+export const DISCOVERY_REPUTATION: Record<string, number> = { common: 0, uncommon: 1, rare: 3, epic: 8, legendary: 0 };
+
+export interface ReactionSnapshot {
+  mix: Record<string, number>;
+  temp: number;
+  pressure: number;
+}
+
 export type ReactResult =
-  | { ok: true; success: true; compound: CompoundDef; discoveredNow: boolean; xpResult: GrantXpResult }
+  | { ok: true; success: true; compound: CompoundDef; discoveredNow: boolean; xpResult: GrantXpResult; snapshot: ReactionSnapshot }
   | { ok: true; success: false; kind: "near"; compound: CompoundDef; hints: string[] }
-  | { ok: true; success: false; kind: "fail" }
+  | { ok: true; success: false; kind: "fail"; xp: number; waste: number; snapshot: ReactionSnapshot }
   | { ok: false; reason: "empty_mix" | "missing" };
 
 export async function attemptReaction(userId: string, guildId: string): Promise<ReactResult> {
   const session = await getSession(userId, guildId);
   const mixEntries = Object.entries(session.mix).filter(([, qty]) => qty > 0);
   if (mixEntries.length === 0) return { ok: false, reason: "empty_mix" };
+  const snapshot: ReactionSnapshot = { mix: Object.fromEntries(mixEntries), temp: session.temp, pressure: session.pressure };
 
   const sameIngredients = (c: CompoundDef) => {
     const recipeEntries = Object.entries(c.recipe);
@@ -205,7 +215,14 @@ export async function attemptReaction(userId: string, guildId: string): Promise<
   }
   await resetSession(userId, guildId);
 
-  if (!candidate) return { ok: true, success: false, kind: "fail" };
+  if (!candidate) {
+    // التجربة الفاشلة ما تروح بدون فايدة: خبرة صغيرة + نفايات كيميائية قابلة لإعادة التدوير
+    const waste = Math.max(1, Math.min(3, mixEntries.reduce((a, [, q]) => a + q, 0) - 1));
+    await LabProfile.updateOne({ userId, guildId }, { $inc: { "inventory.waste": waste } });
+    const xp = 4;
+    await grantLabXp(userId, guildId, xp);
+    return { ok: true, success: false, kind: "fail", xp, waste, snapshot };
+  }
 
   const profile = await getLabProfile(userId, guildId);
   const discoveredNow = !profile.discovered.includes(candidate.id);
@@ -219,7 +236,10 @@ export async function attemptReaction(userId: string, guildId: string): Promise<
   );
 
   const xpResult = await grantLabXp(userId, guildId, candidate.xp);
-  return { ok: true, success: true, compound: candidate, discoveredNow, xpResult };
+  if (discoveredNow && DISCOVERY_REPUTATION[candidate.rarity]) {
+    await LabProfile.updateOne({ userId, guildId }, { $inc: { reputation: DISCOVERY_REPUTATION[candidate.rarity] } });
+  }
+  return { ok: true, success: true, compound: candidate, discoveredNow, xpResult, snapshot };
 }
 
 export const ARTICLE_REPUTATION = 50;
@@ -245,4 +265,45 @@ export function reputationBonus(reputation: number): number {
 
 export async function getTopScientists(guildId: string, limit = 10): Promise<ILabProfile[]> {
   return (await LabProfile.find({ guildId }).sort({ reputation: -1, labLevel: -1 }).limit(limit).lean()) as unknown as ILabProfile[];
+}
+
+/** سعر التلميح حسب ندرة المركب */
+export const HINT_PRICE: Record<string, number> = { common: 50, uncommon: 100, rare: 200, epic: 400, legendary: 800 };
+
+/** كل التلميحات الممكنة لمركب: كل مكوّن، ثم الحرارة، ثم الضغط */
+export function hintClues(c: CompoundDef): string[] {
+  const clues = Object.entries(c.recipe).map(
+    ([id, q]) => `${ELEMENT_MAP[id]?.name ?? COMPOUND_MAP[id]?.name ?? id} ×${q}`,
+  );
+  clues.push(`🌡️ ${c.tempRange[0]}-${c.tempRange[1]}°`);
+  clues.push(`💨 ${c.pressureRange[0]}-${c.pressureRange[1]}`);
+  return clues;
+}
+
+export type HintResult =
+  | { ok: true; clue: string; price: number; left: number }
+  | { ok: false; reason: "unknown" | "discovered" | "no_more" | "coins" };
+
+export async function buyHint(userId: string, guildId: string, compoundId: string): Promise<HintResult> {
+  const def = COMPOUND_MAP[compoundId];
+  if (!def) return { ok: false, reason: "unknown" };
+
+  const profile = await getLabProfile(userId, guildId);
+  if (profile.discovered.includes(compoundId)) return { ok: false, reason: "discovered" };
+
+  const clues = hintClues(def);
+  const bought = profile.hinted?.[compoundId] ?? 0;
+  if (bought >= clues.length) return { ok: false, reason: "no_more" };
+
+  const price = HINT_PRICE[def.rarity];
+  const paid = await UserProfile.findOneAndUpdate(
+    { userId, guildId, coins: { $gte: price } },
+    { $inc: { coins: -price } },
+    { new: true },
+  );
+  if (!paid) return { ok: false, reason: "coins" };
+
+  await LabProfile.updateOne({ userId, guildId }, { $inc: { [`hinted.${compoundId}`]: 1 } });
+  await logTransaction(guildId, userId, "lab_purchase", price);
+  return { ok: true, clue: clues[bought], price, left: clues.length - bought - 1 };
 }

@@ -33,6 +33,18 @@ export const LEVELS_UNLOCK_SELECT = "lab_levels_unlock_select";
 
 export const PUBLISH = "lab_publish";
 
+export const OPEN_QUESTS = "lab_open_quests";
+export const OPEN_ACH = "lab_open_ach";
+export const OPEN_HINTS = "lab_open_hints";
+export const HINT_PAGE = "lab_hint_page";
+export const HINT_BUY_SELECT = "lab_hint_buy_select";
+export const OPEN_TRADE_HELP = "lab_open_trade_help";
+
+export const TRADE_PICK = "lab_trade_pick";
+export const TRADE_OK = "lab_trade_ok";
+export const TRADE_NO = "lab_trade_no";
+export const TRADE_CANCEL = "lab_trade_cancel";
+
 export function cid(base: string, ownerId: string, extra?: string | number): string {
   return extra === undefined ? `${base}|${ownerId}` : `${base}|${ownerId}|${extra}`;
 }

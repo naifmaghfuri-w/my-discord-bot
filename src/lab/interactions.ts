@@ -7,7 +7,17 @@ import { ELEMENT_MAP } from "./elements";
 import {
   BACK,
   CODEX_PAGE,
+  HINT_BUY_SELECT,
+  HINT_PAGE,
   NOOP,
+  OPEN_ACH,
+  OPEN_HINTS,
+  OPEN_QUESTS,
+  OPEN_TRADE_HELP,
+  TRADE_CANCEL,
+  TRADE_NO,
+  TRADE_OK,
+  TRADE_PICK,
   OPEN_EXTRA,
   OPEN_LAB,
   LEVELS_UNLOCK_SELECT,
@@ -34,12 +44,18 @@ import {
   parseCid,
 } from "./ids";
 import { sellAllCompound, sellCompound } from "./market";
+import { recordEvent } from "./progress";
+import { renderReactionGif } from "./render";
+import { OFFER_TTL_MS, buildOffer, executeTrade } from "./trade";
+import { COMPOUND_MAP } from "./compounds";
+import { RARITY_INFO } from "./compounds";
 import {
   addToMix,
   adjustPressure,
   adjustTemp,
   attemptReaction,
   buyElement,
+  buyHint,
   getLabProfile,
   getSession,
   getTopScientists,
@@ -51,8 +67,13 @@ import {
 import {
   buildArticleEmbed,
   buildCodexView,
+  buildAchievementsView,
   buildExtraPanel,
+  buildHintsView,
   buildHubPanel,
+  buildQuestsView,
+  buildReactFailView,
+  buildTradeHelpView,
   buildLevelsView,
   buildMainPanel,
   buildMarketView,
@@ -64,6 +85,7 @@ import {
   type PanelResult,
 } from "./views";
 
+const NOT_YOUR_OFFER = "🔒 هذا العرض مو لك.";
 const NOT_OWNER = "🔒 هذا مختبر غيرك. اكتب `lab` عشان تفتح مختبرك.";
 
 /** attachments: [] يمسح الصور القديمة، وإلا تتراكم مع كل تحديث */
@@ -99,7 +121,8 @@ export async function handleLabButton(interaction: ButtonInteraction): Promise<b
   const userId = interaction.user.id;
 
   if (ownerId !== userId) {
-    await interaction.reply({ content: NOT_OWNER, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+    const msg = base.startsWith("lab_trade") ? NOT_YOUR_OFFER : NOT_OWNER;
+    await interaction.reply({ content: msg, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     return true;
   }
 
@@ -171,6 +194,25 @@ export async function handleLabButton(interaction: ButtonInteraction): Promise<b
         return true;
       }
 
+      case OPEN_QUESTS:
+        await interaction.update(asUpdate(buildQuestsView(await getLabProfile(userId, guildId))));
+        return true;
+
+      case OPEN_ACH:
+        await interaction.update(asUpdate(buildAchievementsView(await getLabProfile(userId, guildId))));
+        return true;
+
+      case OPEN_TRADE_HELP:
+        await interaction.update(asUpdate(buildTradeHelpView(userId)));
+        return true;
+
+      case OPEN_HINTS:
+      case HINT_PAGE: {
+        const [profile, coins] = await Promise.all([getLabProfile(userId, guildId), coinsOf(userId, guildId)]);
+        await interaction.update(asUpdate(buildHintsView(profile, coins, Number(extra) || 0)));
+        return true;
+      }
+
       case OPEN_LEVELS:
         await interaction.update(asUpdate(buildLevelsView(await getLabProfile(userId, guildId))));
         return true;
@@ -180,29 +222,44 @@ export async function handleLabButton(interaction: ButtonInteraction): Promise<b
         return true;
 
       case REACT: {
+        // توليد الـ GIF قد يأخذ أكثر من 3 ثواني، فنؤجل الرد أولاً
+        await interaction.deferUpdate();
         const result = await attemptReaction(userId, guildId);
 
         if (!result.ok) {
-          const msg = result.reason === "empty_mix" ? "❌ خليطك فاضي، أضف عناصر أول." : "❌ مكونات الخليط ما تكفي، جرب تصفير الخليط.";
           if (result.reason === "missing") {
-            await interaction.update(asUpdate(await renderMain(userId, guildId, msg)));
+            await interaction.editReply(asUpdate(await renderMain(userId, guildId, "❌ مكونات الخليط ما تكفي، جرب تصفير الخليط.")));
           } else {
-            await interaction.reply({ content: msg, flags: MessageFlags.Ephemeral });
+            await interaction.followUp({ content: "❌ خليطك فاضي، أضف عناصر أول.", flags: MessageFlags.Ephemeral });
           }
           return true;
         }
 
         if (!result.success && result.kind === "near") {
           const note = `🔎 قريب جداً! المكونات صحيحة لكن الظروف غلط:\n${result.hints.join("\n")}\n_(ما انصرف شيء من مكوناتك)_`;
-          await interaction.update(asUpdate(await renderMain(userId, guildId, note)));
+          await interaction.editReply(asUpdate(await renderMain(userId, guildId, note)));
           return true;
         }
 
         if (!result.success) {
-          await interaction.update(asUpdate(await renderMain(userId, guildId, "💨 ما طابق أي تفاعل معروف. المكونات تبخّرت، جرب تركيبة ثانية!")));
+          const [gif, lines] = await Promise.all([
+            renderReactionGif(result.snapshot.mix, result.snapshot.temp, result.snapshot.pressure, { kind: "fail" }),
+            recordEvent(userId, guildId, { type: "experiment_failed" }),
+          ]);
+          await interaction.editReply(asUpdate(buildReactFailView(userId, gif, result.xp, result.waste, lines)));
           return true;
         }
 
+        const rarity = RARITY_INFO[result.compound.rarity];
+        const [gif, lines] = await Promise.all([
+          renderReactionGif(result.snapshot.mix, result.snapshot.temp, result.snapshot.pressure, {
+            kind: "success",
+            color: rarity.color,
+            name: result.compound.name,
+            rarityName: rarity.name,
+          }),
+          recordEvent(userId, guildId, { type: "craft", rarity: result.compound.rarity, discoveredNow: result.discoveredNow }),
+        ]);
         const view = await buildReactSuccessView(
           userId,
           result.compound.id,
@@ -210,8 +267,65 @@ export async function handleLabButton(interaction: ButtonInteraction): Promise<b
           result.xpResult.level,
           result.xpResult.leveledUp,
           result.xpResult.tokensGained,
+          gif,
+          lines,
         );
-        await interaction.update(asUpdate(view));
+        await interaction.editReply(asUpdate(view));
+        return true;
+      }
+
+      case TRADE_NO:
+      case TRADE_CANCEL: {
+        const [sellerId = "", compoundId = ""] = (extra ?? "").split(":");
+        const c = COMPOUND_MAP[compoundId];
+        const text =
+          base === TRADE_NO
+            ? `❌ <@${userId}> رفض عرض <@${sellerId}> (${c?.icon ?? ""} ${c?.name ?? "مركب"}).`
+            : `🚫 <@${userId}> ألغى عرضه.`;
+        await interaction.update({ content: text, components: [], allowedMentions: { parse: [] } });
+        return true;
+      }
+
+      case TRADE_OK: {
+        const [sellerId = "", compoundId = "", priceStr = "0", qtyStr = "1"] = (extra ?? "").split(":");
+        const price = Number(priceStr);
+        const qty = Number(qtyStr);
+        const msg = interaction.message;
+
+        if (Date.now() - msg.createdTimestamp > OFFER_TTL_MS) {
+          await interaction.update({ content: "⌛ انتهت مدة هذا العرض.", components: [], allowedMentions: { parse: [] } });
+          return true;
+        }
+
+        const result = await executeTrade(sellerId, userId, guildId, compoundId, price, qty);
+        if (!result.ok) {
+          if (result.reason === "buyer_coins") {
+            await interaction.reply({ content: "❌ رصيدك ما يكفي لهذا العرض.", flags: MessageFlags.Ephemeral });
+            return true;
+          }
+          const text = result.reason === "seller_stock" ? "❌ البائع ما عاد عنده هذي الكمية، انتهى العرض." : "❌ العرض غير صالح.";
+          await interaction.update({ content: text, components: [], allowedMentions: { parse: [] } });
+          return true;
+        }
+
+        const c = COMPOUND_MAP[compoundId];
+        await interaction.update({
+          content: `✅ تمت الصفقة! <@${userId}> اشترى ${c.icon} **${c.name}** ×${qty} من <@${sellerId}> بسعر ${jenny(price)}`,
+          components: [],
+          allowedMentions: { parse: [] },
+        });
+
+        const [buyerLines, sellerLines] = await Promise.all([
+          recordEvent(userId, guildId, { type: "trade" }),
+          recordEvent(sellerId, guildId, { type: "trade" }),
+        ]);
+        const extraLines = [
+          ...buyerLines.map((l) => `<@${userId}>: ${l}`),
+          ...sellerLines.map((l) => `<@${sellerId}>: ${l}`),
+        ];
+        if (extraLines.length) {
+          await interaction.followUp({ content: extraLines.join("\n"), allowedMentions: { parse: [] } });
+        }
         return true;
       }
 
@@ -231,9 +345,9 @@ export async function handleLabButton(interaction: ButtonInteraction): Promise<b
     }
   } catch (err) {
     logger.error("خطأ في زر المختبر", err);
-    if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({ content: "❌ صار خطأ، حاول مرة ثانية.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
-    }
+    const payload = { content: "❌ صار خطأ، حاول مرة ثانية.", flags: MessageFlags.Ephemeral } as const;
+    if (!interaction.replied && !interaction.deferred) await interaction.reply(payload).catch(() => undefined);
+    else await interaction.followUp(payload).catch(() => undefined);
     return true;
   }
 
@@ -249,7 +363,8 @@ export async function handleLabSelect(interaction: StringSelectMenuInteraction):
   const value = interaction.values[0];
 
   if (ownerId !== userId) {
-    await interaction.reply({ content: NOT_OWNER, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+    const msg = base.startsWith("lab_trade") ? NOT_YOUR_OFFER : NOT_OWNER;
+    await interaction.reply({ content: msg, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     return true;
   }
 
@@ -268,11 +383,15 @@ export async function handleLabSelect(interaction: StringSelectMenuInteraction):
         const result = await buyElement(userId, guildId, value, qty);
         const [profile, coins] = await Promise.all([getLabProfile(userId, guildId), coinsOf(userId, guildId)]);
         const el = ELEMENT_MAP[value];
-        const note = result.ok
+        let note = result.ok
           ? `✅ اشتريت ${el?.icon} ${el?.name} ×${qty} مقابل ${jenny(result.spent)}`
           : result.reason === "locked"
             ? "❌ هذا العنصر مقفل، افتحه أول من المستويات."
             : "❌ رصيد محفظتك ما يكفي.";
+        if (result.ok) {
+          const lines = await recordEvent(userId, guildId, { type: "buy", qty });
+          if (lines.length) note += `\n${lines.join("\n")}`;
+        }
         await interaction.update(asUpdate(buildShopView(profile, coins, qty, note)));
         return true;
       }
@@ -284,10 +403,44 @@ export async function handleLabSelect(interaction: StringSelectMenuInteraction):
             ? await sellCompound(userId, guildId, value, 1)
             : await sellAllCompound(userId, guildId, value);
         const profile = await getLabProfile(userId, guildId);
-        const note = result.ok
+        let note = result.ok
           ? `✅ بعت ×${result.sold} مقابل ${jenny(result.earned)}${result.bonus > 0 ? ` (شامل +${Math.round(result.bonus * 100)}% سمعة)` : ""}`
           : "❌ تعذّر البيع.";
+        if (result.ok) {
+          const lines = await recordEvent(userId, guildId, { type: "sell", coins: result.earned });
+          if (lines.length) note += `\n${lines.join("\n")}`;
+        }
         await interaction.update(asUpdate(await buildMarketView(guildId, profile, note)));
+        return true;
+      }
+
+      case HINT_BUY_SELECT: {
+        const page = Number(extra) || 0;
+        const res = await buyHint(userId, guildId, value);
+        const [profile, coins] = await Promise.all([getLabProfile(userId, guildId), coinsOf(userId, guildId)]);
+        const messages: Record<string, string> = {
+          unknown: "❌ مركب غير معروف.",
+          discovered: "❌ اكتشفت هذا المركب بالفعل.",
+          no_more: "❌ كشفت كل تلميحاته.",
+          coins: "❌ رصيدك ما يكفي لشراء تلميح.",
+        };
+        const note = res.ok
+          ? `💡 تلميح جديد: **${res.clue}** (−${jenny(res.price)}) • باقي ${res.left}`
+          : messages[res.reason];
+        await interaction.update(asUpdate(buildHintsView(profile, coins, page, note)));
+        return true;
+      }
+
+      case TRADE_PICK: {
+        const [targetId = "", priceStr = "0", qtyStr = "1"] = (extra ?? "").split(":");
+        const price = Number(priceStr);
+        const qty = Number(qtyStr);
+        const profile = await getLabProfile(userId, guildId);
+        if (!COMPOUND_MAP[value] || (profile.compounds[value] ?? 0) < qty) {
+          await interaction.reply({ content: "❌ ما عندك هذي الكمية من المركب.", flags: MessageFlags.Ephemeral });
+          return true;
+        }
+        await interaction.update({ ...buildOffer(userId, targetId, value, price, qty), allowedMentions: { users: [targetId] } });
         return true;
       }
 
@@ -306,9 +459,9 @@ export async function handleLabSelect(interaction: StringSelectMenuInteraction):
     }
   } catch (err) {
     logger.error("خطأ في قائمة المختبر", err);
-    if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({ content: "❌ صار خطأ، حاول مرة ثانية.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
-    }
+    const payload = { content: "❌ صار خطأ، حاول مرة ثانية.", flags: MessageFlags.Ephemeral } as const;
+    if (!interaction.replied && !interaction.deferred) await interaction.reply(payload).catch(() => undefined);
+    else await interaction.followUp(payload).catch(() => undefined);
     return true;
   }
 

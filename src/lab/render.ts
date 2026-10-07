@@ -2,6 +2,7 @@ import { createCanvas, type SKRSContext2D } from "@napi-rs/canvas";
 import { ensureFontsRegistered, FONT_BOLD } from "../quests/render/fonts";
 import { COMPOUND_MAP, PRESSURE, TEMP } from "./compounds";
 import { ELEMENT_MAP } from "./elements";
+import { encodeGif, type GifFrame } from "./gif";
 
 const WIDTH = 520;
 const HEIGHT = 540;
@@ -261,4 +262,152 @@ export async function renderResult(compoundId: string, color: number): Promise<B
   ctx.fillText(compound ? compound.icon : "✨", WIDTH / 2, 150);
 
   return canvas.encode("png");
+}
+
+/* ───────────── أنيميشن التفاعل (GIF) ───────────── */
+
+export type ReactionOutcome =
+  | { kind: "success"; color: number; name: string; rarityName: string }
+  | { kind: "fail" };
+
+const GIF_SCALE = 0.6;
+
+function drawStar(ctx: SKRSContext2D, cx: number, cy: number, outer: number, inner: number, points: number) {
+  ctx.beginPath();
+  for (let i = 0; i < points * 2; i++) {
+    const r = i % 2 === 0 ? outer : inner;
+    const a = (i / (points * 2)) * Math.PI * 2 - Math.PI / 2;
+    const x = cx + Math.cos(a) * r;
+    const y = cy + Math.sin(a) * r;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+}
+
+/**
+ * GIF قصير: الدورق يهتز وتكثر فقاعاته، وميض، ثم نتيجة (توهّج بلون الندرة أو دخان عند الفشل).
+ * يرجع null إذا تعذّر التوليد (الرسالة تكمل بدون أنيميشن).
+ */
+export async function renderReactionGif(
+  mix: Record<string, number>,
+  temp: number,
+  pressure: number,
+  outcome: ReactionOutcome,
+): Promise<Buffer | null> {
+  try {
+    const hasFont = ensureFontsRegistered();
+    const family = hasFont ? FONT_BOLD : "sans-serif";
+    const W = Math.round(WIDTH * GIF_SCALE);
+    const H = Math.round(HEIGHT * GIF_SCALE);
+    const canvas = createCanvas(W, H);
+    const ctx = canvas.getContext("2d");
+    const frames: GifFrame[] = [];
+
+    const hex = outcome.kind === "success" ? `#${outcome.color.toString(16).padStart(6, "0")}` : "#64748b";
+    const [cr, cg, cb] = hexToRgb(hex);
+    const liquid = mixColor(mix);
+
+    const begin = () => {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, W, H);
+      ctx.scale(GIF_SCALE, GIF_SCALE);
+    };
+    const grab = (delayMs: number) => {
+      const img = ctx.getImageData(0, 0, W, H);
+      frames.push({ rgba: img.data, delayMs });
+    };
+
+    const flaskFrame = (i: number, total: number, flash = 0) => {
+      begin();
+      const k = i / total;
+      const glow = liquid ? `rgba(${liquid[0]},${liquid[1]},${liquid[2]},${0.12 + k * 0.4})` : null;
+      drawBackground(ctx, glow);
+      drawThermometer(ctx, Math.min(TEMP.max, temp + k * 80));
+      drawPressureGauge(ctx, Math.min(PRESSURE.max, pressure + k * 6));
+      ctx.save();
+      ctx.translate(Math.sin(i * 2.5) * (2 + i * 1.3), Math.cos(i * 3.1) * (1 + i * 0.5));
+      drawFlask(ctx, mix, temp + k * 120, Math.min(PRESSURE.max, pressure + i * 2));
+      ctx.restore();
+      if (flash > 0) {
+        ctx.fillStyle = `rgba(255,255,255,${flash})`;
+        ctx.fillRect(0, 0, WIDTH, HEIGHT);
+      }
+    };
+
+    // 1) تسخين واهتزاز
+    for (let i = 0; i < 9; i++) {
+      flaskFrame(i, 8);
+      grab(90);
+    }
+    // 2) وميض
+    flaskFrame(8, 8, 0.85);
+    grab(70);
+    flaskFrame(8, 8, 0.45);
+    grab(70);
+
+    // 3) النتيجة
+    for (let j = 0; j < 5; j++) {
+      begin();
+      const last = j === 4;
+      if (outcome.kind === "success") {
+        drawBackground(ctx, `rgba(${cr},${cg},${cb},${0.25 + j * 0.1})`);
+        const cx = WIDTH / 2;
+        const cy = 230;
+        const glow = ctx.createRadialGradient(cx, cy, 10, cx, cy, 120 + j * 45);
+        glow.addColorStop(0, `rgba(${cr},${cg},${cb},0.65)`);
+        glow.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+        ctx.fillStyle = hex;
+        for (let k = 0; k < 28; k++) {
+          const a = (k / 28) * Math.PI * 2 + j * 0.25;
+          const d = (j + 1) * 36 + (k % 5) * 9;
+          ctx.beginPath();
+          ctx.arc(cx + Math.cos(a) * d, cy + Math.sin(a) * d * 0.85, 2 + (k % 3), 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.lineWidth = 8;
+        ctx.strokeStyle = hex;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 50 + j * 7, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.fillStyle = "#f8fafc";
+        drawStar(ctx, cx, cy, 34 + j * 3, 11 + j, 4);
+        ctx.fill();
+
+        if (hasFont && j >= 2) {
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillStyle = "#f8fafc";
+          ctx.font = `700 30px "${family}"`;
+          ctx.fillText(outcome.name, cx, 400);
+          ctx.fillStyle = hex;
+          ctx.font = `700 22px "${family}"`;
+          ctx.fillText(outcome.rarityName, cx, 440);
+        }
+      } else {
+        drawBackground(ctx, null);
+        drawThermometer(ctx, temp);
+        drawPressureGauge(ctx, pressure);
+        drawFlask(ctx, {}, temp, 1);
+        // دخان رمادي يتصاعد
+        for (let k = 0; k < 7; k++) {
+          const rise = (j + 1) * 22 + k * 14;
+          ctx.fillStyle = `rgba(148,163,184,${Math.max(0.05, 0.38 - j * 0.05)})`;
+          ctx.beginPath();
+          ctx.arc(WIDTH / 2 + Math.sin(k * 1.7 + j) * 26, 150 - rise * 0.6 + k * 4, 16 + k * 3 + j * 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      grab(last ? 1500 : 130);
+    }
+
+    return encodeGif(frames, W, H);
+  } catch {
+    return null;
+  }
 }

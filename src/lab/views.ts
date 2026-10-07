@@ -6,12 +6,19 @@ import {
   StringSelectMenuBuilder,
 } from "discord.js";
 import { CURRENCY, jenny } from "../constants";
+import { nextResetUnix, todayKey } from "../quests/time";
 import { COMPOUND_MAP, COMPOUNDS, RARITY_INFO, type Rarity } from "./compounds";
 import { ELEMENT_MAP, ELEMENTS } from "./elements";
 import {
   BACK,
   CODEX_PAGE,
+  HINT_BUY_SELECT,
+  HINT_PAGE,
   NOOP,
+  OPEN_ACH,
+  OPEN_HINTS,
+  OPEN_QUESTS,
+  OPEN_TRADE_HELP,
   OPEN_EXTRA,
   OPEN_LAB,
   LEVELS_UNLOCK_SELECT,
@@ -38,8 +45,9 @@ import {
   cid,
 } from "./ids";
 import { getMarketQuote, trendIcon } from "./market";
+import { ACHIEVEMENTS, questsForDay, titleFor } from "./progress";
 import { renderFlask, renderResult } from "./render";
-import { ARTICLE_REPUTATION, reputationBonus, xpNeeded } from "./service";
+import { ARTICLE_REPUTATION, HINT_PRICE, hintClues, reputationBonus, xpNeeded } from "./service";
 import type { ILabProfile } from "../database/models/LabProfile";
 import type { ILabSession } from "../database/models/LabSession";
 
@@ -177,6 +185,8 @@ export function buildHubPanel(profile: ILabProfile, coins: number, name: string,
         `\`${profile.labTokens} 🔬 رمز\``,
         jenny(coins),
         "",
+        "**🎓 اللقب العلمي**",
+        `\`${titleFor(profile.reputation).icon} ${titleFor(profile.reputation).name}\``,
         "**📜 السمعة العلمية**",
         `\`${profile.reputation} pts\``,
         "**📘 الموسوعة**",
@@ -199,14 +209,32 @@ export function buildExtraPanel(owner: string): PanelResult {
   const embed = new EmbedBuilder()
     .setColor(0x64748b)
     .setTitle("📂 القائمة الإضافية")
-    .setDescription("📦 المستودع • 📖 المكتبة • 🎚️ المستويات • 🏆 العلماء");
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    .setDescription(
+      [
+        "📦 **المستودع** — عناصرك ومركباتك",
+        "📖 **المكتبة** — وصفات ما اكتشفته",
+        "🎚️ **المستويات** — افتح عناصر جديدة",
+        "🏆 **العلماء** — ترتيب السيرفر",
+        "🎯 **المهام** — مهام اليوم ومكافآتها",
+        "🏅 **الإنجازات** — أهداف طويلة المدى",
+        "💡 **تلميح** — اكشف جزءاً من وصفة مجهولة",
+        "🤝 **تبادل** — بع مركباً للاعب آخر",
+      ].join("\n"),
+    );
+  const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(cid(OPEN_WAREHOUSE, owner)).setLabel("المستودع").setEmoji("📦").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(cid(OPEN_CODEX, owner, 0)).setLabel("المكتبة").setEmoji("📖").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(cid(OPEN_LEVELS, owner)).setLabel("المستويات").setEmoji("🎚️").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(cid(OPEN_TOP, owner)).setLabel("العلماء").setEmoji("🏆").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(cid(OPEN_QUESTS, owner)).setLabel("المهام").setEmoji("🎯").setStyle(ButtonStyle.Primary),
   );
-  return sub(embed, [row, backRow(owner, "hub")]);
+  const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(cid(OPEN_ACH, owner)).setLabel("الإنجازات").setEmoji("🏅").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(cid(OPEN_HINTS, owner, 0)).setLabel("تلميح").setEmoji("💡").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(cid(OPEN_TRADE_HELP, owner)).setLabel("تبادل").setEmoji("🤝").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(cid(BACK, owner)).setLabel("الرئيسية").setEmoji("🏠").setStyle(ButtonStyle.Secondary),
+  );
+  return sub(embed, [row1, row2]);
 }
 
 /** كل العروض الفرعية تمسح صورة القارورة وتحدّث الرسالة بدون ملفات */
@@ -245,7 +273,11 @@ export function buildCodexView(profile: ILabProfile, page = 0): PanelResult {
   const found = items.filter((c) => profile.discovered.includes(c.id)).length;
 
   const lines = items.map((c) => {
-    if (!profile.discovered.includes(c.id)) return `❔ **???** — ${Object.keys(c.recipe).length} مكونات`;
+    if (!profile.discovered.includes(c.id)) {
+      const bought = profile.hinted?.[c.id] ?? 0;
+      const clues = hintClues(c).slice(0, bought);
+      return `❔ **???** — ${Object.keys(c.recipe).length} مكونات${clues.length ? `\n┗ 💡 ${clues.join(" • ")}` : ""}`;
+    }
     const recipe = Object.entries(c.recipe)
       .map(([id, q]) => `${ELEMENT_MAP[id]?.name ?? COMPOUND_MAP[id]?.name ?? id}×${q}`)
       .join(" + ");
@@ -370,7 +402,7 @@ export function buildLevelsView(profile: ILabProfile, note?: string): PanelResul
 export function buildTopView(owner: string, top: ILabProfile[]): PanelResult {
   const medals = ["🥇", "🥈", "🥉"];
   const lines = top.map(
-    (p, i) => `${medals[i] ?? `**${i + 1}.**`} <@${p.userId}> — ✨ ${p.reputation} • مستوى ${p.labLevel} • 📖 ${p.discovered.length}/${COMPOUNDS.length}`,
+    (p, i) => `${medals[i] ?? `**${i + 1}.**`} <@${p.userId}> ${titleFor(p.reputation).icon} ${titleFor(p.reputation).name} — ✨ ${p.reputation} • مستوى ${p.labLevel} • 📖 ${p.discovered.length}/${COMPOUNDS.length}`,
   );
   const embed = new EmbedBuilder()
     .setColor(0xf59e0b)
@@ -386,6 +418,8 @@ export async function buildReactSuccessView(
   level: number,
   leveledUp: boolean,
   tokensGained: number,
+  gif: Buffer | null,
+  extraLines: string[] = [],
 ): Promise<PanelResult> {
   const compound = COMPOUND_MAP[compoundId];
   const rarity = RARITY_INFO[compound.rarity];
@@ -398,10 +432,23 @@ export async function buildReactSuccessView(
   if (compound.rarity === "legendary" && discoveredNow) {
     lines.push("", `📰 مركب نادر جداً! انشر مقالاً علمياً لرفع سمعتك (+${ARTICLE_REPUTATION} ✨).`);
   }
+  if (extraLines.length) lines.push("", ...extraLines);
 
-  const image = await renderResult(compoundId, rarity.color).catch(() => null);
+  let files: { attachment: Buffer; name: string }[] = [];
+  let imageName: string | null = null;
+  if (gif) {
+    files = [{ attachment: gif, name: "react.gif" }];
+    imageName = "react.gif";
+  } else {
+    const png = await renderResult(compoundId, rarity.color).catch(() => null);
+    if (png) {
+      files = [{ attachment: png, name: "result.png" }];
+      imageName = "result.png";
+    }
+  }
+
   const embed = new EmbedBuilder().setColor(rarity.color).setTitle("⚗️ نجح التفاعل!").setDescription(lines.join("\n"));
-  if (image) embed.setImage("attachment://result.png");
+  if (imageName) embed.setImage(`attachment://${imageName}`);
 
   const actionRow = new ActionRowBuilder<ButtonBuilder>();
   if (compound.rarity === "legendary" && discoveredNow) {
@@ -413,12 +460,171 @@ export async function buildReactSuccessView(
     new ButtonBuilder().setCustomId(cid(OPEN_LAB, owner)).setLabel("رجوع للمعمل").setEmoji("🧪").setStyle(ButtonStyle.Secondary),
   );
 
+  return { content: undefined, embeds: [embed], components: [actionRow], files };
+}
+
+export function buildReactFailView(owner: string, gif: Buffer | null, xp: number, waste: number, extraLines: string[] = []): PanelResult {
+  const lines = [
+    "💨 ما طابق أي تفاعل معروف، والمكونات تبخّرت.",
+    `+${xp} XP • +${waste} ☣️ نفايات كيميائية`,
+    "_النفايات تدخل في وصفات خاصة، شوف المكتبة 😉_",
+  ];
+  if (extraLines.length) lines.push("", ...extraLines);
+
+  const embed = new EmbedBuilder().setColor(0x64748b).setTitle("💥 فشلت التجربة").setDescription(lines.join("\n"));
+  if (gif) embed.setImage("attachment://react.gif");
+
   return {
     content: undefined,
     embeds: [embed],
-    components: [actionRow],
-    files: image ? [{ attachment: image, name: "result.png" }] : [],
+    components: [backRow(owner, "lab")],
+    files: gif ? [{ attachment: gif, name: "react.gif" }] : [],
   };
+}
+
+/* ───────────── المهام / الإنجازات / التلميحات / التبادل ───────────── */
+
+export function buildQuestsView(profile: ILabProfile): PanelResult {
+  const day = todayKey();
+  const sameDay = profile.questDay === day;
+  const progress = sameDay ? (profile.questProgress ?? {}) : {};
+  const done = sameDay ? (profile.questDone ?? []) : [];
+
+  const lines = questsForDay(day).map((q) => {
+    const isDone = done.includes(q.id);
+    const cur = Math.min(progress[q.id] ?? 0, q.target);
+    return `${isDone ? "✅" : "⬜"} ${q.icon} **${q.title}**\n┗ \`${bar(cur, q.target, 8)}\` ${cur}/${q.target} • ${jenny(q.coins)} • ${q.xp} XP`;
+  });
+
+  const embed = new EmbedBuilder()
+    .setColor(0xef4444)
+    .setTitle("🎯 مهام المختبر اليومية")
+    .setDescription(`⏰ تتجدد <t:${nextResetUnix()}:R>\n\n${lines.join("\n\n")}`);
+  return sub(embed, [backRow(profile.userId, "extra")]);
+}
+
+export function buildAchievementsView(profile: ILabProfile): PanelResult {
+  const have = profile.achievements ?? [];
+  const lines = ACHIEVEMENTS.map((a) => {
+    const ok = have.includes(a.id);
+    const bits = [
+      a.reward.coins ? jenny(a.reward.coins) : "",
+      a.reward.tokens ? `${a.reward.tokens} 🔬` : "",
+      a.reward.reputation ? `${a.reward.reputation} ✨` : "",
+    ].filter(Boolean);
+    return `${ok ? "✅" : "🔒"} ${a.icon} **${a.title}** — ${a.desc}\n┗ ${bits.join(" • ")}`;
+  });
+  const embed = new EmbedBuilder()
+    .setColor(0xf59e0b)
+    .setTitle(`🏅 الإنجازات (${have.length}/${ACHIEVEMENTS.length})`)
+    .setDescription(lines.join("\n").slice(0, 4000));
+  return sub(embed, [backRow(profile.userId, "extra")]);
+}
+
+export function buildHintsView(profile: ILabProfile, coins: number, page = 0, note?: string): PanelResult {
+  const owner = profile.userId;
+  const last = RARITY_ORDER.length - 1;
+  const p = Math.max(0, Math.min(last, page));
+  const rarity = RARITY_ORDER[p];
+  const price = HINT_PRICE[rarity];
+
+  const items = COMPOUNDS.filter((c) => c.rarity === rarity);
+  const open = items
+    .map((c, i) => ({ c, i }))
+    .filter(({ c }) => !profile.discovered.includes(c.id));
+
+  const lines = open.map(({ c, i }) => {
+    const total = hintClues(c).length;
+    const bought = profile.hinted?.[c.id] ?? 0;
+    return `❔ مركب #${i + 1} — 💡 ${bought}/${total} تلميحات`;
+  });
+
+  const embed = new EmbedBuilder()
+    .setColor(RARITY_INFO[rarity].color)
+    .setTitle(`💡 التلميحات — ${RARITY_INFO[rarity].name}`)
+    .setDescription(
+      [
+        `سعر التلميح: ${jenny(price)} • رصيدك: ${jenny(coins)}`,
+        "كل تلميح يكشف مكوّناً من الوصفة، ثم الحرارة، ثم الضغط. التلميحات تظهر لك في المكتبة.",
+        "",
+        lines.length ? lines.join("\n") : "✅ اكتشفت كل مركبات هذي الفئة!",
+      ].join("\n"),
+    )
+    .setFooter({ text: `صفحة ${p + 1} من ${RARITY_ORDER.length}` });
+
+  const rows: Row[] = [];
+  const buyable = open.filter(({ c }) => (profile.hinted?.[c.id] ?? 0) < hintClues(c).length);
+  if (buyable.length > 0) {
+    rows.push(
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(cid(HINT_BUY_SELECT, owner, p))
+          .setPlaceholder(`💡 اشتر تلميحاً (${price} ${CURRENCY.name})`)
+          .addOptions(
+            buyable.slice(0, 25).map(({ c, i }) => ({
+              label: `مركب #${i + 1} (${profile.hinted?.[c.id] ?? 0}/${hintClues(c).length})`,
+              value: c.id,
+              emoji: "💡",
+            })),
+          ),
+      ),
+    );
+  }
+  rows.push(
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(cid(HINT_PAGE, owner, p - 1)).setLabel("السابق").setEmoji("◀️").setStyle(ButtonStyle.Primary).setDisabled(p === 0),
+      new ButtonBuilder().setCustomId(cid(NOOP, owner)).setLabel(`${p + 1}/${RARITY_ORDER.length}`).setStyle(ButtonStyle.Secondary).setDisabled(true),
+      new ButtonBuilder().setCustomId(cid(HINT_PAGE, owner, p + 1)).setLabel("التالي").setEmoji("▶️").setStyle(ButtonStyle.Primary).setDisabled(p === last),
+    ),
+    backRow(owner, "extra"),
+  );
+  return sub(embed, rows, note);
+}
+
+export function buildTradeHelpView(owner: string): PanelResult {
+  const embed = new EmbedBuilder()
+    .setColor(0x22c55e)
+    .setTitle("🤝 تبادل المركبات")
+    .setDescription(
+      [
+        "بع مركباً من مستودعك للاعب آخر بالسعر اللي تحدده.",
+        "",
+        "اكتب بالشات (بدون سلاش):",
+        "`عرض @الشخص السعر`",
+        "`عرض @الشخص السعر الكمية`",
+        "",
+        "مثال: `عرض @أحمد 500` أو `عرض @أحمد 1200 3`",
+        "",
+        "بعدها تختار المركب من قائمة، ويصله عرض فيه زر قبول/رفض (ينتهي بعد 10 دقائق).",
+        "المركب المشترى يقدر يستخدمه بالتفاعلات أو يبيعه بالسوق.",
+      ].join("\n"),
+    );
+  return sub(embed, [backRow(owner, "extra")]);
+}
+
+/** بطاقة مختبر لاعب (أمر: lab @شخص) */
+export function buildLabCard(profile: ILabProfile, name: string, avatarUrl: string): PanelResult {
+  const title = titleFor(profile.reputation);
+  const best = COMPOUNDS.filter((c) => profile.discovered.includes(c.id))
+    .sort((a, b) => RARITY_ORDER.indexOf(b.rarity) - RARITY_ORDER.indexOf(a.rarity) || b.basePrice - a.basePrice)
+    .slice(0, 5)
+    .map((c) => `${c.icon} ${c.name} _(${RARITY_INFO[c.rarity].name})_`);
+
+  const embed = new EmbedBuilder()
+    .setColor(0x0ea5e9)
+    .setTitle(`🧪 مختبر ${name}`)
+    .setThumbnail(avatarUrl)
+    .setDescription(
+      [
+        `${title.icon} **${title.name}**${title.next ? ` _(التالي: ${title.next.name} عند ${title.next.min} ✨)_` : ""}`,
+        `المستوى **${profile.labLevel}** • ✨ **${profile.reputation}** سمعة`,
+        `📘 الموسوعة: **${profile.discovered.length}/${COMPOUNDS.length}** \`${bar(profile.discovered.length, COMPOUNDS.length, 10)}\``,
+        `🏅 الإنجازات: **${(profile.achievements ?? []).length}/${ACHIEVEMENTS.length}**`,
+        `⚗️ مركبات مصنّعة: **${profile.stats?.crafts ?? 0}** • 📰 مقالات: **${(profile.published ?? []).length}**`,
+      ].join("\n"),
+    )
+    .addFields({ name: "🌟 أندر اكتشافاته", value: best.join("\n") || "ما اكتشف شيئاً بعد" });
+  return { content: undefined, embeds: [embed], components: [], files: [] };
 }
 
 export function buildArticleEmbed(userId: string, compoundId: string, reputationGained: number, total: number): EmbedBuilder {
