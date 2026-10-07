@@ -17,7 +17,7 @@ export const config = {
   /** قناة السجلات: رابط تعريفي بس في آخر رسالة الإنجاز (Hall of Deeds & Decrees)، مو مكان النشر الفعلي */
   recordsChannelId: process.env.RECORDS_CHANNEL_ID || "1551185659354419200",
   /** قناة العد لمهمة "عد في قناة العد" (اختياري) */
-  countingChannelId: process.env.COUNTING_CHANNEL_ID || "1551168908545761310",
+  countingChannelId: process.env.COUNTING_CHANNEL_ID || undefined,
   /** المنطقة الزمنية لتجديد المهام اليومية عند منتصف الليل */
   timezone: process.env.TIMEZONE || "Asia/Riyadh",
   /** معرفك أنت (المالك): يُستخدم لتقييد أوامر حساسة مثل /leaveserver */
@@ -27,8 +27,8 @@ export const config = {
   /** قناة الاحتفال بعيد الميلاد (اختياري، بدونها ما فيه إعلان علني) */
   birthdayChannelId: process.env.BIRTHDAY_CHANNEL_ID || undefined,
   /** رتب تحديد الجنس (لنظام العائلة: تبني، زواج، مواريث اللقب) */
-  maleRoleId: process.env.MALE_ROLE_ID || "1544879799804370955",
-  femaleRoleId: process.env.FEMALE_ROLE_ID || "1544880544158982204",
+  maleRoleId: process.env.MALE_ROLE_ID || undefined,
+  femaleRoleId: process.env.FEMALE_ROLE_ID || undefined,
   /** getter: لا يُطلب إلا عند تشغيل البوت (أمر deploy لا يحتاجه) */
   get mongoUri(): string {
     return required("MONGODB_URI");
