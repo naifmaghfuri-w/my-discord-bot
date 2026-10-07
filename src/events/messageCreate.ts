@@ -9,6 +9,9 @@ import { config } from "../config";
 import { CURRENCY, jenny } from "../constants";
 import { getGender, type Gender } from "../family/gender";
 import { buildLabHub } from "../lab/interactions";
+import { TRADE_TRIGGER, startTradeFromMessage } from "../lab/trade";
+import { buildLabCard } from "../lab/views";
+import { LabProfile } from "../database/models/LabProfile";
 import { computeRelationship } from "../family/graph";
 import { ADOPT_ACCEPT_PREFIX, ADOPT_DECLINE_PREFIX, MARRY_ACCEPT_PREFIX, MARRY_DECLINE_PREFIX } from "../family/ids";
 import { renderFamilyTree, toFamilyMember } from "../family/render";
@@ -102,6 +105,35 @@ const event: BotEvent = {
       }
 
       await message.channel.send(buildMainMenu()).catch(() => undefined);
+      return;
+    }
+
+    // --- مختبر لاعب آخر: "lab @شخص" ---
+    const labCardMatch = /^lab\s+<@!?(\d+)>$/i.exec(rawContent.trim());
+    if (labCardMatch) {
+      const targetId = labCardMatch[1];
+      const targetUser = await message.client.users.fetch(targetId).catch(() => null);
+      if (!targetUser || targetUser.bot) {
+        await message.channel.send("❌ ما لقيت هذا العضو.").catch(() => undefined);
+        return;
+      }
+      const targetProfile = await LabProfile.findOne({ userId: targetId, guildId }).catch(() => null);
+      if (!targetProfile) {
+        await message.channel.send(`🧪 ${targetUser.username} ما فتح مختبره بعد.`).catch(() => undefined);
+        return;
+      }
+      const targetMember = await message.guild.members.fetch(targetId).catch(() => null);
+      const card = buildLabCard(targetProfile, targetMember?.displayName ?? targetUser.username, targetUser.displayAvatarURL());
+      await message.channel.send({ ...card, allowedMentions: { parse: [] } }).catch(() => undefined);
+      return;
+    }
+
+    // --- تبادل مركبات: "عرض @شخص السعر [الكمية]" ---
+    const tradeMatch = TRADE_TRIGGER.exec(rawContent.trim());
+    if (tradeMatch) {
+      await startTradeFromMessage(message, tradeMatch[1], Number(tradeMatch[2]), Number(tradeMatch[3] ?? 1)).catch((err) =>
+        logger.error("فشل بدء عرض تبادل", err),
+      );
       return;
     }
 
