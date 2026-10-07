@@ -8,6 +8,8 @@ import type { BotClient } from "../client";
 import { config } from "../config";
 import { CURRENCY, jenny } from "../constants";
 import { getGender, type Gender } from "../family/gender";
+import { getLabProfile, getSession } from "../lab/service";
+import { buildMainPanel as buildLabPanel } from "../lab/views";
 import { computeRelationship } from "../family/graph";
 import { ADOPT_ACCEPT_PREFIX, ADOPT_DECLINE_PREFIX, MARRY_ACCEPT_PREFIX, MARRY_DECLINE_PREFIX } from "../family/ids";
 import { renderFamilyTree, toFamilyMember } from "../family/render";
@@ -101,6 +103,17 @@ const event: BotEvent = {
       }
 
       await message.channel.send(buildMainMenu()).catch(() => undefined);
+      return;
+    }
+
+    // --- مختبر الكيمياء بكتابة "lab" لحالها (بدون سلاش) ---
+    if (rawContent.trim().toLowerCase() === "lab") {
+      const [labProfile, labSession] = await Promise.all([
+        getLabProfile(userId, guildId),
+        getSession(userId, guildId),
+      ]);
+      const panel = await buildLabPanel(labProfile, labSession);
+      await message.channel.send(panel).catch(() => undefined);
       return;
     }
 

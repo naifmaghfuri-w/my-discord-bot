@@ -4,6 +4,7 @@ import { handleBankButton, handleBankModal } from "../bank/interactions";
 import { handleBirthdayButton, handleBirthdayModal } from "../birthday/interactions";
 import type { BotClient } from "../client";
 import { handleFamilyButton } from "../family/interactions";
+import { handleLabButton, handleLabSelect } from "../lab/interactions";
 import { handleMenuButton } from "../menu/interactions";
 import type { BotEvent } from "../types";
 import { logger } from "../utils/logger";
@@ -20,10 +21,20 @@ const event: BotEvent = {
           (await handleAfkButton(interaction)) ||
           (await handleMenuButton(interaction)) ||
           (await handleBirthdayButton(interaction)) ||
-          (await handleBankButton(interaction));
-        if (!handled) await handleFamilyButton(interaction);
+          (await handleBankButton(interaction)) ||
+          (await handleFamilyButton(interaction));
+        if (!handled) await handleLabButton(interaction);
       } catch (err) {
         logger.error("خطأ في زر", err);
+      }
+      return;
+    }
+
+    if (interaction.isStringSelectMenu()) {
+      try {
+        await handleLabSelect(interaction);
+      } catch (err) {
+        logger.error("خطأ في قائمة منسدلة", err);
       }
       return;
     }
