@@ -12,187 +12,322 @@ import {
   BACK,
   LEVELS_UNLOCK_SELECT,
   MARKET_SELL_SELECT,
+  MARKET_SELLALL_SELECT,
   OPEN_CODEX,
   OPEN_LEVELS,
   OPEN_MARKET,
   OPEN_SHOP,
+  OPEN_TOP,
+  OPEN_WAREHOUSE,
   PRESSURE_DOWN,
   PRESSURE_UP,
-  PUBLISH_PREFIX,
+  PUBLISH,
   REACT,
   RESET,
+  SELECT_COMPOUND,
   SELECT_ELEMENT,
   SHOP_BUY_SELECT,
+  SHOP_QTY,
+  STEP_TOGGLE,
   TEMP_DOWN,
   TEMP_UP,
+  cid,
 } from "./ids";
-import { renderFlask } from "./render";
-import { getMarketPrice } from "./market";
+import { getMarketQuote, trendIcon } from "./market";
+import { renderFlask, renderResult } from "./render";
+import { ARTICLE_REPUTATION, reputationBonus, xpNeeded } from "./service";
 import type { ILabProfile } from "../database/models/LabProfile";
 import type { ILabSession } from "../database/models/LabSession";
 
+type Row = ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>;
+
 export interface PanelResult {
+  content?: string | null;
   embeds: EmbedBuilder[];
-  components: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[];
+  components: Row[];
   files: { attachment: Buffer; name: string }[];
 }
 
-export async function buildMainPanel(profile: ILabProfile, session: ILabSession): Promise<PanelResult> {
+const RARITY_ORDER: Rarity[] = ["common", "uncommon", "rare", "epic", "legendary"];
+
+function itemLabel(id: string): string {
+  const e = ELEMENT_MAP[id];
+  if (e) return `${e.icon} ${e.name}`;
+  const c = COMPOUND_MAP[id];
+  return c ? `${c.icon} ${c.name}` : id;
+}
+
+function bar(value: number, max: number, size = 12): string {
+  const filled = Math.max(0, Math.min(size, Math.round((value / Math.max(1, max)) * size)));
+  return "▰".repeat(filled) + "▱".repeat(size - filled);
+}
+
+export async function buildMainPanel(profile: ILabProfile, session: ILabSession, note?: string): Promise<PanelResult> {
+  const owner = profile.userId;
   const buffer = await renderFlask(session.mix, session.temp, session.pressure);
   const files = buffer ? [{ attachment: buffer, name: "flask.png" }] : [];
+  const mult = session.stepMult || 1;
 
   const mixLines = Object.entries(session.mix)
     .filter(([, qty]) => qty > 0)
-    .map(([id, qty]) => `${ELEMENT_MAP[id]?.icon ?? COMPOUND_MAP[id]?.icon ?? "✨"} ${ELEMENT_MAP[id]?.name ?? COMPOUND_MAP[id]?.name ?? id} ×${qty}`);
+    .map(([id, qty]) => `${itemLabel(id)} ×${qty}`);
 
+  const need = xpNeeded(profile.labLevel);
   const embed = new EmbedBuilder()
     .setColor(0x0ea5e9)
     .setTitle("🧪 المختبر")
     .setDescription(
       [
-        `**المستوى:** ${profile.labLevel} (🔬 ${profile.labTokens} رمز) — **السمعة:** ✨ ${profile.reputation}`,
-        `**الخليط الحالي:** ${mixLines.length ? mixLines.join("، ") : "فاضي، اختر عناصر بالأسفل"}`,
+        `**المستوى ${profile.labLevel}** \`${bar(profile.labXp, need)}\` ${profile.labXp}/${need}`,
+        `🔬 رموز: **${profile.labTokens}** • ✨ سمعة: **${profile.reputation}**`,
+        `🌡️ **${session.temp}°** • 💨 **${session.pressure}** • الخطوة: **${mult === 1 ? "عادية" : "سريعة ×" + mult}**`,
+        "",
+        `**الخليط:** ${mixLines.length ? mixLines.join("، ") : "فاضي، أضف مكونات من القوائم بالأسفل"}`,
       ].join("\n"),
     );
   if (buffer) embed.setImage("attachment://flask.png");
 
-  const components: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [];
+  const rows: Row[] = [];
 
   const ownedElements = ELEMENTS.filter((e) => (profile.inventory[e.id] ?? 0) > 0);
   if (ownedElements.length > 0) {
-    const select = new StringSelectMenuBuilder()
-      .setCustomId(SELECT_ELEMENT)
-      .setPlaceholder("➕ أضف عنصراً للخليط")
-      .addOptions(
-        ownedElements.slice(0, 25).map((e) => ({
-          label: `${e.name} (معك ${profile.inventory[e.id]})`,
-          value: e.id,
-          emoji: e.icon,
-        })),
-      );
-    components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select));
+    rows.push(
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(cid(SELECT_ELEMENT, owner))
+          .setPlaceholder("➕ أضف عنصراً للخليط")
+          .addOptions(
+            ownedElements.slice(0, 25).map((e) => ({
+              label: `${e.name} (متاح ${(profile.inventory[e.id] ?? 0) - (session.mix[e.id] ?? 0)})`,
+              value: e.id,
+              emoji: e.icon,
+            })),
+          ),
+      ),
+    );
   }
 
-  components.push(
+  const ownedCompounds = COMPOUNDS.filter((c) => (profile.compounds[c.id] ?? 0) > 0);
+  if (ownedCompounds.length > 0) {
+    rows.push(
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(cid(SELECT_COMPOUND, owner))
+          .setPlaceholder("🧬 أضف مركباً مصنّعاً للخليط")
+          .addOptions(
+            ownedCompounds.slice(0, 25).map((c) => ({
+              label: `${c.name} (متاح ${(profile.compounds[c.id] ?? 0) - (session.mix[c.id] ?? 0)})`,
+              value: c.id,
+              emoji: c.icon,
+            })),
+          ),
+      ),
+    );
+  }
+
+  rows.push(
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(TEMP_DOWN).setLabel("حرارة").setEmoji("➖").setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId(TEMP_UP).setLabel("حرارة").setEmoji("➕").setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId(PRESSURE_DOWN).setLabel("ضغط").setEmoji("➖").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(PRESSURE_UP).setLabel("ضغط").setEmoji("➕").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(REACT).setLabel("تفاعل").setEmoji("⚗️").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(cid(TEMP_DOWN, owner)).setLabel("حرارة").setEmoji("➖").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(cid(TEMP_UP, owner)).setLabel("حرارة").setEmoji("➕").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(cid(PRESSURE_DOWN, owner)).setLabel("ضغط").setEmoji("➖").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(cid(PRESSURE_UP, owner)).setLabel("ضغط").setEmoji("➕").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(cid(REACT, owner)).setLabel("تفاعل").setEmoji("⚗️").setStyle(ButtonStyle.Success),
     ),
-  );
-  components.push(
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(RESET).setLabel("تصفير").setEmoji("🔄").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(OPEN_CODEX).setLabel("المكتبة").setEmoji("📖").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(OPEN_MARKET).setLabel("السوق").setEmoji("💹").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(OPEN_SHOP).setLabel("المتجر").setEmoji("🏪").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(OPEN_LEVELS).setLabel("المستويات").setEmoji("🎚️").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(cid(OPEN_WAREHOUSE, owner)).setLabel("المستودع").setEmoji("📦").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(cid(OPEN_CODEX, owner)).setLabel("المكتبة").setEmoji("📖").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(cid(OPEN_MARKET, owner)).setLabel("السوق").setEmoji("💹").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(cid(OPEN_SHOP, owner)).setLabel("المتجر").setEmoji("🏪").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(cid(OPEN_LEVELS, owner)).setLabel("المستويات").setEmoji("🎚️").setStyle(ButtonStyle.Secondary),
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(cid(RESET, owner)).setLabel("تصفير").setEmoji("🔄").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(cid(STEP_TOGGLE, owner)).setLabel(mult === 1 ? "خطوة سريعة" : "خطوة عادية").setEmoji("⚡").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(cid(OPEN_TOP, owner)).setLabel("العلماء").setEmoji("🏆").setStyle(ButtonStyle.Secondary),
     ),
   );
 
-  return { embeds: [embed], components, files };
+  return { content: note ?? null, embeds: [embed], components: rows, files };
 }
 
-export function backRow(): ActionRowBuilder<ButtonBuilder> {
+export function backRow(owner: string): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(BACK).setLabel("رجوع للمختبر").setEmoji("🔙").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(cid(BACK, owner)).setLabel("رجوع للمختبر").setEmoji("🔙").setStyle(ButtonStyle.Secondary),
   );
 }
 
-const RARITY_ORDER: Rarity[] = ["common", "uncommon", "rare", "epic", "legendary"];
+/** كل العروض الفرعية تمسح صورة القارورة وتحدّث الرسالة بدون ملفات */
+function sub(embed: EmbedBuilder, components: Row[], note?: string): PanelResult {
+  return { content: note ?? null, embeds: [embed], components, files: [] };
+}
 
-export function buildCodexView(profile: ILabProfile) {
+export function buildWarehouseView(profile: ILabProfile, coins: number, note?: string): PanelResult {
+  const elementLines = ELEMENTS.filter((e) => (profile.inventory[e.id] ?? 0) > 0).map(
+    (e) => `${e.icon} ${e.name} ×**${profile.inventory[e.id]}**`,
+  );
+  const compoundLines = COMPOUNDS.filter((c) => (profile.compounds[c.id] ?? 0) > 0).map(
+    (c) => `${c.icon} ${c.name} ×**${profile.compounds[c.id]}** — ${RARITY_INFO[c.rarity].name}`,
+  );
+
+  const embed = new EmbedBuilder()
+    .setColor(0x64748b)
+    .setTitle("📦 المستودع")
+    .addFields(
+      { name: "🧱 العناصر", value: elementLines.join("\n") || "فاضي — اشتر من المتجر 🏪" },
+      { name: "🧬 المركبات المصنّعة", value: compoundLines.join("\n") || "ما صنعت شيء بعد — جرّب تفاعلاً!" },
+      {
+        name: "💼 الرصيد",
+        value: `${jenny(coins)} • 🔬 ${profile.labTokens} رمز • ✨ ${profile.reputation} سمعة`,
+      },
+    );
+  return sub(embed, [backRow(profile.userId)], note);
+}
+
+export function buildCodexView(profile: ILabProfile): PanelResult {
   const lines = RARITY_ORDER.map((rarity) => {
     const items = COMPOUNDS.filter((c) => c.rarity === rarity);
     const discovered = items.filter((c) => profile.discovered.includes(c.id));
     const names = items
-      .map((c) => (profile.discovered.includes(c.id) ? `${c.icon} ${c.name}` : "❔ ???"))
-      .join("، ");
+      .map((c) => {
+        if (!profile.discovered.includes(c.id)) return `❔ ??? (${Object.keys(c.recipe).length} مكونات)`;
+        const recipe = Object.entries(c.recipe)
+          .map(([id, q]) => `${ELEMENT_MAP[id]?.name ?? COMPOUND_MAP[id]?.name ?? id}×${q}`)
+          .join(" + ");
+        return `${c.icon} **${c.name}** — ${recipe} • 🌡️${c.tempRange[0]}-${c.tempRange[1]} 💨${c.pressureRange[0]}-${c.pressureRange[1]}`;
+      })
+      .join("\n");
     return `**${RARITY_INFO[rarity].name}** (${discovered.length}/${items.length})\n${names}`;
   });
 
+  const pct = Math.round((profile.discovered.length / COMPOUNDS.length) * 100);
   const embed = new EmbedBuilder()
     .setColor(0xa855f7)
     .setTitle("📖 مكتبة الاكتشاف")
-    .setDescription(`اكتشفت **${profile.discovered.length}/${COMPOUNDS.length}** مركب\n\n${lines.join("\n\n")}`);
-
-  return { embeds: [embed], components: [backRow()] };
+    .setDescription(
+      `اكتشفت **${profile.discovered.length}/${COMPOUNDS.length}** مركب • \`${bar(profile.discovered.length, COMPOUNDS.length)}\` ${pct}%\n\n${lines.join("\n\n")}`.slice(0, 4000),
+    );
+  return sub(embed, [backRow(profile.userId)]);
 }
 
-export async function buildMarketView(guildId: string, profile: ILabProfile) {
+export async function buildMarketView(guildId: string, profile: ILabProfile, note?: string): Promise<PanelResult> {
   const owned = COMPOUNDS.filter((c) => (profile.compounds[c.id] ?? 0) > 0);
+  const bonus = reputationBonus(profile.reputation);
 
   const lines: string[] = [];
   for (const c of owned) {
-    const price = await getMarketPrice(guildId, c.id);
-    lines.push(`${c.icon} **${c.name}** ×${profile.compounds[c.id]} — ${jenny(price)} للوحدة`);
+    const q = await getMarketQuote(guildId, c.id);
+    lines.push(`${c.icon} **${c.name}** ×${profile.compounds[c.id]} — ${jenny(q.price)} ${trendIcon(q)}`);
   }
 
   const embed = new EmbedBuilder()
     .setColor(0x22c55e)
     .setTitle("💹 سوق المركبات")
-    .setDescription(owned.length ? lines.join("\n") : "ما عندك مركبات تبيعها بعد.");
+    .setDescription(
+      [
+        owned.length ? lines.join("\n") : "ما عندك مركبات تبيعها بعد.",
+        "",
+        `✨ مكافأة سمعتك على البيع: **+${Math.round(bonus * 100)}%**`,
+        "📉 كل بيع ينزّل السعر شوي، والسوق يتغير كل ساعتين.",
+      ].join("\n"),
+    );
 
-  const components: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [];
+  const rows: Row[] = [];
   if (owned.length > 0) {
-    const select = new StringSelectMenuBuilder()
-      .setCustomId(MARKET_SELL_SELECT)
-      .setPlaceholder("💰 اختر مركباً لبيع وحدة منه")
-      .addOptions(owned.slice(0, 25).map((c) => ({ label: `${c.name} (معك ${profile.compounds[c.id]})`, value: c.id, emoji: c.icon })));
-    components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select));
+    const opts = owned.slice(0, 25).map((c) => ({ label: `${c.name} (معك ${profile.compounds[c.id]})`, value: c.id, emoji: c.icon }));
+    rows.push(
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder().setCustomId(cid(MARKET_SELL_SELECT, profile.userId)).setPlaceholder("💰 بيع وحدة واحدة").addOptions(opts),
+      ),
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder().setCustomId(cid(MARKET_SELLALL_SELECT, profile.userId)).setPlaceholder("💸 بيع كل الكمية").addOptions(opts),
+      ),
+    );
   }
-  components.push(backRow());
-
-  return { embeds: [embed], components };
+  rows.push(backRow(profile.userId));
+  return sub(embed, rows, note);
 }
 
-export function buildShopView(profile: ILabProfile) {
+export function buildShopView(profile: ILabProfile, coins: number, qty = 1, note?: string): PanelResult {
   const available = ELEMENTS.filter((e) => e.tier === 1 || profile.unlockedElements.includes(e.id));
   const lines = available.map((e) => `${e.icon} **${e.name}** — ${jenny(e.price)} (معك ${profile.inventory[e.id] ?? 0})`);
 
   const embed = new EmbedBuilder()
     .setColor(0xf59e0b)
     .setTitle("🏪 متجر المختبر")
-    .setDescription(`${lines.join("\n")}\n\nكل اختيار من القائمة يشتري **وحدة واحدة**.`);
+    .setDescription(
+      `${lines.join("\n")}\n\n💼 رصيدك: ${jenny(coins)}\n🛒 الكمية لكل شراء: **${qty}**\n_المتجر يبيع العناصر الأولية فقط، المركبات لازم تكتشفها بنفسك._`,
+    );
 
   const select = new StringSelectMenuBuilder()
-    .setCustomId(SHOP_BUY_SELECT)
-    .setPlaceholder("🛒 اختر عنصراً تشتريه")
-    .addOptions(available.map((e) => ({ label: `${e.name} — ${e.price} ${CURRENCY.name}`, value: e.id, emoji: e.icon })));
+    .setCustomId(cid(SHOP_BUY_SELECT, profile.userId, qty))
+    .setPlaceholder(`🛒 اختر عنصراً تشتريه (×${qty})`)
+    .addOptions(available.map((e) => ({ label: `${e.name} — ${e.price * qty} ${CURRENCY.name}`, value: e.id, emoji: e.icon })));
 
-  return { embeds: [embed], components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select), backRow()] };
+  const qtyRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    ...[1, 5, 10, 25].map((n) =>
+      new ButtonBuilder()
+        .setCustomId(cid(SHOP_QTY, profile.userId, n))
+        .setLabel(`×${n}`)
+        .setStyle(n === qty ? ButtonStyle.Primary : ButtonStyle.Secondary),
+    ),
+  );
+
+  return sub(embed, [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select), qtyRow, backRow(profile.userId)], note);
 }
 
-export function buildLevelsView(profile: ILabProfile) {
+export function buildLevelsView(profile: ILabProfile, note?: string): PanelResult {
   const locked = ELEMENTS.filter((e) => e.tier === 2 && !profile.unlockedElements.includes(e.id));
   const unlocked = ELEMENTS.filter((e) => e.tier === 2 && profile.unlockedElements.includes(e.id));
+  const need = xpNeeded(profile.labLevel);
 
   const lines = [
     `**المستوى:** ${profile.labLevel}`,
-    `**رموز المختبر 🔬:** ${profile.labTokens}`,
+    `\`${bar(profile.labXp, need)}\` ${profile.labXp}/${need} XP`,
+    `**رموز المختبر 🔬:** ${profile.labTokens} _(تحصل رمز عند كل مستوى جديد)_`,
     "",
     unlocked.length ? `**مفتوح:** ${unlocked.map((e) => `${e.icon} ${e.name}`).join("، ")}` : "",
-    locked.length ? `**مقفل:**\n${locked.map((e) => `${e.icon} ${e.name} — يحتاج 🔬 ${e.unlockCost}`).join("\n")}` : "✅ فتحت كل عناصر الدرجة الثانية!",
-  ].filter(Boolean);
+    locked.length
+      ? `**مقفل:**\n${locked.map((e) => `${e.icon} ${e.name} — يحتاج 🔬 ${e.unlockCost}`).join("\n")}`
+      : "✅ فتحت كل عناصر الدرجة الثانية!",
+  ].filter((l) => l !== "");
 
   const embed = new EmbedBuilder().setColor(0x8b5cf6).setTitle("🎚️ المستويات والفتح").setDescription(lines.join("\n"));
 
-  const components: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [];
+  const rows: Row[] = [];
   if (locked.length > 0) {
-    const select = new StringSelectMenuBuilder()
-      .setCustomId(LEVELS_UNLOCK_SELECT)
-      .setPlaceholder("🔓 اختر عنصراً تفتحه")
-      .addOptions(locked.map((e) => ({ label: `${e.name} (${e.unlockCost} 🔬)`, value: e.id, emoji: e.icon })));
-    components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select));
+    rows.push(
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(cid(LEVELS_UNLOCK_SELECT, profile.userId))
+          .setPlaceholder("🔓 اختر عنصراً تفتحه")
+          .addOptions(locked.map((e) => ({ label: `${e.name} (${e.unlockCost} 🔬)`, value: e.id, emoji: e.icon }))),
+      ),
+    );
   }
-  components.push(backRow());
-
-  return { embeds: [embed], components };
+  rows.push(backRow(profile.userId));
+  return sub(embed, rows, note);
 }
 
-export function buildReactSuccessView(compoundId: string, discoveredNow: boolean, level: number, leveledUp: boolean, tokensGained: number) {
+export function buildTopView(owner: string, top: ILabProfile[]): PanelResult {
+  const medals = ["🥇", "🥈", "🥉"];
+  const lines = top.map(
+    (p, i) => `${medals[i] ?? `**${i + 1}.**`} <@${p.userId}> — ✨ ${p.reputation} • مستوى ${p.labLevel} • 📖 ${p.discovered.length}/${COMPOUNDS.length}`,
+  );
+  const embed = new EmbedBuilder()
+    .setColor(0xf59e0b)
+    .setTitle("🏆 أبرز علماء السيرفر")
+    .setDescription(lines.join("\n") || "ما فيه علماء بعد.");
+  return sub(embed, [backRow(owner)]);
+}
+
+export async function buildReactSuccessView(
+  owner: string,
+  compoundId: string,
+  discoveredNow: boolean,
+  level: number,
+  leveledUp: boolean,
+  tokensGained: number,
+): Promise<PanelResult> {
   const compound = COMPOUND_MAP[compoundId];
   const rarity = RARITY_INFO[compound.rarity];
 
@@ -201,18 +336,44 @@ export function buildReactSuccessView(compoundId: string, discoveredNow: boolean
     discoveredNow ? "🆕 أول مرة تكتشفه!" : "✅ صنعته بنجاح",
     `+${compound.xp} XP${leveledUp ? `  🆙 المستوى **${level}** (+${tokensGained} 🔬)` : ""}`,
   ];
+  if (compound.rarity === "legendary" && discoveredNow) {
+    lines.push("", `📰 مركب نادر جداً! انشر مقالاً علمياً لرفع سمعتك (+${ARTICLE_REPUTATION} ✨).`);
+  }
 
+  const image = await renderResult(compoundId, rarity.color).catch(() => null);
   const embed = new EmbedBuilder().setColor(rarity.color).setTitle("⚗️ نجح التفاعل!").setDescription(lines.join("\n"));
+  if (image) embed.setImage("attachment://result.png");
 
   const actionRow = new ActionRowBuilder<ButtonBuilder>();
   if (compound.rarity === "legendary" && discoveredNow) {
     actionRow.addComponents(
-      new ButtonBuilder().setCustomId(`${PUBLISH_PREFIX}${compoundId}`).setLabel("انشر مقالاً علمياً 📰").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(cid(PUBLISH, owner, compoundId)).setLabel("انشر مقالاً علمياً").setEmoji("📰").setStyle(ButtonStyle.Success),
     );
   }
   actionRow.addComponents(
-    new ButtonBuilder().setCustomId(BACK).setLabel("رجوع للمختبر").setEmoji("🔙").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(cid(BACK, owner)).setLabel("رجوع للمختبر").setEmoji("🔙").setStyle(ButtonStyle.Secondary),
   );
 
-  return { embeds: [embed], components: [actionRow] };
+  return {
+    content: null,
+    embeds: [embed],
+    components: [actionRow],
+    files: image ? [{ attachment: image, name: "result.png" }] : [],
+  };
 }
+
+export function buildArticleEmbed(userId: string, compoundId: string, reputationGained: number, total: number): EmbedBuilder {
+  const compound = COMPOUND_MAP[compoundId];
+  return new EmbedBuilder()
+    .setColor(RARITY_INFO.legendary.color)
+    .setTitle(`📰 اكتشاف علمي: ${compound.icon} ${compound.name}`)
+    .setDescription(
+      [
+        `أعلن العالِم <@${userId}> عن تصنيع **${compound.name}**، أحد أندر المركبات المعروفة!`,
+        "",
+        `✨ سمعته ارتفعت **+${reputationGained}** (المجموع: ${total})`,
+      ].join("\n"),
+    );
+}
+
+
