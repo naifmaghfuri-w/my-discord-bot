@@ -6,6 +6,10 @@ import { PRESSURE, TEMP } from "./compounds";
 import { ELEMENT_MAP } from "./elements";
 import {
   BACK,
+  CODEX_PAGE,
+  NOOP,
+  OPEN_EXTRA,
+  OPEN_LAB,
   LEVELS_UNLOCK_SELECT,
   MARKET_SELL_SELECT,
   MARKET_SELLALL_SELECT,
@@ -47,6 +51,8 @@ import {
 import {
   buildArticleEmbed,
   buildCodexView,
+  buildExtraPanel,
+  buildHubPanel,
   buildLevelsView,
   buildMainPanel,
   buildMarketView,
@@ -68,6 +74,17 @@ function asUpdate(panel: PanelResult) {
 async function renderMain(userId: string, guildId: string, note?: string): Promise<PanelResult> {
   const [profile, session] = await Promise.all([getLabProfile(userId, guildId), getSession(userId, guildId)]);
   return buildMainPanel(profile, session, note);
+}
+
+/** القائمة الرئيسية (تُستخدم أيضاً من أمر lab النصي) */
+export async function buildLabHub(userId: string, guildId: string, name: string, avatarUrl: string): Promise<PanelResult> {
+  const [profile, coins] = await Promise.all([getLabProfile(userId, guildId), coinsOf(userId, guildId)]);
+  return buildHubPanel(profile, coins, name, avatarUrl);
+}
+
+function nameOf(interaction: ButtonInteraction): string {
+  const m = interaction.member;
+  return m && "displayName" in m ? m.displayName : interaction.user.username;
 }
 
 async function coinsOf(userId: string, guildId: string): Promise<number> {
@@ -111,7 +128,19 @@ export async function handleLabButton(interaction: ButtonInteraction): Promise<b
         return true;
 
       case BACK:
+        await interaction.update(asUpdate(await buildLabHub(userId, guildId, nameOf(interaction), interaction.user.displayAvatarURL())));
+        return true;
+
+      case OPEN_LAB:
         await interaction.update(asUpdate(await renderMain(userId, guildId)));
+        return true;
+
+      case OPEN_EXTRA:
+        await interaction.update(asUpdate(buildExtraPanel(userId)));
+        return true;
+
+      case NOOP:
+        await interaction.deferUpdate();
         return true;
 
       case OPEN_WAREHOUSE: {
@@ -121,7 +150,8 @@ export async function handleLabButton(interaction: ButtonInteraction): Promise<b
       }
 
       case OPEN_CODEX:
-        await interaction.update(asUpdate(buildCodexView(await getLabProfile(userId, guildId))));
+      case CODEX_PAGE:
+        await interaction.update(asUpdate(buildCodexView(await getLabProfile(userId, guildId), Number(extra) || 0)));
         return true;
 
       case OPEN_MARKET:
@@ -191,7 +221,7 @@ export async function handleLabButton(interaction: ButtonInteraction): Promise<b
           await interaction.reply({ content: "❌ تعذّر نشر المقال (ربما نشرته من قبل).", flags: MessageFlags.Ephemeral });
           return true;
         }
-        await interaction.update({ components: [backRow(userId)] });
+        await interaction.update({ components: [backRow(userId, "lab")] });
         await interaction.followUp({
           embeds: [buildArticleEmbed(userId, extra ?? "", result.reputation ?? 0, result.total ?? 0)],
           allowedMentions: { parse: [] },

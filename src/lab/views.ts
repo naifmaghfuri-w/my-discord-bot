@@ -10,6 +10,10 @@ import { COMPOUND_MAP, COMPOUNDS, RARITY_INFO, type Rarity } from "./compounds";
 import { ELEMENT_MAP, ELEMENTS } from "./elements";
 import {
   BACK,
+  CODEX_PAGE,
+  NOOP,
+  OPEN_EXTRA,
+  OPEN_LAB,
   LEVELS_UNLOCK_SELECT,
   MARKET_SELL_SELECT,
   MARKET_SELLALL_SELECT,
@@ -134,26 +138,75 @@ export async function buildMainPanel(profile: ILabProfile, session: ILabSession,
       new ButtonBuilder().setCustomId(cid(REACT, owner)).setLabel("تفاعل").setEmoji("⚗️").setStyle(ButtonStyle.Success),
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(cid(OPEN_WAREHOUSE, owner)).setLabel("المستودع").setEmoji("📦").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(cid(OPEN_CODEX, owner)).setLabel("المكتبة").setEmoji("📖").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(cid(OPEN_MARKET, owner)).setLabel("السوق").setEmoji("💹").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(cid(OPEN_SHOP, owner)).setLabel("المتجر").setEmoji("🏪").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(cid(OPEN_LEVELS, owner)).setLabel("المستويات").setEmoji("🎚️").setStyle(ButtonStyle.Secondary),
-    ),
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(cid(RESET, owner)).setLabel("تصفير").setEmoji("🔄").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId(cid(STEP_TOGGLE, owner)).setLabel(mult === 1 ? "خطوة سريعة" : "خطوة عادية").setEmoji("⚡").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(cid(OPEN_TOP, owner)).setLabel("العلماء").setEmoji("🏆").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(cid(BACK, owner)).setLabel("القائمة الرئيسية").setEmoji("🏠").setStyle(ButtonStyle.Secondary),
     ),
   );
 
   return { content: note, embeds: [embed], components: rows, files };
 }
 
-export function backRow(owner: string): ActionRowBuilder<ButtonBuilder> {
+export type BackTarget = "hub" | "extra" | "lab";
+
+export function backRow(owner: string, to: BackTarget = "hub"): ActionRowBuilder<ButtonBuilder> {
+  const map: Record<BackTarget, { id: string; label: string; emoji: string }> = {
+    hub: { id: BACK, label: "القائمة الرئيسية", emoji: "🏠" },
+    extra: { id: OPEN_EXTRA, label: "رجوع للقائمة الإضافية", emoji: "🔙" },
+    lab: { id: OPEN_LAB, label: "رجوع للمعمل", emoji: "🧪" },
+  };
+  const t = map[to];
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(cid(BACK, owner)).setLabel("رجوع للمختبر").setEmoji("🔙").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(cid(t.id, owner)).setLabel(t.label).setEmoji(t.emoji).setStyle(ButtonStyle.Secondary),
   );
+}
+
+export function buildHubPanel(profile: ILabProfile, coins: number, name: string, avatarUrl: string): PanelResult {
+  const owner = profile.userId;
+  const need = xpNeeded(profile.labLevel);
+  const embed = new EmbedBuilder()
+    .setColor(0x0ea5e9)
+    .setTitle("🧪 Lab")
+    .setThumbnail(avatarUrl)
+    .setDescription(
+      [
+        `أهلاً **${name}** 👋`,
+        "",
+        `\`المستوى ${profile.labLevel}\``,
+        `\`${profile.labXp} / ${need} XP\` ${bar(profile.labXp, need, 10)}`,
+        `\`${profile.labTokens} 🔬 رمز\``,
+        jenny(coins),
+        "",
+        "**📜 السمعة العلمية**",
+        `\`${profile.reputation} pts\``,
+        "**📘 الموسوعة**",
+        `\`${profile.discovered.length} / ${COMPOUNDS.length}\``,
+        "",
+        "اختر إجراءً سريعاً أو افتح القائمة الإضافية",
+      ].join("\n"),
+    );
+
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(cid(OPEN_LAB, owner)).setLabel("معمل").setEmoji("🧪").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(cid(OPEN_SHOP, owner)).setLabel("المتجر").setEmoji("🛒").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(cid(OPEN_MARKET, owner)).setLabel("بيع النواتج").setEmoji("💵").setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(cid(OPEN_EXTRA, owner)).setLabel("القائمة الإضافية").setEmoji("📂").setStyle(ButtonStyle.Secondary),
+  );
+  return sub(embed, [row]);
+}
+
+export function buildExtraPanel(owner: string): PanelResult {
+  const embed = new EmbedBuilder()
+    .setColor(0x64748b)
+    .setTitle("📂 القائمة الإضافية")
+    .setDescription("📦 المستودع • 📖 المكتبة • 🎚️ المستويات • 🏆 العلماء");
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(cid(OPEN_WAREHOUSE, owner)).setLabel("المستودع").setEmoji("📦").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(cid(OPEN_CODEX, owner, 0)).setLabel("المكتبة").setEmoji("📖").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(cid(OPEN_LEVELS, owner)).setLabel("المستويات").setEmoji("🎚️").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(cid(OPEN_TOP, owner)).setLabel("العلماء").setEmoji("🏆").setStyle(ButtonStyle.Secondary),
+  );
+  return sub(embed, [row, backRow(owner, "hub")]);
 }
 
 /** كل العروض الفرعية تمسح صورة القارورة وتحدّث الرسالة بدون ملفات */
@@ -180,33 +233,39 @@ export function buildWarehouseView(profile: ILabProfile, coins: number, note?: s
         value: `${jenny(coins)} • 🔬 ${profile.labTokens} رمز • ✨ ${profile.reputation} سمعة`,
       },
     );
-  return sub(embed, [backRow(profile.userId)], note);
+  return sub(embed, [backRow(profile.userId, "extra")], note);
 }
 
-export function buildCodexView(profile: ILabProfile): PanelResult {
-  const lines = RARITY_ORDER.map((rarity) => {
-    const items = COMPOUNDS.filter((c) => c.rarity === rarity);
-    const discovered = items.filter((c) => profile.discovered.includes(c.id));
-    const names = items
-      .map((c) => {
-        if (!profile.discovered.includes(c.id)) return `❔ ??? (${Object.keys(c.recipe).length} مكونات)`;
-        const recipe = Object.entries(c.recipe)
-          .map(([id, q]) => `${ELEMENT_MAP[id]?.name ?? COMPOUND_MAP[id]?.name ?? id}×${q}`)
-          .join(" + ");
-        return `${c.icon} **${c.name}** — ${recipe} • 🌡️${c.tempRange[0]}-${c.tempRange[1]} 💨${c.pressureRange[0]}-${c.pressureRange[1]}`;
-      })
-      .join("\n");
-    return `**${RARITY_INFO[rarity].name}** (${discovered.length}/${items.length})\n${names}`;
+export function buildCodexView(profile: ILabProfile, page = 0): PanelResult {
+  const owner = profile.userId;
+  const last = RARITY_ORDER.length - 1;
+  const p = Math.max(0, Math.min(last, page));
+  const rarity = RARITY_ORDER[p];
+  const items = COMPOUNDS.filter((c) => c.rarity === rarity);
+  const found = items.filter((c) => profile.discovered.includes(c.id)).length;
+
+  const lines = items.map((c) => {
+    if (!profile.discovered.includes(c.id)) return `❔ **???** — ${Object.keys(c.recipe).length} مكونات`;
+    const recipe = Object.entries(c.recipe)
+      .map(([id, q]) => `${ELEMENT_MAP[id]?.name ?? COMPOUND_MAP[id]?.name ?? id}×${q}`)
+      .join(" + ");
+    return `${c.icon} **${c.name}**\n┗ ${recipe}\n┗ 🌡️ ${c.tempRange[0]}-${c.tempRange[1]} • 💨 ${c.pressureRange[0]}-${c.pressureRange[1]}`;
   });
 
-  const pct = Math.round((profile.discovered.length / COMPOUNDS.length) * 100);
   const embed = new EmbedBuilder()
-    .setColor(0xa855f7)
-    .setTitle("📖 مكتبة الاكتشاف")
+    .setColor(RARITY_INFO[rarity].color)
+    .setTitle(`📖 المكتبة — ${RARITY_INFO[rarity].name} (${found}/${items.length})`)
     .setDescription(
-      `اكتشفت **${profile.discovered.length}/${COMPOUNDS.length}** مركب • \`${bar(profile.discovered.length, COMPOUNDS.length)}\` ${pct}%\n\n${lines.join("\n\n")}`.slice(0, 4000),
-    );
-  return sub(embed, [backRow(profile.userId)]);
+      `الإجمالي: **${profile.discovered.length}/${COMPOUNDS.length}** \`${bar(profile.discovered.length, COMPOUNDS.length)}\`\n\n${lines.join("\n\n")}`.slice(0, 4000),
+    )
+    .setFooter({ text: `صفحة ${p + 1} من ${RARITY_ORDER.length}` });
+
+  const nav = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(cid(CODEX_PAGE, owner, p - 1)).setLabel("السابق").setEmoji("◀️").setStyle(ButtonStyle.Primary).setDisabled(p === 0),
+    new ButtonBuilder().setCustomId(cid(NOOP, owner)).setLabel(`${p + 1}/${RARITY_ORDER.length}`).setStyle(ButtonStyle.Secondary).setDisabled(true),
+    new ButtonBuilder().setCustomId(cid(CODEX_PAGE, owner, p + 1)).setLabel("التالي").setEmoji("▶️").setStyle(ButtonStyle.Primary).setDisabled(p === last),
+  );
+  return sub(embed, [nav, backRow(owner, "extra")]);
 }
 
 export async function buildMarketView(guildId: string, profile: ILabProfile, note?: string): Promise<PanelResult> {
@@ -304,7 +363,7 @@ export function buildLevelsView(profile: ILabProfile, note?: string): PanelResul
       ),
     );
   }
-  rows.push(backRow(profile.userId));
+  rows.push(backRow(profile.userId, "extra"));
   return sub(embed, rows, note);
 }
 
@@ -317,7 +376,7 @@ export function buildTopView(owner: string, top: ILabProfile[]): PanelResult {
     .setColor(0xf59e0b)
     .setTitle("🏆 أبرز علماء السيرفر")
     .setDescription(lines.join("\n") || "ما فيه علماء بعد.");
-  return sub(embed, [backRow(owner)]);
+  return sub(embed, [backRow(owner, "extra")]);
 }
 
 export async function buildReactSuccessView(
@@ -351,7 +410,7 @@ export async function buildReactSuccessView(
     );
   }
   actionRow.addComponents(
-    new ButtonBuilder().setCustomId(cid(BACK, owner)).setLabel("رجوع للمختبر").setEmoji("🔙").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(cid(OPEN_LAB, owner)).setLabel("رجوع للمعمل").setEmoji("🧪").setStyle(ButtonStyle.Secondary),
   );
 
   return {

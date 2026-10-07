@@ -28,14 +28,21 @@ function tempRatio(temp: number): number {
 }
 
 function flaskPath(ctx: SKRSContext2D, cx: number) {
-  const neckTop = 50, neckBottom = 170, bulbCenterY = 300, bulbRadius = 135;
+  const neckTop = 50;
+  const bulbCenterY = 285;
+  const bulbRadius = 120;
+  const neckHalf = 24;
+  // نقطة التقاء العنق مع الكرة
+  const junctionY = bulbCenterY - Math.sqrt(bulbRadius * bulbRadius - neckHalf * neckHalf);
+  const aLeft = Math.atan2(junctionY - bulbCenterY, -neckHalf);
+  const aRight = Math.atan2(junctionY - bulbCenterY, neckHalf);
+
   ctx.beginPath();
-  ctx.moveTo(cx - 24, neckTop);
-  ctx.lineTo(cx - 24, neckBottom);
-  ctx.lineTo(cx - bulbRadius * 0.85, bulbCenterY - bulbRadius * 0.4);
-  ctx.arc(cx, bulbCenterY, bulbRadius, Math.PI * 0.78, Math.PI * 0.22, false);
-  ctx.lineTo(cx + 24, neckBottom);
-  ctx.lineTo(cx + 24, neckTop);
+  ctx.moveTo(cx - neckHalf, neckTop);
+  ctx.lineTo(cx - neckHalf, junctionY);
+  // القوس يلف من اليسار عبر القاع إلى اليمين (عكس عقارب الساعة)
+  ctx.arc(cx, bulbCenterY, bulbRadius, aLeft, aRight, true);
+  ctx.lineTo(cx + neckHalf, neckTop);
   ctx.closePath();
   return { neckTop, bulbCenterY, bulbRadius };
 }
@@ -76,7 +83,7 @@ function drawThermometer(ctx: SKRSContext2D, temp: number) {
 }
 
 function drawPressureGauge(ctx: SKRSContext2D, pressure: number) {
-  const cx = WIDTH - 80, cy = 240, r = 46;
+  const cx = WIDTH - 62, cy = 240, r = 40;
   ctx.lineWidth = 10;
   ctx.lineCap = "round";
   ctx.strokeStyle = "rgba(255,255,255,0.12)";
@@ -112,7 +119,7 @@ function drawFlask(ctx: SKRSContext2D, mix: Record<string, number>, temp: number
 
   if (color) {
     // مستوى السائل يرتفع مع كمية الخليط
-    const fillTopY = bulbCenterY + bulbRadius - 30 - Math.min(190, 35 + totalUnits * 22);
+    const fillTopY = bulbCenterY + bulbRadius - 20 - Math.min(170, 35 + totalUnits * 20);
     const [r, g, b] = color;
     const ratio = tempRatio(temp);
     // الحرارة تفتّح اللون وتدفّيه
@@ -140,7 +147,7 @@ function drawFlask(ctx: SKRSContext2D, mix: Record<string, number>, temp: number
 
   // لمعة الزجاج
   ctx.fillStyle = "rgba(255,255,255,0.08)";
-  ctx.fillRect(cx - bulbRadius + 28, bulbCenterY - 90, 14, 150);
+  ctx.fillRect(cx - bulbRadius + 26, bulbCenterY - 70, 12, 120);
   ctx.restore();
 
   flaskPath(ctx, cx);
@@ -176,10 +183,10 @@ function drawIngredients(ctx: SKRSContext2D, mix: Record<string, number>, font: 
     const x = startX + i * gap;
     ctx.fillStyle = ELEMENT_MAP[id]?.color ?? "#c084fc";
     ctx.beginPath();
-    ctx.arc(x, 458, 14, 0, Math.PI * 2);
+    ctx.arc(x, 462, 14, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = "#0b1220";
-    ctx.fillText(String(mix[id]), x, 458);
+    ctx.fillText(String(mix[id]), x, 462);
   });
 }
 

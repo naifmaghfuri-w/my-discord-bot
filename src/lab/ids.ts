@@ -19,7 +19,11 @@ export const OPEN_MARKET = "lab_open_market";
 export const OPEN_SHOP = "lab_open_shop";
 export const OPEN_LEVELS = "lab_open_levels";
 export const OPEN_TOP = "lab_open_top";
-export const BACK = "lab_back";
+export const BACK = "lab_back"; // رجوع للقائمة الرئيسية
+export const OPEN_LAB = "lab_open_lab"; // المعمل (القارورة)
+export const OPEN_EXTRA = "lab_open_extra"; // القائمة الإضافية
+export const CODEX_PAGE = "lab_codex_page";
+export const NOOP = "lab_noop";
 
 export const SHOP_BUY_SELECT = "lab_shop_buy_select";
 export const SHOP_QTY = "lab_shop_qty";
