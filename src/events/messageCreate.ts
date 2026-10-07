@@ -8,8 +8,7 @@ import type { BotClient } from "../client";
 import { config } from "../config";
 import { CURRENCY, jenny } from "../constants";
 import { getGender, type Gender } from "../family/gender";
-import { getLabProfile, getSession } from "../lab/service";
-import { buildMainPanel as buildLabPanel } from "../lab/views";
+import { buildLabHub } from "../lab/interactions";
 import { computeRelationship } from "../family/graph";
 import { ADOPT_ACCEPT_PREFIX, ADOPT_DECLINE_PREFIX, MARRY_ACCEPT_PREFIX, MARRY_DECLINE_PREFIX } from "../family/ids";
 import { renderFamilyTree, toFamilyMember } from "../family/render";
@@ -108,12 +107,16 @@ const event: BotEvent = {
 
     // --- مختبر الكيمياء بكتابة "lab" لحالها (بدون سلاش) ---
     if (rawContent.trim().toLowerCase() === "lab") {
-      const [labProfile, labSession] = await Promise.all([
-        getLabProfile(userId, guildId),
-        getSession(userId, guildId),
-      ]);
-      const panel = await buildLabPanel(labProfile, labSession);
-      await message.channel.send(panel).catch(() => undefined);
+      const panel = await buildLabHub(
+        userId,
+        guildId,
+        message.member?.displayName ?? message.author.username,
+        message.author.displayAvatarURL(),
+      ).catch((err) => {
+        logger.error("فشل فتح المختبر", err);
+        return null;
+      });
+      if (panel) await message.channel.send(panel).catch(() => undefined);
       return;
     }
 
