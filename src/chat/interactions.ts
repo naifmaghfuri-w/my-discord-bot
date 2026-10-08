@@ -214,7 +214,7 @@ export async function handleChatButton(interaction: ButtonInteraction): Promise<
         } else if (res.reason === "has_room") {
           await interaction.editReply(`ℹ️ عندك دردشة بالفعل: <#${res.existing?.channelId}>`);
         } else if (res.reason === "no_config") {
-          await interaction.editReply("⚠️ الدردشات الخاصة ما انضبطت بعد. اطلب من الإدارة تشغيل الأمر `/chatpanel`.");
+          await interaction.editReply("⚠️ الدردشات الخاصة ما انضبطت بعد. اطلب من الإدارة تشغيل الأمر `chatpanel`.");
         } else {
           await interaction.editReply("❌ ما قدرت أنشئ الدردشة. تأكد أن البوت عنده صلاحية إدارة القنوات وأن الكاتيجوري مو ممتلئ.");
         }
