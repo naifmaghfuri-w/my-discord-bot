@@ -10,6 +10,8 @@ import { CURRENCY, jenny } from "../constants";
 import { getGender, type Gender } from "../family/gender";
 import { touchRoom } from "../chat/service";
 import { buildHelpHome } from "../help/views";
+import { CLEAR_TRIGGER, handleClearMessage } from "../moderation/clearText";
+import { handleTextCommand } from "../handlers/textCommands";
 import { buildLabHub } from "../lab/interactions";
 import { TRADE_TRIGGER, startTradeFromMessage } from "../lab/trade";
 import { buildLabCard } from "../lab/views";
@@ -82,6 +84,13 @@ const event: BotEvent = {
       }
       return; // ما نكمل تتبع مهام على رسالة الأمر نفسها
     }
+
+    // --- مسح رسائل: "clear 10" أو "clear 10 @شخص" أو "clear 10 <ايدي>" (بدون سلاش) ---
+    const clearTrigger = CLEAR_TRIGGER.exec(rawContent.trim());
+    if (clearTrigger && (await handleClearMessage(message, clearTrigger[1]))) return;
+
+    // --- باقي الأوامر بالكتابة بدون سلاش: "ban @شخص سبب"، "pay @شخص 100"، "daily"... ---
+    if (await handleTextCommand(client, message)) return;
 
     // --- دليل الأوامر: "مساعدة" ---
     if (/^(مساعدة|مساعده|اوامر|أوامر|help)$/i.test(rawContent.trim())) {
