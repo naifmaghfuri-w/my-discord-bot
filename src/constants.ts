@@ -28,6 +28,9 @@ export const REWARDS = {
   coinflipWin: 20,
   rpsWin: 50,
   xoWin: 100,
+  /** هدية يوم الميلاد */
+  birthdayJenny: 500,
+  birthdayXp: 200,
 } as const;
 
 /** نسبة الفائدة اليومية على رصيد البنك (2% تُضاف تلقائياً مع كل /daily) */

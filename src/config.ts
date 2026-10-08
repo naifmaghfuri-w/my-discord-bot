@@ -26,6 +26,8 @@ export const config = {
   birthdayRoleId: process.env.BIRTHDAY_ROLE_ID || undefined,
   /** قناة الاحتفال بعيد الميلاد (اختياري، بدونها ما فيه إعلان علني) */
   birthdayChannelId: process.env.BIRTHDAY_CHANNEL_ID || undefined,
+  /** بانر اختياري يظهر في بطاقة تهنئة عيد الميلاد */
+  birthdayBannerUrl: process.env.BIRTHDAY_BANNER_URL || undefined,
   /** رتب تحديد الجنس (لنظام العائلة: تبني، زواج، مواريث اللقب) */
   maleRoleId: process.env.MALE_ROLE_ID || undefined,
   femaleRoleId: process.env.FEMALE_ROLE_ID || undefined,
