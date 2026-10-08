@@ -29,6 +29,12 @@ export const config = {
   /** رتب تحديد الجنس (لنظام العائلة: تبني، زواج، مواريث اللقب) */
   maleRoleId: process.env.MALE_ROLE_ID || undefined,
   femaleRoleId: process.env.FEMALE_ROLE_ID || undefined,
+  /** صورة بانر لوحات الدردشة الخاصة (اختياري، ويمكن تحديدها من أمر /chatpanel) */
+  chatBannerUrl: process.env.CHAT_BANNER_URL || undefined,
+  /** قناة سجلات الإدارة الافتراضية (يمكن تغييرها لكل سيرفر بأمر /setlog) */
+  logChannelId: process.env.LOG_CHANNEL_ID || undefined,
+  /** قناة النسخ الاحتياطي التلقائي لقاعدة البيانات (بدونها يُرسل للمالك بالخاص إن وُجد OWNER_ID) */
+  backupChannelId: process.env.BACKUP_CHANNEL_ID || undefined,
   /** getter: لا يُطلب إلا عند تشغيل البوت (أمر deploy لا يحتاجه) */
   get mongoUri(): string {
     return required("MONGODB_URI");
