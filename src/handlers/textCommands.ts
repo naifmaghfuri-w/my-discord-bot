@@ -1,6 +1,5 @@
 import {
   ApplicationCommandOptionType,
-  ChannelType,
   type ChatInputCommandInteraction,
   type GuildBasedChannel,
   type GuildMember,
@@ -334,9 +333,6 @@ export async function handleTextCommand(client: BotClient, message: Message<true
     return true;
   }
   cooldowns.set(key, now + (command.cooldown ?? 3) * 1000);
-
-  const channelOk = message.channel.type !== ChannelType.DM;
-  if (!channelOk) return false;
 
   const interaction = createInteraction(message, command, parsed, resolved);
   try {
