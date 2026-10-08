@@ -1,4 +1,5 @@
 import { InteractionContextType, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
+import { logModAction } from "../../logs/logger";
 import type { Command } from "../../types";
 import { Warning } from "../../database/models/Warning";
 import { getGuild } from "../../utils/guild";
@@ -34,6 +35,7 @@ const command: Command = {
 
     await Warning.deleteOne({ _id: target._id });
     await interaction.reply(`✅ تم حذف التحذير رقم **${index}** من ${user} (كان: ${target.reason}).`);
+    await logModAction(interaction, "حذف تحذير", user, { reason: `كان: ${target.reason}` });
   },
 };
 

@@ -1,4 +1,5 @@
 import { InteractionContextType, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
+import { logModAction } from "../../logs/logger";
 import type { Command } from "../../types";
 
 const command: Command = {
@@ -26,6 +27,7 @@ const command: Command = {
       content: `🧹 تم مسح **${deleted.size}** رسالة.`,
       flags: MessageFlags.Ephemeral,
     });
+    await logModAction(interaction, "مسح رسائل", null, { extra: `**العدد:** ${deleted.size}` });
   },
 };
 

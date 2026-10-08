@@ -1,4 +1,5 @@
 import { InteractionContextType, PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
+import { logModAction } from "../../logs/logger";
 import type { Command } from "../../types";
 import { getModeratableTarget } from "../../utils/moderation";
 
@@ -18,6 +19,7 @@ const command: Command = {
     const reason = interaction.options.getString("reason") ?? "بدون سبب";
     await target.kick(`${reason} | بواسطة ${interaction.user.tag}`);
     await interaction.reply(`👢 تم طرد **${target.user.tag}**\nالسبب: ${reason}`);
+    await logModAction(interaction, "طرد", target.user, { reason });
   },
 };
 

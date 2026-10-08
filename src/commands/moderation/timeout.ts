@@ -1,4 +1,5 @@
 import { InteractionContextType, PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
+import { logModAction } from "../../logs/logger";
 import type { Command } from "../../types";
 import { getModeratableTarget } from "../../utils/moderation";
 
@@ -28,6 +29,7 @@ const command: Command = {
 
     await target.timeout(minutes * 60_000, `${reason} | بواسطة ${interaction.user.tag}`);
     await interaction.reply(`🔇 تم كتم **${target.user.tag}** لمدة **${minutes}** دقيقة\nالسبب: ${reason}`);
+    await logModAction(interaction, "كتم", target.user, { reason, extra: `**المدة:** ${minutes} دقيقة` });
   },
 };
 

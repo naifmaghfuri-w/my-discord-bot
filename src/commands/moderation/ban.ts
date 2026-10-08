@@ -1,4 +1,5 @@
 import { InteractionContextType, PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
+import { logModAction } from "../../logs/logger";
 import type { Command } from "../../types";
 import { getModeratableTarget } from "../../utils/moderation";
 
@@ -30,6 +31,7 @@ const command: Command = {
       deleteMessageSeconds: days * 86_400,
     });
     await interaction.reply(`🔨 تم حظر **${target.user.tag}**\nالسبب: ${reason}`);
+    await logModAction(interaction, "حظر", target.user, { reason, extra: days ? `**حذف رسائل:** آخر ${days} يوم` : undefined });
   },
 };
 

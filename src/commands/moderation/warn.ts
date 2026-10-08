@@ -1,4 +1,5 @@
 import { InteractionContextType, PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
+import { logModAction } from "../../logs/logger";
 import type { Command } from "../../types";
 import { Warning } from "../../database/models/Warning";
 import { getGuild } from "../../utils/guild";
@@ -38,6 +39,7 @@ const command: Command = {
     }
 
     await interaction.reply(`⚠️ تم تحذير ${target} (إجمالي التحذيرات: **${total}**)\nالسبب: ${reason}${extra}`);
+    await logModAction(interaction, "تحذير", target.user, { reason, extra: `**إجمالي التحذيرات:** ${total}${extra ? "\n🔇 كتم تلقائي" : ""}` });
   },
 };
 
