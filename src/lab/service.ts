@@ -263,10 +263,6 @@ export function reputationBonus(reputation: number): number {
   return Math.min(0.3, Math.floor(reputation / 10) / 100);
 }
 
-export async function getTopScientists(guildId: string, limit = 10): Promise<ILabProfile[]> {
-  return (await LabProfile.find({ guildId }).sort({ reputation: -1, labLevel: -1 }).limit(limit).lean()) as unknown as ILabProfile[];
-}
-
 /** سعر التلميح حسب ندرة المركب */
 export const HINT_PRICE: Record<string, number> = { common: 50, uncommon: 100, rare: 200, epic: 400, legendary: 800 };
 

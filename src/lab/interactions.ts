@@ -27,7 +27,6 @@ import {
   OPEN_LEVELS,
   OPEN_MARKET,
   OPEN_SHOP,
-  OPEN_TOP,
   OPEN_WAREHOUSE,
   PRESSURE_DOWN,
   PRESSURE_UP,
@@ -58,7 +57,6 @@ import {
   buyHint,
   getLabProfile,
   getSession,
-  getTopScientists,
   publishArticle,
   resetSession,
   toggleStep,
@@ -79,7 +77,6 @@ import {
   buildMarketView,
   buildReactSuccessView,
   buildShopView,
-  buildTopView,
   buildWarehouseView,
   backRow,
   type PanelResult,
@@ -215,10 +212,6 @@ export async function handleLabButton(interaction: ButtonInteraction): Promise<b
 
       case OPEN_LEVELS:
         await interaction.update(asUpdate(buildLevelsView(await getLabProfile(userId, guildId))));
-        return true;
-
-      case OPEN_TOP:
-        await interaction.update(asUpdate(buildTopView(userId, await getTopScientists(guildId))));
         return true;
 
       case REACT: {

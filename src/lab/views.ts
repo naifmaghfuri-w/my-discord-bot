@@ -28,7 +28,6 @@ import {
   OPEN_LEVELS,
   OPEN_MARKET,
   OPEN_SHOP,
-  OPEN_TOP,
   OPEN_WAREHOUSE,
   PRESSURE_DOWN,
   PRESSURE_UP,
@@ -214,7 +213,6 @@ export function buildExtraPanel(owner: string): PanelResult {
         "📦 **المستودع** — عناصرك ومركباتك",
         "📖 **المكتبة** — وصفات ما اكتشفته",
         "🎚️ **المستويات** — افتح عناصر جديدة",
-        "🏆 **العلماء** — ترتيب السيرفر",
         "🎯 **المهام** — مهام اليوم ومكافآتها",
         "🏅 **الإنجازات** — أهداف طويلة المدى",
         "💡 **تلميح** — اكشف جزءاً من وصفة مجهولة",
@@ -225,7 +223,6 @@ export function buildExtraPanel(owner: string): PanelResult {
     new ButtonBuilder().setCustomId(cid(OPEN_WAREHOUSE, owner)).setLabel("المستودع").setEmoji("📦").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(cid(OPEN_CODEX, owner, 0)).setLabel("المكتبة").setEmoji("📖").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(cid(OPEN_LEVELS, owner)).setLabel("المستويات").setEmoji("🎚️").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(cid(OPEN_TOP, owner)).setLabel("العلماء").setEmoji("🏆").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(cid(OPEN_QUESTS, owner)).setLabel("المهام").setEmoji("🎯").setStyle(ButtonStyle.Primary),
   );
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -397,18 +394,6 @@ export function buildLevelsView(profile: ILabProfile, note?: string): PanelResul
   }
   rows.push(backRow(profile.userId, "extra"));
   return sub(embed, rows, note);
-}
-
-export function buildTopView(owner: string, top: ILabProfile[]): PanelResult {
-  const medals = ["🥇", "🥈", "🥉"];
-  const lines = top.map(
-    (p, i) => `${medals[i] ?? `**${i + 1}.**`} <@${p.userId}> ${titleFor(p.reputation).icon} ${titleFor(p.reputation).name} — ✨ ${p.reputation} • مستوى ${p.labLevel} • 📖 ${p.discovered.length}/${COMPOUNDS.length}`,
-  );
-  const embed = new EmbedBuilder()
-    .setColor(0xf59e0b)
-    .setTitle("🏆 أبرز علماء السيرفر")
-    .setDescription(lines.join("\n") || "ما فيه علماء بعد.");
-  return sub(embed, [backRow(owner, "extra")]);
 }
 
 export async function buildReactSuccessView(
@@ -593,7 +578,7 @@ export function buildTradeHelpView(owner: string): PanelResult {
         "`عرض @الشخص السعر`",
         "`عرض @الشخص السعر الكمية`",
         "",
-        "مثال: `عرض @أحمد 500` أو `عرض @أحمد 1200 3`",
+        "مثال: `عرض @ماجد 500` أو `عرض @ماجد 1200 3`",
         "",
         "بعدها تختار المركب من قائمة، ويصله عرض فيه زر قبول/رفض (ينتهي بعد 10 دقائق).",
         "المركب المشترى يقدر يستخدمه بالتفاعلات أو يبيعه بالسوق.",
