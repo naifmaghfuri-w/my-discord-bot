@@ -10,12 +10,12 @@ export async function sendBackup(client: Client): Promise<boolean> {
   const result = await createBackup();
   const content = summarize(result);
 
-  let target: { send: (o: unknown) => Promise<unknown> } | null = null;
+  let target: { send: (o: any) => Promise<unknown> } | null = null;
   if (config.backupChannelId) {
     const ch = await client.channels.fetch(config.backupChannelId).catch(() => null);
     if (ch && ch.isTextBased() && "send" in ch) target = ch as TextChannel;
   }
-  if (!target && config.ownerId) target = await client.users.fetch(config.ownerId).catch() => null);
+  if (!target && config.ownerId) target = await client.users.fetch(config.ownerId).catch(() => null);
   if (!target) return false;
 
   // 10 ملفات كحد أقصى بالرسالة الواحدة
@@ -32,7 +32,7 @@ export async function sendBackup(client: Client): Promise<boolean> {
 
 export function startBackupScheduler(client: Client): void {
   if (!config.backupChannelId && !config.ownerId) {
-    logger.info("1550060974906675210");
+    logger.info("النسخ الاحتياطي التلقائي معطّل (حدد BACKUP_CHANNEL_ID أو OWNER_ID)");
     return;
   }
   const run = () => {
