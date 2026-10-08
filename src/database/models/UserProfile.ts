@@ -23,6 +23,8 @@ export interface IUserProfile {
   birthdayDay?: number;
   birthdayMonth?: number;
   birthdayYear?: number;
+  /** يخفي العمر عن الآخرين (السنة اختيارية أصلاً) */
+  birthdayHideAge?: boolean;
   /** آخر مرة أعطيناه رول عيد الميلاد (لمعرفة متى نشيله بعد 24 ساعة، ومنع تكراره بنفس السنة) */
   lastBirthdayRoleAt?: Date;
   /** الزوج/الزوجة الحالي (معرف مستخدم) */
@@ -52,6 +54,7 @@ const schema = new Schema<IUserProfile>(
     birthdayDay: { type: Number },
     birthdayMonth: { type: Number },
     birthdayYear: { type: Number },
+    birthdayHideAge: { type: Boolean },
     lastBirthdayRoleAt: { type: Date },
     spouseIds: { type: [String], default: [] },
     parentIds: { type: [String], default: [] },
