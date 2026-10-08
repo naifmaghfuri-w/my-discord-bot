@@ -16,19 +16,21 @@ async function ensureState(message: Message<true>): Promise<void> {
   if (await CountingState.exists({ guildId: message.guildId })) return;
 
   let start = 0;
+  let lastUserId: string | undefined;
   const recent = await message.channel.messages.fetch({ limit: 50, before: message.id }).catch(() => null);
   if (recent) {
     for (const m of recent.values()) {
       const n = parseNumber(m.content);
       if (n !== null) {
         start = n;
+        lastUserId = m.author.bot ? undefined : m.author.id;
         break; // الأحدث أولاً
       }
     }
   }
   await CountingState.updateOne(
     { guildId: message.guildId },
-    { $setOnInsert: { guildId: message.guildId, current: start, highScore: start } },
+    { $setOnInsert: { guildId: message.guildId, current: start, highScore: start, ...(lastUserId ? { lastUserId } : {}) } },
     { upsert: true },
   );
 }
@@ -36,7 +38,7 @@ async function ensureState(message: Message<true>): Promise<void> {
 /**
  * يعالج رسالة في قناة العد.
  * - رقم صحيح (السابق + 1): يضيف ☑️ ويرجع "correct"
- * - رقم غلط: تنمسح الرسالة والسلسلة ما تنقطع، ويرجع "wrong"
+ * - رقم غلط أو من نفس الشخص اللي عدّ قبله: تنمسح الرسالة والسلسلة ما تنقطع، ويرجع "wrong"
  * - أي شيء ثاني (مو رقم): "ignored"
  */
 export async function handleCountingMessage(message: Message<true>): Promise<CountResult> {
@@ -46,10 +48,11 @@ export async function handleCountingMessage(message: Message<true>): Promise<Cou
   try {
     await ensureState(message);
 
-    // ذري: ينجح فقط لو الرقم الحالي = n - 1 (يمنع تعارض شخصين يكتبون نفس الرقم بنفس اللحظة)
+    // ذري: ينجح فقط لو الرقم الحالي = n - 1 وآخر من عدّ شخص غيره
+    // (يمنع تعارض شخصين يكتبون نفس الرقم بنفس اللحظة، ويمنع نفس الشخص يعدّ مرتين ورا بعض)
     const updated = await CountingState.findOneAndUpdate(
-      { guildId: message.guildId, current: n - 1 },
-      { $set: { current: n }, $max: { highScore: n } },
+      { guildId: message.guildId, current: n - 1, lastUserId: { $ne: message.author.id } },
+      { $set: { current: n, lastUserId: message.author.id }, $max: { highScore: n } },
       { new: true },
     );
 
