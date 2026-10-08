@@ -10,6 +10,7 @@ import { CURRENCY, jenny } from "../constants";
 import { getGender, type Gender } from "../family/gender";
 import { touchRoom } from "../chat/service";
 import { buildHelpHome } from "../help/views";
+import { handleCountingMessage } from "../counting/service";
 import { CLEAR_TRIGGER, handleClearMessage } from "../moderation/clearText";
 import { handleTextCommand } from "../handlers/textCommands";
 import { buildLabHub } from "../lab/interactions";
@@ -534,6 +535,14 @@ const event: BotEvent = {
       }
     }
 
+    // --- قناة العد: رقم صحيح ☑️ | رقم غلط يُمسح بدون ما يحسب لأي مهمة ---
+    let countedCorrectly = false;
+    if (config.countingChannelId && message.channelId === config.countingChannelId) {
+      const result = await handleCountingMessage(message);
+      if (result === "wrong") return; // انمسحت: كأنها ما انكتبت
+      countedCorrectly = result === "correct";
+    }
+
     const channel = toAnnouncer(message.channel);
     const content = rawContent;
     const jobs: Promise<void>[] = [recordMessage(guildId, userId).catch(() => undefined)];
@@ -566,7 +575,7 @@ const event: BotEvent = {
     if (MEOW.test(content)) track("meow");
 
     // قناة العد
-    if (config.countingChannelId && message.channelId === config.countingChannelId && /^\d+$/.test(content.trim())) {
+    if (countedCorrectly) {
       track("counting");
     }
 
