@@ -14,7 +14,7 @@ const command: Command = {
     .addIntegerOption((o) =>
       o
         .setName("index")
-        .setDescription("رقم التحذير كما يظهر في /warnings (1 = الأحدث)")
+        .setDescription("رقم التحذير كما يظهر في warnings (1 = الأحدث)")
         .setRequired(true)
         .setMinValue(1)
         .setMaxValue(10),
