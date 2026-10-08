@@ -76,3 +76,22 @@ export async function logModAction(
     new EmbedBuilder().setColor(LOG_COLORS.mod).setTitle(`🛡️ ${action}`).setDescription(lines.join("\n")),
   );
 }
+
+/** نسخة من logModAction للأوامر الكتابية (بدون سلاش) */
+export async function logModActionText(
+  guild: Guild,
+  moderator: { id: string; tag: string },
+  action: string,
+  target: { id: string; tag?: string } | null,
+  channelId: string,
+  extra?: string,
+): Promise<void> {
+  const lines = [
+    `**المشرف:** <@${moderator.id}> (${moderator.tag})`,
+    target ? `**الهدف:** <@${target.id}>${target.tag ? ` (${target.tag})` : ""}` : "",
+    extra ?? "",
+    `**القناة:** <#${channelId}>`,
+  ].filter(Boolean);
+
+  await sendLog(guild, new EmbedBuilder().setColor(LOG_COLORS.mod).setTitle(`🛡️ ${action}`).setDescription(lines.join("\n")));
+}
