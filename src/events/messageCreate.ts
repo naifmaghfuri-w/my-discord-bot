@@ -22,7 +22,7 @@ import { buildMenuMessage } from "../menu/interactions";
 import { QUEST_SETTINGS, type QuestId } from "../quests/definitions";
 import { progressQuest, toAnnouncer } from "../quests/service";
 import { progressWeeklyQuest } from "../quests/weeklyService";
-import { getBirthday, isValidBirthday, setBirthday } from "../services/birthday";
+import { getBirthday, parseBirthdayInput, setBirthday } from "../services/birthday";
 import { recordMessage } from "../services/stats";
 import type { BotEvent } from "../types";
 import { logger } from "../utils/logger";
@@ -165,29 +165,61 @@ const event: BotEvent = {
       return;
     }
 
-    // --- عيد الميلاد بكتابة "ميلاد" أو "birthday" أو "dob" (بدون سلاش أو زر) ---
+    // --- عيد الميلاد: "ميلاد" / "birthday" / "dob" + (تاريخ | @شخص) اختياري ---
     const birthdayTrigger = BIRTHDAY_TRIGGER.exec(rawContent.trim());
     if (birthdayTrigger) {
-      const dateArg = birthdayTrigger[2]?.trim();
+      const arg = birthdayTrigger[2]?.trim();
+      const selfName = message.member?.displayName ?? message.author.username;
+      const mention = arg ? /^<@!?(\d+)>$/.exec(arg) : null;
 
-      if (dateArg) {
-        const match = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/.exec(dateArg);
-        if (!match) {
+      // عرض ميلاد شخص ثاني: ميلاد @شخص
+      if (mention) {
+        const targetId = mention[1];
+        const target = await message.client.users.fetch(targetId).catch(() => null);
+        if (!target || target.bot) {
+          await message.channel.send("❌ I can't find that user.").catch(() => undefined);
+          return;
+        }
+        const targetBirthday = await getBirthday(targetId, guildId).catch(() => null);
+        if (!targetBirthday) {
           await message.channel
-            .send("❌ الصيغة غلط. اكتب: `ميلاد يوم/شهر/سنة`، مثال: `ميلاد 15/8/2001`")
+            .send({ content: `❌ <@${targetId}> hasn't set a birthday yet.`, allowedMentions: { parse: [] } })
             .catch(() => undefined);
           return;
         }
-        const day = Number(match[1]);
-        const month = Number(match[2]);
-        const year = Number(match[3]);
-        if (!isValidBirthday(day, month, year)) {
-          await message.channel.send("❌ التاريخ غير صحيح.").catch(() => undefined);
+        const targetMember = await message.guild?.members.fetch(targetId).catch(() => null);
+        const panel = buildBirthdayPanel(
+          targetBirthday,
+          targetMember?.displayName ?? target.username,
+          target.displayAvatarURL(),
+          false,
+        );
+        await message.channel.send(panel).catch(() => undefined);
+        return;
+      }
+
+      // تسجيل تاريخ: ميلاد 15/8/2001 أو ميلاد 15/8
+      if (arg) {
+        const parsed = parseBirthdayInput(arg);
+        if (parsed === "format") {
+          await message.channel
+            .send("❌ Wrong format. Use `ميلاد day/month/year`, e.g. `ميلاد 15/8/2001` (or `ميلاد 15/8` without a year).")
+            .catch(() => undefined);
           return;
         }
-        await setBirthday(userId, guildId, day, month, year).catch((err) => logger.error("فشل حفظ عيد الميلاد", err));
-        const panel = buildBirthdayPanel({ day, month, year }, message.member?.displayName ?? message.author.username, message.author.displayAvatarURL());
-        await message.channel.send(panel).catch(() => undefined);
+        if (parsed === "invalid") {
+          await message.channel.send("❌ That date isn't valid.").catch(() => undefined);
+          return;
+        }
+        await setBirthday(userId, guildId, parsed.day, parsed.month, parsed.year).catch((err) =>
+          logger.error("فشل حفظ عيد الميلاد", err),
+        );
+        const saved = await getBirthday(userId, guildId).catch(() => null);
+        if (saved) {
+          await message.channel
+            .send(buildBirthdayPanel(saved, selfName, message.author.displayAvatarURL()))
+            .catch(() => undefined);
+        }
         return;
       }
 
@@ -196,8 +228,9 @@ const event: BotEvent = {
         await message.channel.send(buildSetupMessage()).catch(() => undefined);
         return;
       }
-      const panel = buildBirthdayPanel(existing, message.member?.displayName ?? message.author.username, message.author.displayAvatarURL());
-      await message.channel.send(panel).catch(() => undefined);
+      await message.channel
+        .send(buildBirthdayPanel(existing, selfName, message.author.displayAvatarURL()))
+        .catch(() => undefined);
       return;
     }
 
