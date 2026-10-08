@@ -8,14 +8,16 @@ import type { BotClient } from "../client";
 import { config } from "../config";
 import { CURRENCY, jenny } from "../constants";
 import { getGender, type Gender } from "../family/gender";
+import { touchRoom } from "../chat/service";
+import { buildHelpHome } from "../help/views";
 import { buildLabHub } from "../lab/interactions";
 import { TRADE_TRIGGER, startTradeFromMessage } from "../lab/trade";
 import { buildLabCard } from "../lab/views";
 import { LabProfile } from "../database/models/LabProfile";
 import { computeRelationship } from "../family/graph";
 import { ADOPT_ACCEPT_PREFIX, ADOPT_DECLINE_PREFIX, MARRY_ACCEPT_PREFIX, MARRY_DECLINE_PREFIX } from "../family/ids";
-import { renderFamilyTree, toFamilyMember } from "../family/render";
-import { canAdopt, canPropose, disown, getFamilyView, getParents, khulaDivorce, talaqDivorce } from "../family/service";
+import { sendFamilyTree } from "../family/treeView";
+import { canAdopt, canPropose, disown, getParents, khulaDivorce, talaqDivorce } from "../family/service";
 import { buildMenuMessage } from "../menu/interactions";
 import { QUEST_SETTINGS, type QuestId } from "../quests/definitions";
 import { progressQuest, toAnnouncer } from "../quests/service";
@@ -37,6 +39,8 @@ const MARRY_TRIGGER = /^تزوج\s+<@!?(\d+)>\s+مهر[:\s]+(\d+)$/i;
 const TALAQ_TRIGGER = /^طلاق(?:\s+<@!?(\d+)>)?$/i;
 const ADOPT_TRIGGER = /^تبن[ىي]\s+<@!?(\d+)>$/i;
 const DISOWN_TRIGGER = /^تبرؤ\s+<@!?(\d+)>$/i;
+/** شجرة العائلة: "شجرة" لشجرتك، أو "شجرة @شخص" لشجرة غيرك */
+const TREE_TRIGGER = /^شجرة(?:\s+<@!?(\d+)>)?$/;
 const RELATION_TRIGGER = /^قرابة\s+<@!?(\d+)>$/i;
 
 const lastCounted = new Map<string, number>();
@@ -56,6 +60,9 @@ const event: BotEvent = {
     const userId = message.author.id;
     const rawContent = message.content ?? "";
 
+    // نشاط بالدردشات الخاصة (يمنع حذفها كخاملة)
+    touchRoom(message.channelId);
+
     // --- تفعيل AFK بكتابة "afk" أو "afk سبب" (بدون سلاش) ---
     const trigger = AFK_TRIGGER.exec(rawContent.trim());
     if (trigger) {
@@ -74,6 +81,12 @@ const event: BotEvent = {
         await message.channel.send({ embeds: [embed] }).catch(() => undefined);
       }
       return; // ما نكمل تتبع مهام على رسالة الأمر نفسها
+    }
+
+    // --- دليل الأوامر: "مساعدة" ---
+    if (/^(مساعدة|مساعده|اوامر|أوامر|help)$/i.test(rawContent.trim())) {
+      await message.channel.send({ ...buildHelpHome(userId, message.guild.name) }).catch(() => undefined);
+      return;
     }
 
     // --- القائمة الرئيسية بكتابة "p" لحالها ---
@@ -189,7 +202,8 @@ const event: BotEvent = {
     }
 
     // --- نظام العائلة: زواج/طلاق/خلع/تبني/تبرؤ/شجرة/قرابة (بدون سلاش) ---
-    const trimmed = rawContent.trim();
+    // نحوّل الأرقام العربية (٠-٩) لإنجليزية حتى يشتغل "مهر ٠" أو "مهر ٥٠٠"
+    const trimmed = rawContent.trim().replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
     const guild = message.guild;
 
     const marryMatch = MARRY_TRIGGER.exec(trimmed);
@@ -240,7 +254,7 @@ const event: BotEvent = {
 
       await message.channel
         .send({
-          content: `💍 <@${userId}> طلب الزواج من ${target} بمهر ${jenny(dowry)} ${CURRENCY.emoji}\n${target}، وافق أو ارفض بالأسفل.`,
+          content: `💍 <@${userId}> طلب الزواج من ${target} ${dowry > 0 ? `بمهر ${jenny(dowry)} ${CURRENCY.emoji}` : "بدون مهر"}\n${target}، وافق أو ارفض بالأسفل.`,
           components: [row],
           allowedMentions: { users: [targetId] },
         })
@@ -386,44 +400,11 @@ const event: BotEvent = {
       return;
     }
 
-    if (trimmed === "شجرة") {
-      const view = await getFamilyView(userId, guildId).catch(() => null);
-      if (!view) {
-        await message.channel.send("❌ تعذّر جلب شجرتك، حاول لاحقاً.").catch(() => undefined);
-        return;
-      }
-
-      const resolveMember = async (id: string) => {
-        const u = await message.client.users.fetch(id).catch(() => null);
-        if (!u) return null;
-        const m = await guild.members.fetch(id).catch(() => null);
-        const gender: Gender = m ? getGender(m) : null;
-        return toFamilyMember({ userId: id }, u.username, u.displayAvatarURL({ size: 128 }), gender);
-      };
-
-      const egoMember = message.member ?? (await guild.members.fetch(userId).catch(() => null));
-      const ego = toFamilyMember(
-        { userId },
-        egoMember?.displayName ?? message.author.username,
-        message.author.displayAvatarURL({ size: 128 }),
-        egoMember ? getGender(egoMember) : null,
-      );
-      const spouses = (await Promise.all(view.spouses.map((s) => resolveMember(s.userId)))).filter((x) => x !== null);
-      const parents = (await Promise.all(view.parents.map((p) => resolveMember(p.userId)))).filter((x) => x !== null);
-      const siblings = (await Promise.all(view.siblings.map((s) => resolveMember(s.userId)))).filter((x) => x !== null);
-      const children = (await Promise.all(view.children.map((c) => resolveMember(c.userId)))).filter((x) => x !== null);
-
-      const buffer = await renderFamilyTree({ ego, spouses, parents, siblings, children }).catch((err) => {
-        logger.error("فشل توليد صورة شجرة العائلة", err);
-        return null;
+    const treeMatch = TREE_TRIGGER.exec(trimmed);
+    if (treeMatch) {
+      await sendFamilyTree(message, treeMatch[1] ?? userId).catch((err) => {
+        logger.error("فشل أمر شجرة العائلة", err);
       });
-
-      if (!buffer) {
-        await message.channel.send("❌ الخط العربي غير مثبت بعد، ما قدرت أرسم الشجرة.").catch(() => undefined);
-        return;
-      }
-
-      await message.channel.send({ files: [{ attachment: buffer, name: "family-tree.png" }] }).catch(() => undefined);
       return;
     }
 
@@ -436,7 +417,8 @@ const event: BotEvent = {
         return;
       }
 
-      const result = await computeRelationship(userId, targetId, guildId).catch(() => null);
+      const targetMember = await guild.members.fetch(targetId).catch(() => null);
+      const result = await computeRelationship(userId, targetId, guildId, targetMember ? getGender(targetMember) : null).catch(() => null);
       if (!result) {
         await message.channel.send("❌ تعذّر فحص القرابة.").catch(() => undefined);
         return;

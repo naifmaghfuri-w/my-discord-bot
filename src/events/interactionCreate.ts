@@ -2,6 +2,9 @@ import { Collection, Events, MessageFlags, type Interaction } from "discord.js";
 import { handleAfkButton, handleAfkModal } from "../afk/interactions";
 import { handleBankButton, handleBankModal } from "../bank/interactions";
 import { handleBirthdayButton, handleBirthdayModal } from "../birthday/interactions";
+import { handleChatButton, handleChatModal, handleChatSelect } from "../chat/interactions";
+import { handleHelpButton } from "../help/interactions";
+import { handleTicketButton, handleTicketModal } from "../tickets/interactions";
 import type { BotClient } from "../client";
 import { handleFamilyButton } from "../family/interactions";
 import { handleLabButton, handleLabSelect } from "../lab/interactions";
@@ -18,6 +21,9 @@ const event: BotEvent = {
     if (interaction.isButton()) {
       try {
         const handled =
+          (await handleHelpButton(interaction)) ||
+          (await handleTicketButton(interaction)) ||
+          (await handleChatButton(interaction)) ||
           (await handleAfkButton(interaction)) ||
           (await handleMenuButton(interaction)) ||
           (await handleBirthdayButton(interaction)) ||
@@ -30,9 +36,10 @@ const event: BotEvent = {
       return;
     }
 
-    if (interaction.isStringSelectMenu()) {
+    if (interaction.isStringSelectMenu() || interaction.isUserSelectMenu()) {
       try {
-        await handleLabSelect(interaction);
+        const handled = await handleChatSelect(interaction);
+        if (!handled && interaction.isStringSelectMenu()) await handleLabSelect(interaction);
       } catch (err) {
         logger.error("خطأ في قائمة منسدلة", err);
       }
@@ -42,7 +49,10 @@ const event: BotEvent = {
     if (interaction.isModalSubmit()) {
       try {
         const handled =
-          (await handleAfkModal(interaction)) || (await handleBankModal(interaction));
+          (await handleTicketModal(interaction)) ||
+          (await handleChatModal(interaction)) ||
+          (await handleAfkModal(interaction)) ||
+          (await handleBankModal(interaction));
         if (!handled) await handleBirthdayModal(interaction);
       } catch (err) {
         logger.error("خطأ في نموذج", err);
