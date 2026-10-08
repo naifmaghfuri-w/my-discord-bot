@@ -4,7 +4,8 @@ import { logTransaction } from "../services/transactions";
 import type { Gender } from "./gender";
 
 export const FAMILY = {
-  minDowry: 1,
+  /** 0 = الزواج المجاني مسموح (مهر 0) */
+  minDowry: 0,
   maxParents: 2,
   maxWivesForMale: 4,
   maxHusbandsForFemale: 1,
@@ -89,8 +90,11 @@ export async function marry(
     return { ok: false, reason: "target_full" };
   }
 
-  await logTransaction(guildId, fromId, "pay_sent", dowry, toId);
-  await logTransaction(guildId, toId, "pay_received", dowry, fromId);
+  // المهر 0 ما نسجله كعملية مالية (ما فيه مبلغ ينتقل)
+  if (dowry > 0) {
+    await logTransaction(guildId, fromId, "pay_sent", dowry, toId);
+    await logTransaction(guildId, toId, "pay_received", dowry, fromId);
+  }
   return { ok: true };
 }
 

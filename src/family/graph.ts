@@ -1,4 +1,5 @@
 import { UserProfile } from "../database/models/UserProfile";
+import type { Gender } from "./gender";
 
 type EdgeType = "up" | "down" | "spouse";
 
@@ -74,10 +75,28 @@ const PATTERNS: Record<string, string> = {
   "spouse,up": "والد/والدة الزوج",
   "spouse,down": "ابن/ابنة الزوج",
   "up,up,down": "العم/الخال أو العمة/الخالة",
-  "down,up,up": "ابن/ابنة الأخ أو الأخت",
+  "up,down,down": "ابن/ابنة الأخ أو الأخت",
   "up,up,down,down": "ابن العم/الخال (أبناء العمومة)",
   "spouse,up,down": "أخ/أخت الزوج",
   "up,spouse,down": "الأخ/الأخت من زوج الوالد",
+};
+
+/** نفس الأنماط لكن بصيغة المذكر/المؤنث حسب جنس الشخص الذي نصفه */
+const GENDERED: Record<string, { male: string; female: string }> = {
+  spouse: { male: "الزوج", female: "الزوجة" },
+  up: { male: "الأب", female: "الأم" },
+  down: { male: "الابن", female: "الابنة" },
+  "up,down": { male: "الأخ", female: "الأخت" },
+  "up,up": { male: "الجد", female: "الجدة" },
+  "down,down": { male: "الحفيد", female: "الحفيدة" },
+  "up,spouse": { male: "زوج الأم", female: "زوجة الأب" },
+  "spouse,up": { male: "أبو الزوج/ة", female: "أم الزوج/ة" },
+  "spouse,down": { male: "ابن الزوج/ة", female: "ابنة الزوج/ة" },
+  "up,up,down": { male: "العم/الخال", female: "العمة/الخالة" },
+  "up,down,down": { male: "ابن الأخ/الأخت", female: "ابنة الأخ/الأخت" },
+  "up,up,down,down": { male: "ابن العم/الخال", female: "ابنة العم/الخال" },
+  "spouse,up,down": { male: "أخو الزوج/ة", female: "أخت الزوج/ة" },
+  "up,spouse,down": { male: "أخ من زوج الوالد", female: "أخت من زوج الوالد" },
 };
 
 export interface RelationshipResult {
@@ -86,11 +105,18 @@ export interface RelationshipResult {
 }
 
 /** يحسب العلاقة بين شخصين ويرجع أقرب تسمية عربية لها */
-export async function computeRelationship(aId: string, bId: string, guildId: string): Promise<RelationshipResult> {
+export async function computeRelationship(
+  aId: string,
+  bId: string,
+  guildId: string,
+  /** جنس b: لو معروف نرجع التسمية بصيغة المذكر/المؤنث (الأب/الأم بدل أحد الوالدين) */
+  gender: Gender = null,
+): Promise<RelationshipResult> {
   const path = await shortestPath(aId, bId, guildId);
   if (path === null) return { label: "غرباء", pathLength: null };
 
   const key = path.join(",");
-  const label = PATTERNS[key] ?? (path.length <= MAX_DEPTH ? "قريب بعيد" : "غرباء");
+  const gendered = gender ? GENDERED[key]?.[gender] : undefined;
+  const label = gendered ?? PATTERNS[key] ?? (path.length <= MAX_DEPTH ? "قريب بعيد" : "غرباء");
   return { label, pathLength: path.length };
 }

@@ -63,7 +63,7 @@ async function finalizeMarriage(interaction: ButtonInteraction, fromId: string, 
   }
 
   await interaction.update({
-    content: `💍 مبروك! <@${fromId}> و<@${toId}> صاروا زوجين (مهر: ${jenny(dowry)}) ${CURRENCY.emoji}`,
+    content: `💍 مبروك! <@${fromId}> و<@${toId}> صاروا زوجين (${dowry > 0 ? `مهر: ${jenny(dowry)} ${CURRENCY.emoji}` : "بدون مهر"})`,
     embeds: [],
     components: [],
   });
