@@ -92,7 +92,7 @@ export async function handleTicketModal(interaction: ModalSubmitInteraction): Pr
     const res = await openTicket(guild, member, subject, details);
     if (res.ok) await interaction.editReply(`🎫 تم فتح تذكرتك: ${res.channel}`);
     else if (res.reason === "has_open") await interaction.editReply(`ℹ️ عندك تذكرة مفتوحة بالفعل: <#${res.existingChannelId}>`);
-    else if (res.reason === "no_config") await interaction.editReply("⚠️ نظام التذاكر ما انضبط بعد. اطلب من الإدارة تشغيل `/ticketpanel`.");
+    else if (res.reason === "no_config") await interaction.editReply("⚠️ نظام التذاكر ما انضبط بعد. اطلب من الإدارة تشغيل `ticketpanel`.");
     else await interaction.editReply("❌ ما قدرت أفتح التذكرة. تأكد من صلاحيات البوت (إدارة القنوات) وأن الكاتيجوري مو ممتلئ.");
   } catch (err) {
     logger.error("خطأ في نموذج التذاكر", err);
