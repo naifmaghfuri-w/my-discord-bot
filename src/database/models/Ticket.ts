@@ -6,6 +6,8 @@ export interface ITicket {
   ownerId: string;
   number: number;
   subject: string;
+  /** نوع التذكرة (التذاكر القديمة بدون نوع تُعتبر help) */
+  type: "help" | "report";
   claimedBy: string | null;
   status: "open" | "closed";
   createdAt: Date;
@@ -19,6 +21,7 @@ const schema = new Schema<ITicket>(
     ownerId: { type: String, required: true },
     number: { type: Number, required: true },
     subject: { type: String, required: true },
+    type: { type: String, enum: ["help", "report"], default: "help" },
     claimedBy: { type: String, default: null },
     status: { type: String, enum: ["open", "closed"], default: "open" },
     closedAt: { type: Date, default: null },
