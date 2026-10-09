@@ -11,7 +11,8 @@ import { Ticket, type ITicket } from "../database/models/Ticket";
 import { TicketConfig } from "../database/models/TicketConfig";
 import { LOG_COLORS, sendLog } from "../logs/logger";
 import { logger } from "../utils/logger";
-import { buildTicketMessage } from "./views";
+import type { TicketType } from "./ids";
+import { buildTicketMessage, ticketNumber, TYPE_EMOJI, TYPE_LABEL, type TicketContent } from "./views";
 
 const ticketChannelIds = new Set<string>();
 
@@ -46,7 +47,8 @@ export type OpenResult =
   | { ok: true; channel: TextChannel; ticket: ITicket }
   | { ok: false; reason: "no_config" | "has_open" | "failed"; existingChannelId?: string };
 
-export async function openTicket(guild: Guild, member: GuildMember, subject: string, details: string): Promise<OpenResult> {
+export async function openTicket(guild: Guild, member: GuildMember, content: TicketContent): Promise<OpenResult> {
+  const { type, subject } = content;
   const config = await getTicketConfig(guild.id);
   if (!config) return { ok: false, reason: "no_config" };
 
@@ -73,12 +75,12 @@ export async function openTicket(guild: Guild, member: GuildMember, subject: str
     if (me) overwrites.push({ id: me.id, allow: [...allow, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ManageMessages] });
 
     const channel = (await guild.channels.create({
-      name: `ticket-${String(number).padStart(4, "0")}`,
+      name: `${type}-${ticketNumber(number)}`,
       type: ChannelType.GuildText,
       parent: config.categoryId,
-      topic: `تذكرة ${member.user.tag} • ${subject}`.slice(0, 1000),
+      topic: `${TYPE_LABEL[type]} • ${member.user.tag} • ${subject}`.slice(0, 1000),
       permissionOverwrites: overwrites,
-      reason: `تذكرة جديدة من ${member.user.tag}`,
+      reason: `New ${type} ticket from ${member.user.tag}`,
     })) as TextChannel;
 
     const ticket = await Ticket.create({
@@ -87,21 +89,22 @@ export async function openTicket(guild: Guild, member: GuildMember, subject: str
       ownerId: member.id,
       number,
       subject,
+      type,
     });
     ticketChannelIds.add(channel.id);
 
-    await channel.send(buildTicketMessage(ticket, details, config.supportRoleId)).catch(() => undefined);
+    await channel.send(buildTicketMessage(ticket, content, config.supportRoleId)).catch(() => undefined);
 
     await sendLog(
       guild,
       new EmbedBuilder()
         .setColor(LOG_COLORS.ticket)
-        .setTitle(`🎫 تذكرة جديدة #${String(number).padStart(4, "0")}`)
-        .setDescription(`**من:** <@${member.id}>\n**العنوان:** ${subject}\n**القناة:** ${channel}`),
+        .setTitle(`${TYPE_EMOJI[type]} New ${TYPE_LABEL[type]} #${ticketNumber(number)}`)
+        .setDescription(`**From:** <@${member.id}>\n**Subject:** ${subject}\n**Channel:** ${channel}`),
     );
     return { ok: true, channel, ticket };
   } catch (err) {
-    logger.error("فشل فتح تذكرة", err);
+    logger.error("Failed to open ticket", err);
     return { ok: false, reason: "failed" };
   }
 }
@@ -114,7 +117,7 @@ export async function claimTicket(ticket: ITicket, staffId: string): Promise<boo
   return !!res;
 }
 
-/** نسخة نصية من محادثة التذكرة (آخر 1000 رسالة) */
+/** Plain-text transcript of the ticket (last 1000 messages) */
 export async function buildTranscript(channel: TextChannel): Promise<Buffer> {
   const all: string[] = [];
   let before: string | undefined;
@@ -127,18 +130,19 @@ export async function buildTranscript(channel: TextChannel): Promise<Buffer> {
       const time = new Date(m.createdTimestamp).toISOString().replace("T", " ").slice(0, 16);
       const parts: string[] = [];
       if (m.content) parts.push(m.content);
-      for (const a of m.attachments.values()) parts.push(`[مرفق] ${a.url}`);
+      for (const a of m.attachments.values()) parts.push(`[attachment] ${a.url}`);
       for (const e of m.embeds) parts.push(`[embed] ${e.title ?? ""} ${e.description ?? ""}`.trim());
-      all.push(`[${time}] ${m.author.tag} (${m.author.id}): ${parts.join(" | ") || "(فارغ)"}`);
+      all.push(`[${time}] ${m.author.tag} (${m.author.id}): ${parts.join(" | ") || "(empty)"}`);
     }
     if (batch.size < 100) break;
   }
-  return Buffer.from(all.reverse().join("\n") || "(لا توجد رسائل)", "utf8");
+  return Buffer.from(all.reverse().join("\n") || "(no messages)", "utf8");
 }
 
 export async function closeTicket(guild: Guild, channel: TextChannel, ticket: ITicket, closedById: string): Promise<void> {
   const transcript = await buildTranscript(channel);
-  const name = `ticket-${String(ticket.number).padStart(4, "0")}.txt`;
+  const type: TicketType = ticket.type ?? "help";
+  const name = `${type}-${ticketNumber(ticket.number)}.txt`;
 
   await Ticket.updateOne({ channelId: ticket.channelId }, { $set: { status: "closed", closedAt: new Date() } });
   ticketChannelIds.delete(ticket.channelId);
@@ -147,9 +151,9 @@ export async function closeTicket(guild: Guild, channel: TextChannel, ticket: IT
     guild,
     new EmbedBuilder()
       .setColor(LOG_COLORS.ticket)
-      .setTitle(`🔒 تذكرة مغلقة #${String(ticket.number).padStart(4, "0")}`)
+      .setTitle(`🔒 ${TYPE_LABEL[type]} closed #${ticketNumber(ticket.number)}`)
       .setDescription(
-        `**صاحبها:** <@${ticket.ownerId}>\n**العنوان:** ${ticket.subject}\n**أغلقها:** <@${closedById}>${ticket.claimedBy ? `\n**استلمها:** <@${ticket.claimedBy}>` : ""}`,
+        `**Owner:** <@${ticket.ownerId}>\n**Subject:** ${ticket.subject}\n**Closed by:** <@${closedById}>${ticket.claimedBy ? `\n**Claimed by:** <@${ticket.claimedBy}>` : ""}`,
       ),
     [{ attachment: transcript, name }],
   );
@@ -157,8 +161,8 @@ export async function closeTicket(guild: Guild, channel: TextChannel, ticket: IT
   // نسخة لصاحب التذكرة بالخاص
   const owner = await guild.client.users.fetch(ticket.ownerId).catch(() => null);
   await owner
-    ?.send({ content: `🔒 تم إغلاق تذكرتك **#${String(ticket.number).padStart(4, "0")}** في **${guild.name}**. هذي نسخة من المحادثة:`, files: [{ attachment: transcript, name }] })
+    ?.send({ content: `🔒 Your ticket **#${ticketNumber(ticket.number)}** in **${guild.name}** has been closed. Here is a transcript of the conversation:`, files: [{ attachment: transcript, name }] })
     .catch(() => undefined);
 
-  await channel.delete(`إغلاق تذكرة #${ticket.number}`).catch(() => undefined);
+  await channel.delete(`Ticket #${ticket.number} closed`).catch(() => undefined);
 }
