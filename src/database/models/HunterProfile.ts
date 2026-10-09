@@ -18,6 +18,12 @@ export interface IHunterProfile {
   fightsToday: number;
   lastTrainAt?: Date | null;
   lastFightAt?: Date | null;
+  license: boolean;
+  /** 0 = ما بدأ، 2 = مرحلة الصيد، 3 = المباراة الأخيرة */
+  examStage: number;
+  lastExamAt?: Date | null;
+  pvpDay: string;
+  pvpToday: number;
 }
 
 const schema = new Schema<IHunterProfile>(
@@ -37,6 +43,11 @@ const schema = new Schema<IHunterProfile>(
     fightsToday: { type: Number, default: 0 },
     lastTrainAt: { type: Date, default: null },
     lastFightAt: { type: Date, default: null },
+    license: { type: Boolean, default: false },
+    examStage: { type: Number, default: 0 },
+    lastExamAt: { type: Date, default: null },
+    pvpDay: { type: String, default: "" },
+    pvpToday: { type: Number, default: 0 },
   },
   { timestamps: true },
 );
