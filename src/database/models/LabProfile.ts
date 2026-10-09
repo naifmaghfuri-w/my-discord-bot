@@ -28,6 +28,19 @@ export interface ILabProfile {
   achievements: string[];
   /** عدد التلميحات المشتراة لكل مركب مجهول: { compoundId: عدد } */
   hinted: Record<string, number>;
+  /** الأجهزة والمعدات: furnace/pump مستوى (1-5)، goggles/gloves/hazmat (1 = مملوكة) */
+  equipment: Record<string, number>;
+  /** تراكم الإشعاع (يتناقص مع الوقت) وآخر تحديث له */
+  radiation: number;
+  radiationAt?: Date | null;
+  /** مصاب بالإشعاع لين هذا الوقت (ما يقدر يتفاعل) */
+  sickUntil?: Date | null;
+  /** طلبات العملاء اليوم: اليوم + المركبات اللي سلّمها */
+  orderDay: string;
+  orderDone: string[];
+  /** رحلة الاستكشاف الحالية */
+  expeditionEndsAt?: Date | null;
+  expeditionHours: number;
 }
 
 const schema = new Schema<ILabProfile>(
@@ -49,6 +62,14 @@ const schema = new Schema<ILabProfile>(
     questDone: { type: [String], default: [] },
     achievements: { type: [String], default: [] },
     hinted: { type: Schema.Types.Mixed, default: {} },
+    equipment: { type: Schema.Types.Mixed, default: {} },
+    radiation: { type: Number, default: 0 },
+    radiationAt: { type: Date, default: null },
+    sickUntil: { type: Date, default: null },
+    orderDay: { type: String, default: "" },
+    orderDone: { type: [String], default: [] },
+    expeditionEndsAt: { type: Date, default: null },
+    expeditionHours: { type: Number, default: 0 },
   },
   { minimize: false },
 );
