@@ -1,98 +1,120 @@
-import { MessageFlags, type ButtonInteraction, type Message, type StringSelectMenuInteraction } from "discord.js";
-import { jenny } from "../constants";
-import { ENEMY_MAP, STAT_INFO, type StatKey } from "./data";
-import type { Action } from "./engine";
-import { HX_DUEL_ACCEPT, HX_DUEL_ACT, HX_DUEL_DECLINE, HX_DUEL_FORFEIT, HX_EXAM, HX_EXAM_GO, HX_ACT, HX_APPLY, HX_CARD, HX_FIGHT_MENU, HX_PICK_ENEMY, HX_RETREAT, HX_TRAIN_MENU, HX_TRAIN_PICK, parseCid } from "./ids";
-import { advanceExam, createHunter, getHunter, playRound, retreat, startFight, trainStat } from "./service";
-import { acceptDuel, createChallenge, declineDuel, duelChoose, duelForfeit } from "./duel";
-import type { IHunterDuel } from "../database/models/HunterDuel";
-import { maxAura } from "./engine";
-import { buildDuelChallenge, buildDuelResult, buildDuelView, buildExamView, buildApplyView, buildCardView, buildEnemyMenu, buildFightView, buildResultView, buildRevealView, buildTrainView, fmtMs } from "./views";
+import {
+  MessageFlags,
+  type ButtonInteraction,
+  type Message,
+  type StringSelectMenuInteraction,
+  type UserSelectMenuInteraction,
+} from "discord.js";
 import { HunterFight } from "../database/models/HunterFight";
+import type { IHunterDuel } from "../database/models/HunterDuel";
+import { CHAR_MAP, ENEMY_MAP, charStats, type Lang, type UpgKey } from "./data";
+import { acceptDuel, createChallenge, declineDuel, duelChoose, duelForfeit } from "./duel";
+import type { Action } from "./engine";
+import {
+  HX_ACT, HX_BOT_MENU, HX_BUY, HX_CHARS, HX_DUEL_ACCEPT, HX_DUEL_ACT, HX_DUEL_DECLINE, HX_DUEL_FORFEIT,
+  HX_FIGHT_MENU, HX_GREED, HX_HUB, HX_LANG, HX_OPTIONS, HX_PICK_ENEMY, HX_PVP_MENU, HX_PVP_PICK,
+  HX_RETREAT, HX_SELECT_CHAR, HX_SHOP, HX_STORY, HX_STORY_GO, HX_UPG, parseCid,
+} from "./ids";
+import { tr, type Key } from "./i18n";
+import {
+  activeCharId, buyChar, ensureHunter, getHunter, langOf, playRound, retreat, setActive, setLang, startFight, startStory, upgOf, upgradeChar,
+} from "./service";
+import {
+  buildBotMenu, buildCharsView, buildDuelChallenge, buildDuelResult, buildDuelView, buildFightMenu, buildFightView, buildHub,
+  buildOptions, buildPvpMenu, buildResultView, buildShopView, buildStory, fmtMs, type View,
+} from "./views";
 
 export const HUNTER_TRIGGER = /^(hunter|هنتر)$/i;
+/** "قتال @شخص [رهان]" / "duel @user [bet]" */
+export const DUEL_TRIGGER = /^(?:قتال|duel|fight)\s+(?:<@!?(\d{15,25})>|(\d{15,25}))(?:\s+(\d{1,9}))?$/i;
 
-const BASES = new Set([HX_EXAM, HX_EXAM_GO, HX_APPLY, HX_CARD, HX_FIGHT_MENU, HX_PICK_ENEMY, HX_ACT, HX_RETREAT, HX_TRAIN_MENU, HX_TRAIN_PICK]);
+const BASES = new Set([
+  HX_HUB, HX_STORY, HX_STORY_GO, HX_GREED, HX_FIGHT_MENU, HX_BOT_MENU, HX_PVP_MENU, HX_CHARS, HX_SHOP, HX_SELECT_CHAR,
+  HX_UPG, HX_BUY, HX_OPTIONS, HX_LANG, HX_ACT, HX_RETREAT,
+]);
+const DUEL_BASES = new Set([HX_DUEL_ACCEPT, HX_DUEL_DECLINE, HX_DUEL_ACT, HX_DUEL_FORFEIT]);
 
-/** "hunter" / "هنتر": يفتح البطاقة أو شاشة التقديم */
+type Comp = ButtonInteraction | StringSelectMenuInteraction | UserSelectMenuInteraction;
+
+/** تعديل الرسالة الحالية: نستبدل المرفقات القديمة بصور الواجهة الجديدة */
+const edit = (i: Comp, view: View) => i.update({ ...view, attachments: [] });
+const nameOf = (i: Comp): string => (i.inCachedGuild() ? i.member.displayName : i.user.username);
+
+/** "hunter" / "هنتر": يفتح القائمة الرئيسية */
 export async function handleHunterMessage(message: Message): Promise<void> {
   if (!message.inGuild()) return;
-  const owner = message.author.id;
-  const p = await getHunter(owner, message.guildId);
-  const view = p ? buildCardView(owner, p, message.member?.displayName ?? message.author.username) : buildApplyView(owner);
-  await message.channel.send(view).catch(() => undefined);
+  const p = await getHunter(message.author.id, message.guildId);
+  await message.channel.send(buildHub(message.author.id, p, langOf(p))).catch(() => undefined);
 }
 
-const nameOf = (i: ButtonInteraction | StringSelectMenuInteraction): string =>
-  (i.inCachedGuild() ? i.member.displayName : i.user.username);
+/* ───────────── المبارزات ───────────── */
 
-async function noHunter(i: ButtonInteraction | StringSelectMenuInteraction, owner: string) {
-  await i.update(buildApplyView(owner));
-}
-
-async function duelView(duel: IHunterDuel) {
-  const [pa, pb] = await Promise.all([getHunter(duel.aId, duel.guildId), getHunter(duel.bId, duel.guildId)]);
-  const ae = pa?.end ?? 10;
-  const be = pb?.end ?? 10;
-  return buildDuelView(duel, ae, be, maxAura(pa?.aura ?? 10), maxAura(pb?.aura ?? 10));
+async function duelView(d: IHunterDuel): Promise<View> {
+  const [pa, pb] = await Promise.all([getHunter(d.aId, d.guildId), getHunter(d.bId, d.guildId)]);
+  const sa = charStats(CHAR_MAP[d.aChar], pa?.level ?? 1, pa ? upgOf(pa, d.aChar) : {});
+  const sb = charStats(CHAR_MAP[d.bChar], pb?.level ?? 1, pb ? upgOf(pb, d.bChar) : {});
+  return buildDuelView(d, sa, sb);
 }
 
 async function handleDuelButton(i: ButtonInteraction, base: string, ownerId: string, extra?: string): Promise<boolean> {
   if (!i.inGuild()) return true;
-  const stale = () => i.reply({ content: "That duel is over or outdated.", flags: MessageFlags.Ephemeral });
+  const stale = (lang: Lang = "en") => i.reply({ content: tr(lang, "d_over"), flags: MessageFlags.Ephemeral });
 
   if (base === HX_DUEL_ACCEPT || base === HX_DUEL_DECLINE) {
     if (!extra) return true;
     if (base === HX_DUEL_ACCEPT) {
       if (i.user.id !== ownerId) {
-        await i.reply({ content: "Only the challenged hunter can accept.", flags: MessageFlags.Ephemeral });
+        await i.reply({ content: tr("en", "d_only_target"), flags: MessageFlags.Ephemeral });
         return true;
       }
       const d = await acceptDuel(extra, i.user.id);
-      if (!d) { await stale(); return true; }
-      await i.update(await duelView(d));
+      if (!d) return (await stale(), true);
+      await edit(i, await duelView(d));
       return true;
     }
     const d = await declineDuel(extra, i.user.id);
-    if (!d) { await stale(); return true; }
-    await i.update({ content: "", embeds: [{ description: `✖️ Duel cancelled by <@${i.user.id}>.`, color: 0x95a5a6 }], components: [], allowedMentions: { parse: [] } });
+    if (!d) return (await stale(), true);
+    await i.update({ content: "", embeds: [{ description: tr(d.lang, "d_cancelled", { u: `<@${i.user.id}>` }), color: 0x95a5a6 }], components: [], attachments: [], allowedMentions: { parse: [] } });
     return true;
   }
 
   if (base === HX_DUEL_FORFEIT) {
     const step = await duelForfeit(extra ?? "", i.user.id);
-    if (step.status !== "ended") { await stale(); return true; }
-    await i.update(buildDuelResult(step.duel, step.log, step.end));
+    if (step.status !== "ended") return (await stale(), true);
+    await edit(i, buildDuelResult(step.duel, step.log, step.end));
     return true;
   }
 
-  // HX_DUEL_ACT: extra = duelId:action:round
   const [duelId, action, roundStr] = (extra ?? "").split(":");
   const step = await duelChoose(duelId, i.user.id, action, Number(roundStr));
-  if (step.status === "stale") {
-    await i.reply({ content: "You already chose, or this panel is outdated.", flags: MessageFlags.Ephemeral });
-  } else if (step.status === "waiting") {
-    await i.reply({ content: `🔒 You chose **${action}**. Waiting for your opponent...`, flags: MessageFlags.Ephemeral });
-  } else if (step.status === "ongoing") {
-    await i.update(await duelView(step.duel));
-  } else {
-    await i.update(buildDuelResult(step.duel, step.log, step.end));
-  }
+  if (step.status === "stale") await i.reply({ content: tr("en", "d_already"), flags: MessageFlags.Ephemeral });
+  else if (step.status === "waiting") {
+    const p = await getHunter(i.user.id, i.guildId);
+    await i.reply({ content: tr(langOf(p), "d_chosen", { a: action }), flags: MessageFlags.Ephemeral });
+  } else if (step.status === "ongoing") await edit(i, await duelView(step.duel));
+  else await edit(i, buildDuelResult(step.duel, step.log, step.end));
   return true;
 }
 
-const DUEL_BASES = new Set([HX_DUEL_ACCEPT, HX_DUEL_DECLINE, HX_DUEL_ACT, HX_DUEL_FORFEIT]);
-
-/** "قتال @شخص [رهان]" / "duel @user [bet]" */
-export const DUEL_TRIGGER = /^(?:قتال|duel|fight)\s+(?:<@!?(\d{15,25})>|(\d{15,25}))(?:\s+(\d{1,9}))?$/i;
+const DUEL_ERR: Record<string, Key> = {
+  self: "pvp_err_self",
+  no_char_a: "pvp_err_nochar_a",
+  no_char_b: "pvp_err_nochar_b",
+  busy: "pvp_err_busy",
+  bet_a: "pvp_err_bet_a",
+  bet_b: "pvp_err_bet_b",
+  bad_bet: "pvp_err_bad_bet",
+};
 
 export async function handleDuelMessage(message: Message, match: RegExpExecArray): Promise<void> {
   if (!message.inGuild()) return;
+  const mine = await getHunter(message.author.id, message.guildId);
+  const lang = langOf(mine);
   const targetId = match[1] ?? match[2];
   const bet = match[3] ? Number(match[3]) : 0;
   const target = await message.guild.members.fetch(targetId).catch(() => null);
   if (!target || target.user.bot) {
-    await message.reply("I can't find that player.").catch(() => undefined);
+    await message.reply(tr(lang, "pvp_not_found")).catch(() => undefined);
     return;
   }
   const r = await createChallenge(
@@ -103,120 +125,175 @@ export async function handleDuelMessage(message: Message, match: RegExpExecArray
     bet,
   );
   if (!r.ok) {
-    const msg: Record<string, string> = {
-      self: "You can't duel yourself.",
-      no_hunter_a: "Create your hunter first: type `hunter`.",
-      no_hunter_b: "That player hasn't become a hunter yet.",
-      busy: "One of you is already in a duel.",
-      bet_a: "You don't have enough Jenny for that bet.",
-      bet_b: "Your opponent doesn't have enough Jenny for that bet.",
-      bad_bet: "Invalid bet amount (max 100,000).",
-    };
-    await message.reply({ content: msg[r.reason], allowedMentions: { parse: [] } }).catch(() => undefined);
+    await message.reply({ content: tr(lang, DUEL_ERR[r.reason]), allowedMentions: { parse: [] } }).catch(() => undefined);
     return;
   }
   await message.channel.send(buildDuelChallenge(r.duel)).catch(() => undefined);
 }
 
+/* ───────────── الأزرار ───────────── */
+
 export async function handleHunterButton(i: ButtonInteraction): Promise<boolean> {
   const { base, ownerId, extra } = parseCid(i.customId);
   if (DUEL_BASES.has(base)) return handleDuelButton(i, base, ownerId, extra);
-  if (!BASES.has(base) || base === HX_PICK_ENEMY || base === HX_TRAIN_PICK) return false;
+  if (!BASES.has(base)) return false;
   if (!i.inGuild()) return true;
   if (i.user.id !== ownerId) {
-    await i.reply({ content: "This isn't your hunter. Type `hunter` to open yours.", flags: MessageFlags.Ephemeral });
+    await i.reply({ content: tr("en", "not_yours"), flags: MessageFlags.Ephemeral });
     return true;
   }
-  const guildId = i.guildId;
   const uid = i.user.id;
+  const guildId = i.guildId;
+  let p = await ensureHunter(uid, guildId);
+  const lang = langOf(p);
+  const name = nameOf(i);
+  const idxOf = (s?: string) => Number(s?.split(":").pop() ?? 0) || 0;
 
-  if (base === HX_APPLY) {
-    const existing = await getHunter(uid, guildId);
-    if (existing) return (await i.update(buildCardView(uid, existing, nameOf(i))), true);
-    const p = await createHunter(uid, guildId);
-    await i.update(buildRevealView(uid, p));
-    return true;
-  }
-
-  const p = await getHunter(uid, guildId);
-  if (!p) return (await noHunter(i, uid), true);
-
-  if (base === HX_EXAM) await i.update(buildExamView(uid, p));
-  else if (base === HX_EXAM_GO) {
-    const r = await advanceExam(uid, guildId);
-    if (!r.ok) {
-      const note =
-        r.reason === "licensed" ? "You already hold a license." :
-        r.reason === "level" ? "You need level 5 to enter the exam." :
-        r.reason === "coins" ? "You can't afford the entry fee." :
-        r.reason === "cooldown" ? `Too tired — retry in ${fmtMs(r.msLeft ?? 0)}.` : "Can't start that stage right now.";
-      await i.update(buildExamView(uid, (await getHunter(uid, guildId)) ?? p, note));
-    } else if (r.kind === "endurance") {
-      const fresh = (await getHunter(uid, guildId)) ?? p;
-      await i.update(buildExamView(uid, fresh, r.passed
-        ? `🏃 Endurance Race passed! (score ${r.score}/${r.need}) On to the Hunt.`
-        : `🏃 You collapsed before the finish... (score ${r.score}/${r.need}). Train and retry later.`));
-    } else {
-      await i.update(buildFightView(uid, p, r.fight, r.enemy, nameOf(i)));
+  switch (base) {
+    case HX_HUB:
+      await edit(i, buildHub(uid, p, lang));
+      break;
+    case HX_STORY:
+      await edit(i, buildStory(uid, p, lang));
+      break;
+    case HX_GREED:
+      await i.reply({ content: tr(lang, "greed_locked"), flags: MessageFlags.Ephemeral });
+      break;
+    case HX_STORY_GO: {
+      const r = await startStory(uid, guildId, Number(extra));
+      if (!r.ok) {
+        const note =
+          r.reason === "locked" ? tr(lang, "story_locked_lvl", { level: r.minLevel ?? 1 }) :
+          r.reason === "cooldown" ? tr(lang, "bot_cooldown", { t: fmtMs(r.msLeft ?? 0) }) : tr(lang, "outdated");
+        await edit(i, buildStory(uid, p, lang, note));
+        break;
+      }
+      await edit(i, buildFightView(uid, p, r.fight, r.enemy, lang, name));
+      break;
     }
-  } else if (base === HX_CARD) await i.update(buildCardView(uid, p, nameOf(i)));
-  else if (base === HX_FIGHT_MENU) {
-    const ongoing = await HunterFight.findOne({ userId: uid, guildId });
-    if (ongoing && ENEMY_MAP[ongoing.enemyId]) await i.update(buildFightView(uid, p, ongoing, ENEMY_MAP[ongoing.enemyId], nameOf(i)));
-    else await i.update(buildEnemyMenu(uid, p));
-  } else if (base === HX_TRAIN_MENU) await i.update(buildTrainView(uid, p));
-  else if (base === HX_RETREAT) {
-    await retreat(uid, guildId);
-    await i.update(buildEnemyMenu(uid, p, "You retreated. No rewards, no penalty."));
-  } else if (base === HX_ACT) {
-    const [act, roundStr] = (extra ?? "").split(":");
-    if (!["attack", "guard", "nen", "dodge"].includes(act)) return true;
-    const res = await playRound(uid, guildId, act as Action, Number(roundStr));
-    if (res.status === "stale") {
-      await i.reply({ content: "That fight panel is outdated. Open `hunter` again.", flags: MessageFlags.Ephemeral });
-    } else if (res.status === "ongoing") {
-      await i.update(buildFightView(uid, p, res.fight, res.enemy, nameOf(i)));
-    } else {
-      await i.update(buildResultView(uid, res.enemy, res.log, res.end));
+    case HX_FIGHT_MENU: {
+      const ongoing = await HunterFight.findOne({ userId: uid, guildId });
+      if (ongoing && ENEMY_MAP[ongoing.enemyId] && CHAR_MAP[ongoing.charId]) {
+        await edit(i, buildFightView(uid, p, ongoing, ENEMY_MAP[ongoing.enemyId], lang, name));
+        break;
+      }
+      await edit(i, buildFightMenu(uid, lang));
+      break;
+    }
+    case HX_BOT_MENU:
+      if (!activeCharId(p)) await edit(i, buildFightMenu(uid, lang, tr(lang, "need_char")));
+      else await edit(i, buildBotMenu(uid, p, lang));
+      break;
+    case HX_PVP_MENU:
+      if (!activeCharId(p)) await edit(i, buildFightMenu(uid, lang, tr(lang, "need_char")));
+      else await edit(i, buildPvpMenu(uid, lang));
+      break;
+    case HX_CHARS:
+      await edit(i, buildCharsView(uid, p, lang, idxOf(extra)));
+      break;
+    case HX_SHOP:
+      await edit(i, buildShopView(uid, p, lang, idxOf(extra)));
+      break;
+    case HX_SELECT_CHAR: {
+      const [charId] = (extra ?? "").split(":");
+      const ok = await setActive(uid, guildId, charId);
+      p = (await getHunter(uid, guildId)) ?? p;
+      await edit(i, buildCharsView(uid, p, lang, idxOf(extra), ok ? tr(lang, "selected", { name: CHAR_MAP[charId]?.name[lang] ?? charId }) : undefined));
+      break;
+    }
+    case HX_UPG: {
+      const [charId, key] = (extra ?? "").split(":");
+      const r = await upgradeChar(uid, guildId, charId, key as UpgKey);
+      p = (await getHunter(uid, guildId)) ?? p;
+      const label = tr(lang, `upg_${key}` as Key);
+      const note = r.ok ? tr(lang, "upg_done", { name: label, lv: r.level }) : r.reason === "coins" ? tr(lang, "upg_coins", { cost: r.cost ?? 0 }) : tr(lang, "upg_fail");
+      await edit(i, buildCharsView(uid, p, lang, idxOf(extra), note));
+      break;
+    }
+    case HX_BUY: {
+      const [charId] = (extra ?? "").split(":");
+      const r = await buyChar(uid, guildId, charId);
+      p = (await getHunter(uid, guildId)) ?? p;
+      const note = r.ok
+        ? tr(lang, "bought", { name: CHAR_MAP[charId].name[lang] })
+        : r.reason === "coins" ? tr(lang, "buy_coins", { price: r.price ?? 0 }) : tr(lang, "buy_owned");
+      await edit(i, buildShopView(uid, p, lang, idxOf(extra), note));
+      break;
+    }
+    case HX_OPTIONS:
+      await edit(i, buildOptions(uid, lang));
+      break;
+    case HX_LANG: {
+      const next: Lang = extra === "ar" ? "ar" : "en";
+      await setLang(uid, guildId, next);
+      await edit(i, buildOptions(uid, next, tr(next, "opt_lang_set")));
+      break;
+    }
+    case HX_RETREAT:
+      await retreat(uid, guildId);
+      await edit(i, buildBotMenu(uid, p, lang, tr(lang, "retreated")));
+      break;
+    case HX_ACT: {
+      const [act, roundStr] = (extra ?? "").split(":");
+      if (!["attack", "guard", "nen", "dodge"].includes(act)) break;
+      const res = await playRound(uid, guildId, act as Action, Number(roundStr));
+      if (res.status === "stale") {
+        await i.reply({ content: tr(lang, "stale_fight"), flags: MessageFlags.Ephemeral });
+      } else if (res.status === "ongoing") {
+        await edit(i, buildFightView(uid, p, res.fight, res.enemy, lang, name));
+      } else {
+        await edit(i, buildResultView(uid, res.enemy, res.charId, res.log, res.end, lang));
+      }
+      break;
     }
   }
   return true;
 }
 
-export async function handleHunterSelect(i: StringSelectMenuInteraction): Promise<boolean> {
+/* ───────────── القوائم المنسدلة ───────────── */
+
+export async function handleHunterSelect(i: StringSelectMenuInteraction | UserSelectMenuInteraction): Promise<boolean> {
   const { base, ownerId } = parseCid(i.customId);
-  if (base !== HX_PICK_ENEMY && base !== HX_TRAIN_PICK) return false;
+  if (base !== HX_PICK_ENEMY && base !== HX_PVP_PICK) return false;
   if (!i.inGuild()) return true;
   if (i.user.id !== ownerId) {
-    await i.reply({ content: "This isn't your hunter. Type `hunter` to open yours.", flags: MessageFlags.Ephemeral });
+    await i.reply({ content: tr("en", "not_yours"), flags: MessageFlags.Ephemeral });
     return true;
   }
   const uid = i.user.id;
   const guildId = i.guildId;
-  const p = await getHunter(uid, guildId);
-  if (!p) return (await noHunter(i, uid), true);
+  const p = await ensureHunter(uid, guildId);
+  const lang = langOf(p);
   const value = i.values[0];
 
   if (base === HX_PICK_ENEMY) {
     const r = await startFight(uid, guildId, value);
     if (!r.ok) {
       const msg =
-        r.reason === "locked" ? (r.license ? "🔒 That opponent requires a Hunter License (pass the exam)." : `🔒 You need level ${r.minLevel} for that opponent.`) :
-        r.reason === "cooldown" ? `⏳ Catch your breath — wait ${fmtMs(r.msLeft ?? 0)}.` : "Unknown opponent.";
-      await i.update(buildEnemyMenu(uid, p, msg));
+        r.reason === "no_char" ? tr(lang, "need_char") :
+        r.reason === "locked" ? (r.license ? tr(lang, "bot_locked_license") : tr(lang, "bot_locked_level", { level: r.minLevel ?? 1 })) :
+        r.reason === "cooldown" ? tr(lang, "bot_cooldown", { t: fmtMs(r.msLeft ?? 0) }) : tr(lang, "bot_unknown");
+      await edit(i, buildBotMenu(uid, p, lang, msg));
       return true;
     }
-    await i.update(buildFightView(uid, p, r.fight, r.enemy, nameOf(i)));
+    await edit(i, buildFightView(uid, p, r.fight, r.enemy, lang, nameOf(i)));
     return true;
   }
 
-  const r = await trainStat(uid, guildId, value as StatKey);
-  let note: string;
-  if (r.ok) note = `${STAT_INFO[r.stat].icon} ${STAT_INFO[r.stat].name} increased to **${r.value}**!`;
-  else if (r.reason === "cooldown") note = `⏳ You're still tired. Train again in ${fmtMs(r.msLeft ?? 0)}.`;
-  else if (r.reason === "coins") note = `You need ${jenny(100)} to train.`;
-  else note = "Create your hunter first.";
-  const fresh = (await getHunter(uid, guildId)) ?? p;
-  await i.update(buildTrainView(uid, fresh, note));
+  // تحدي لاعب من القائمة
+  const target = await i.guild?.members.fetch(value).catch(() => null);
+  if (!target || target.user.bot) {
+    await edit(i, buildPvpMenu(uid, lang, tr(lang, target ? "pvp_err_bot" : "pvp_not_found")));
+    return true;
+  }
+  const r = await createChallenge(guildId, i.channelId ?? "", { id: uid, name: nameOf(i) }, { id: target.id, name: target.displayName }, 0);
+  if (!r.ok) {
+    await edit(i, buildPvpMenu(uid, lang, tr(lang, DUEL_ERR[r.reason])));
+    return true;
+  }
+  const ch = i.channel;
+  if (ch && "send" in ch) await ch.send(buildDuelChallenge(r.duel)).catch(() => undefined);
+  await edit(i, buildPvpMenu(uid, lang, tr(lang, "pvp_sent")));
   return true;
 }
+

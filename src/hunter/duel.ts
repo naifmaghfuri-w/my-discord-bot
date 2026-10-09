@@ -2,8 +2,9 @@ import { HunterDuel, type IHunterDuel } from "../database/models/HunterDuel";
 import { HunterProfile, type IHunterProfile } from "../database/models/HunterProfile";
 import { UserProfile } from "../database/models/UserProfile";
 import { todayKey } from "../quests/time";
-import { grantHunterXp, getHunter, playerFighter } from "./service";
-import { MAX_ROUNDS, maxAura, maxHp, outcomeOf, resolveRound, type Action } from "./engine";
+import { activeCharId, fighterFor, getHunter, grantHunterXp, langOf } from "./service";
+import { tr } from "./i18n";
+import { MAX_ROUNDS, outcomeOf, resolveRound, type Action } from "./engine";
 
 export const DUEL_MAX_BET = 100_000;
 export const DUEL_XP = 40;
@@ -12,7 +13,7 @@ const ACTIONS = ["attack", "guard", "nen", "dodge"];
 
 export type ChallengeResult =
   | { ok: true; duel: IHunterDuel }
-  | { ok: false; reason: "self" | "no_hunter_a" | "no_hunter_b" | "busy" | "bet_a" | "bet_b" | "bad_bet" };
+  | { ok: false; reason: "self" | "no_char_a" | "no_char_b" | "busy" | "bet_a" | "bet_b" | "bad_bet" };
 
 const busyFilter = (guildId: string, id: string) => ({ guildId, $or: [{ aId: id }, { bId: id }] });
 
@@ -26,8 +27,10 @@ export async function createChallenge(
   if (a.id === b.id) return { ok: false, reason: "self" };
   if (!Number.isInteger(bet) || bet < 0 || bet > DUEL_MAX_BET) return { ok: false, reason: "bad_bet" };
   const [pa, pb] = await Promise.all([getHunter(a.id, guildId), getHunter(b.id, guildId)]);
-  if (!pa) return { ok: false, reason: "no_hunter_a" };
-  if (!pb) return { ok: false, reason: "no_hunter_b" };
+  const ca = pa ? activeCharId(pa) : null;
+  const cb = pb ? activeCharId(pb) : null;
+  if (!pa || !ca) return { ok: false, reason: "no_char_a" };
+  if (!pb || !cb) return { ok: false, reason: "no_char_b" };
   if ((await HunterDuel.exists(busyFilter(guildId, a.id))) || (await HunterDuel.exists(busyFilter(guildId, b.id)))) {
     return { ok: false, reason: "busy" };
   }
@@ -39,6 +42,8 @@ export async function createChallenge(
     if ((ua?.coins ?? 0) < bet) return { ok: false, reason: "bet_a" };
     if ((ub?.coins ?? 0) < bet) return { ok: false, reason: "bet_b" };
   }
+  const fa = fighterFor(pa, ca, a.name);
+  const fb = fighterFor(pb, cb, b.name);
   const duel = await HunterDuel.create({
     guildId,
     channelId,
@@ -47,11 +52,14 @@ export async function createChallenge(
     aName: a.name,
     bName: b.name,
     bet,
+    aChar: ca,
+    bChar: cb,
+    lang: langOf(pa),
     status: "pending",
-    aHp: maxHp(pa.end),
-    aAura: maxAura(pa.aura),
-    bHp: maxHp(pb.end),
-    bAura: maxAura(pb.aura),
+    aHp: fa.hp,
+    aAura: fa.aura,
+    bHp: fb.hp,
+    bAura: fb.aura,
   });
   return { ok: true, duel };
 }
@@ -105,8 +113,8 @@ export async function duelChoose(duelId: string, userId: string, action: string,
     await HunterDuel.deleteOne({ _id: duelId });
     return { status: "stale" };
   }
-  const fa = playerFighter(pa, d1.aName, d1.aHp, d1.aAura);
-  const fb = playerFighter(pb, d1.bName, d1.bHp, d1.bAura);
+  const fa = fighterFor(pa, d1.aChar, d1.aName, d1.aHp, d1.aAura);
+  const fb = fighterFor(pb, d1.bChar, d1.bName, d1.bHp, d1.bAura);
   const { log } = resolveRound(fa, fb, d1.aChoice as Action, d1.bChoice as Action);
   const round = roundSeen + 1;
   const outcome = outcomeOf(fa, fb, round);
@@ -132,7 +140,7 @@ export async function duelForfeit(duelId: string, userId: string): Promise<DuelS
   if (!d) return { status: "stale" };
   const winner = d.aId === userId ? d.bId : d.aId;
   const end = await settleDuel(d, winner);
-  return { status: "ended", duel: d, log: [`🏳️ <@${userId}> forfeited the duel.`], end: { ...end, forfeit: true } };
+  return { status: "ended", duel: d, log: [tr(d.lang, "d_forfeited", { u: `<@${userId}>` })], end: { ...end, forfeit: true } };
 }
 
 async function takeCoins(userId: string, guildId: string, want: number): Promise<number> {
