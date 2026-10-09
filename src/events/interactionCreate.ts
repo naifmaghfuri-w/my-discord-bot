@@ -40,7 +40,7 @@ const event: BotEvent = {
 
     if (interaction.isStringSelectMenu() || interaction.isUserSelectMenu()) {
       try {
-        const handled = (await handleChatSelect(interaction)) || (interaction.isStringSelectMenu() && (await handleHunterSelect(interaction)));
+        const handled = (await handleChatSelect(interaction)) || (await handleHunterSelect(interaction));
         if (!handled && interaction.isStringSelectMenu()) await handleLabSelect(interaction);
       } catch (err) {
         logger.error("خطأ في قائمة منسدلة", err);
