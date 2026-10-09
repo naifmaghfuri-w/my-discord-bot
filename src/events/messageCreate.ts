@@ -10,7 +10,7 @@ import { CURRENCY, jenny } from "../constants";
 import { getGender, type Gender } from "../family/gender";
 import { touchRoom } from "../chat/service";
 import { buildHelpHome } from "../help/views";
-import { HUNTER_TRIGGER, handleHunterMessage } from "../hunter/interactions";
+import { DUEL_TRIGGER, HUNTER_TRIGGER, handleDuelMessage, handleHunterMessage } from "../hunter/interactions";
 import { handleCountingMessage } from "../counting/service";
 import { CLEAR_TRIGGER, handleClearMessage } from "../moderation/clearText";
 import { handleTextCommand } from "../handlers/textCommands";
@@ -90,6 +90,13 @@ const event: BotEvent = {
     // --- مسح رسائل: "clear 10" أو "clear 10 @شخص" أو "clear 10 <ايدي>" (بدون سلاش) ---
     const clearTrigger = CLEAR_TRIGGER.exec(rawContent.trim());
     if (clearTrigger && (await handleClearMessage(message, clearTrigger[1]))) return;
+
+    // --- مبارزة لاعبين: "قتال @شخص 500" ---
+    const duelMatch = DUEL_TRIGGER.exec(rawContent.trim());
+    if (duelMatch) {
+      await handleDuelMessage(message, duelMatch);
+      return;
+    }
 
     // --- لعبة هنتر ---
     if (HUNTER_TRIGGER.test(rawContent.trim())) {
