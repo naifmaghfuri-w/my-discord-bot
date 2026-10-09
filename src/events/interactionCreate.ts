@@ -8,6 +8,7 @@ import { handleTicketButton, handleTicketModal } from "../tickets/interactions";
 import type { BotClient } from "../client";
 import { handleFamilyButton } from "../family/interactions";
 import { handleLabButton, handleLabSelect } from "../lab/interactions";
+import { handleHunterButton, handleHunterSelect } from "../hunter/interactions";
 import { handleMenuButton } from "../menu/interactions";
 import type { BotEvent } from "../types";
 import { logger } from "../utils/logger";
@@ -27,6 +28,7 @@ const event: BotEvent = {
           (await handleAfkButton(interaction)) ||
           (await handleMenuButton(interaction)) ||
           (await handleBirthdayButton(interaction)) ||
+          (await handleHunterButton(interaction)) ||
           (await handleBankButton(interaction)) ||
           (await handleFamilyButton(interaction));
         if (!handled) await handleLabButton(interaction);
@@ -38,7 +40,7 @@ const event: BotEvent = {
 
     if (interaction.isStringSelectMenu() || interaction.isUserSelectMenu()) {
       try {
-        const handled = await handleChatSelect(interaction);
+        const handled = (await handleChatSelect(interaction)) || (interaction.isStringSelectMenu() && (await handleHunterSelect(interaction)));
         if (!handled && interaction.isStringSelectMenu()) await handleLabSelect(interaction);
       } catch (err) {
         logger.error("خطأ في قائمة منسدلة", err);

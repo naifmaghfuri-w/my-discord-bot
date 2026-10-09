@@ -10,6 +10,7 @@ import { CURRENCY, jenny } from "../constants";
 import { getGender, type Gender } from "../family/gender";
 import { touchRoom } from "../chat/service";
 import { buildHelpHome } from "../help/views";
+import { HUNTER_TRIGGER, handleHunterMessage } from "../hunter/interactions";
 import { handleCountingMessage } from "../counting/service";
 import { CLEAR_TRIGGER, handleClearMessage } from "../moderation/clearText";
 import { handleTextCommand } from "../handlers/textCommands";
@@ -89,6 +90,12 @@ const event: BotEvent = {
     // --- مسح رسائل: "clear 10" أو "clear 10 @شخص" أو "clear 10 <ايدي>" (بدون سلاش) ---
     const clearTrigger = CLEAR_TRIGGER.exec(rawContent.trim());
     if (clearTrigger && (await handleClearMessage(message, clearTrigger[1]))) return;
+
+    // --- لعبة هنتر ---
+    if (HUNTER_TRIGGER.test(rawContent.trim())) {
+      await handleHunterMessage(message);
+      return;
+    }
 
     // --- باقي الأوامر بالكتابة بدون سلاش: "ban @شخص سبب"، "pay @شخص 100"، "daily"... ---
     if (await handleTextCommand(client, message)) return;
