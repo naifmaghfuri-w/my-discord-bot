@@ -109,6 +109,10 @@ export interface EnemyDef {
   personality: Personality;
   xp: number;
   coins: number;
+  /** خصم اختبار الصياد: مرحلة الاختبار اللي يظهر فيها (مخفي من قائمة القتال) */
+  exam?: 2 | 3;
+  /** يحتاج رخصة صياد */
+  needsLicense?: boolean;
 }
 
 /** كل الأرقام هنا قابلة للتعديل لتوازن اللعبة */
@@ -116,8 +120,10 @@ export const ENEMIES: EnemyDef[] = [
   { id: "wolf", name: "Forest Wolf", icon: "🐺", desc: "A hungry predator from the woods.", minLevel: 1, nen: null, stats: { str: 8, spd: 11, end: 7, aura: 0 }, personality: "wild", xp: 25, coins: 60 },
   { id: "bandit", name: "Swamp Bandit", icon: "🗡️", desc: "A dirty fighter who ambushes travelers.", minLevel: 1, nen: null, stats: { str: 11, spd: 9, end: 10, aura: 0 }, personality: "brute", xp: 35, coins: 90 },
   { id: "hanzo", name: "Hanzo", icon: "🥷", desc: "A shinobi rival met on the road to the exam.", minLevel: 3, nen: "enhancer", stats: { str: 21, spd: 20, end: 18, aura: 10 }, personality: "trickster", xp: 75, coins: 190 },
-  { id: "uvogin", name: "Uvogin", icon: "🦍", desc: "A brawler who fights for the thrill of it.", minLevel: 6, nen: "enhancer", stats: { str: 28, spd: 20, end: 20, aura: 18 }, personality: "brute", xp: 160, coins: 420 },
-  { id: "hisoka", name: "Hisoka", icon: "🃏", desc: "A smiling magician who toys with his prey.", minLevel: 9, nen: "transmuter", stats: { str: 34, spd: 36, end: 25, aura: 38 }, personality: "trickster", xp: 320, coins: 850 },
+  { id: "uvogin", name: "Uvogin", icon: "🦍", desc: "A brawler who fights for the thrill of it.", minLevel: 6, nen: "enhancer", stats: { str: 28, spd: 20, end: 20, aura: 18 }, personality: "brute", xp: 160, coins: 420, needsLicense: true },
+  { id: "hisoka", name: "Hisoka", icon: "🃏", desc: "A smiling magician who toys with his prey.", minLevel: 9, nen: "transmuter", stats: { str: 34, spd: 36, end: 25, aura: 38 }, personality: "trickster", xp: 320, coins: 850, needsLicense: true },
+  { id: "exam_beast", name: "Examination Beast", icon: "🐗", desc: "The Hunt stage: a beast that guards the trail.", minLevel: 1, nen: null, stats: { str: 15, spd: 12, end: 14, aura: 0 }, personality: "wild", xp: 0, coins: 0, exam: 2 },
+  { id: "exam_rival", name: "Exam Rival", icon: "🥋", desc: "The Final Match: another applicant who wants the license too.", minLevel: 1, nen: null, stats: { str: 20, spd: 18, end: 17, aura: 6 }, personality: "trickster", xp: 0, coins: 0, exam: 3 },
 ];
 
 export const ENEMY_MAP: Record<string, EnemyDef> = Object.fromEntries(ENEMIES.map((e) => [e.id, e]));

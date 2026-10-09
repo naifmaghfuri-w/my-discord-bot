@@ -31,6 +31,10 @@ export const FIGHT_COOLDOWN_MS = 15_000;
 export const TRAIN_COOLDOWN_MS = 2 * 60 * 60 * 1000;
 export const TRAIN_COST = 100;
 export const DAILY_REWARDED_FIGHTS = 20;
+export const EXAM_MIN_LEVEL = 5;
+export const EXAM_FEE = 500;
+export const EXAM_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+export const EXAM_REWARD = { xp: 200, coins: 1000 };
 
 export const getHunter = (userId: string, guildId: string) => HunterProfile.findOne({ userId, guildId });
 
@@ -132,13 +136,15 @@ export function enemyFighter(e: EnemyDef, hp?: number, aura?: number): Fighter {
 
 export type StartResult =
   | { ok: true; fight: IHunterFight; enemy: EnemyDef }
-  | { ok: false; reason: "no_hunter" | "unknown" | "locked" | "cooldown"; msLeft?: number; minLevel?: number };
+  | { ok: false; reason: "no_hunter" | "unknown" | "locked" | "cooldown"; msLeft?: number; minLevel?: number; license?: boolean };
 
 export async function startFight(userId: string, guildId: string, enemyId: string): Promise<StartResult> {
   const profile = await getHunter(userId, guildId);
   if (!profile) return { ok: false, reason: "no_hunter" };
   const enemy = ENEMY_MAP[enemyId];
   if (!enemy) return { ok: false, reason: "unknown" };
+  if (enemy.exam && profile.examStage !== enemy.exam) return { ok: false, reason: "unknown" };
+  if (enemy.needsLicense && !profile.license) return { ok: false, reason: "locked", minLevel: enemy.minLevel, license: true };
   if (profile.level < enemy.minLevel) return { ok: false, reason: "locked", minLevel: enemy.minLevel };
 
   const last = profile.lastFightAt ? new Date(profile.lastFightAt).getTime() : 0;
@@ -163,6 +169,7 @@ export interface FightEnd {
   capped: boolean;
   level: number;
   leveledUp: boolean;
+  note?: string;
 }
 
 export type RoundResult =
@@ -208,6 +215,7 @@ async function settleFight(
   enemy: EnemyDef,
   outcome: Exclude<Outcome, "ongoing">,
 ): Promise<FightEnd> {
+  if (enemy.exam) return settleExam(userId, guildId, profile, enemy, outcome);
   const day = todayKey();
   const sameDay = profile.fightDay === day;
   const count = sameDay ? profile.fightsToday : 0;
@@ -234,10 +242,81 @@ async function settleFight(
   return { outcome, xp, coins, capped, level: grant.level, leveledUp: grant.leveledUp };
 }
 
-/** الانسحاب: ينهي القتال بدون عقوبة ولا مكافأة */
+/** الانسحاب: ينهي القتال بدون عقوبة ولا مكافأة (إلا الاختبار: الانسحاب = رسوب) */
 export async function retreat(userId: string, guildId: string): Promise<boolean> {
   const res = await HunterFight.findOneAndDelete({ userId, guildId });
+  if (res && ENEMY_MAP[res.enemyId]?.exam) await failExam(userId, guildId);
   return Boolean(res);
+}
+
+/* ───────────── اختبار الصياد ───────────── */
+
+async function failExam(userId: string, guildId: string): Promise<void> {
+  await HunterProfile.updateOne({ userId, guildId }, { $set: { examStage: 0, lastExamAt: new Date() } });
+}
+
+async function settleExam(
+  userId: string,
+  guildId: string,
+  profile: IHunterProfile,
+  enemy: EnemyDef,
+  outcome: Exclude<Outcome, "ongoing">,
+): Promise<FightEnd> {
+  const base = { xp: 0, coins: 0, capped: false, level: profile.level, leveledUp: false, outcome };
+  if (outcome !== "win") {
+    await failExam(userId, guildId);
+    return { ...base, note: `❌ You failed the exam. You can try again in ${Math.round(EXAM_COOLDOWN_MS / 3_600_000)}h.` };
+  }
+  if (enemy.exam === 2) {
+    await HunterProfile.updateOne({ userId, guildId }, { $set: { examStage: 3 } });
+    return { ...base, note: "✅ **Stage 2 cleared!** On to the Final Match." };
+  }
+  await HunterProfile.updateOne({ userId, guildId }, { $set: { examStage: 0, license: true } });
+  await UserProfile.updateOne({ userId, guildId }, { $inc: { coins: EXAM_REWARD.coins } }, { upsert: true });
+  const grant = await grantHunterXp(userId, guildId, EXAM_REWARD.xp);
+  return {
+    ...base,
+    xp: EXAM_REWARD.xp,
+    coins: EXAM_REWARD.coins,
+    level: grant.level,
+    leveledUp: grant.leveledUp,
+    note: "🎴 **You passed the Hunter Exam!** You are now a licensed Hunter. Tougher opponents are unlocked.",
+  };
+}
+
+export type ExamStart =
+  | { ok: true; kind: "endurance"; passed: boolean; score: number; need: number }
+  | { ok: true; kind: "fight"; fight: IHunterFight; enemy: EnemyDef }
+  | { ok: false; reason: "no_hunter" | "licensed" | "level" | "cooldown" | "coins" | "fight"; msLeft?: number };
+
+/** يبدأ أو يكمل الاختبار حسب المرحلة الحالية */
+export async function advanceExam(userId: string, guildId: string): Promise<ExamStart> {
+  const p = await getHunter(userId, guildId);
+  if (!p) return { ok: false, reason: "no_hunter" };
+  if (p.license) return { ok: false, reason: "licensed" };
+
+  if (p.examStage === 2 || p.examStage === 3) {
+    const r = await startFight(userId, guildId, p.examStage === 2 ? "exam_beast" : "exam_rival");
+    if (!r.ok) return r.reason === "cooldown" ? { ok: false, reason: "cooldown", msLeft: r.msLeft } : { ok: false, reason: "fight" };
+    return { ok: true, kind: "fight", fight: r.fight, enemy: r.enemy };
+  }
+
+  if (p.level < EXAM_MIN_LEVEL) return { ok: false, reason: "level" };
+  const last = p.lastExamAt ? new Date(p.lastExamAt).getTime() : 0;
+  if (Date.now() - last < EXAM_COOLDOWN_MS) return { ok: false, reason: "cooldown", msLeft: EXAM_COOLDOWN_MS - (Date.now() - last) };
+
+  const paid = await UserProfile.findOneAndUpdate({ userId, guildId, coins: { $gte: EXAM_FEE } }, { $inc: { coins: -EXAM_FEE } });
+  if (!paid) return { ok: false, reason: "coins" };
+
+  // المرحلة 1: سباق التحمل (فحص إحصائيات + حظ)
+  const need = 34;
+  const score = p.end + p.spd + Math.floor(Math.random() * 16);
+  const passed = score >= need;
+  await HunterProfile.updateOne(
+    { userId, guildId },
+    passed ? { $set: { examStage: 2 } } : { $set: { examStage: 0, lastExamAt: new Date() } },
+  );
+  return { ok: true, kind: "endurance", passed, score, need };
 }
 
 export const roundsLeft = (round: number): number => Math.max(0, MAX_ROUNDS - round);

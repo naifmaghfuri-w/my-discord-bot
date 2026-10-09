@@ -8,6 +8,13 @@ export const HX_RETREAT = "hx_retreat";
 export const HX_TRAIN_MENU = "hx_trainmenu";
 export const HX_TRAIN_PICK = "hx_trainpick";
 
+export const HX_EXAM = "hx_exam";
+export const HX_EXAM_GO = "hx_examgo";
+export const HX_DUEL_ACCEPT = "hx_duelacc";
+export const HX_DUEL_DECLINE = "hx_dueldec";
+export const HX_DUEL_ACT = "hx_duelact";
+export const HX_DUEL_FORFEIT = "hx_duelff";
+
 export const cid = (base: string, owner: string, extra?: string | number): string =>
   extra === undefined ? `${base}|${owner}` : `${base}|${owner}|${extra}`;
 
