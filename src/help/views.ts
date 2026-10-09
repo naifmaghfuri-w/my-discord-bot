@@ -13,6 +13,18 @@ export interface HelpSection {
 
 export const SECTIONS: HelpSection[] = [
   {
+    id: "hunter",
+    emoji: "🎴",
+    label: "Hunter",
+    style: ButtonStyle.Success,
+    title: "🎴 Hunter x Hunter",
+    lines: [
+      "`hunter` / `هنتر` ← أنشئ صيادك (اختبار الماء) أو افتح بطاقتك",
+      "**Fight:** قاتل بوتات (Attack / Guard / Nen / Dodge) واكسب XP و Jenny",
+      "**Train:** ارفع إحصائياتك بـ 100 Jenny كل ساعتين",
+    ],
+  },
+  {
     id: "lab",
     emoji: "🧪",
     label: "المختبر",
