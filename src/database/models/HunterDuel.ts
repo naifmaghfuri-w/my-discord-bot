@@ -9,6 +9,9 @@ export interface IHunterDuel {
   aName: string;
   bName: string;
   bet: number;
+  aChar: string;
+  bChar: string;
+  lang: "en" | "ar";
   status: "pending" | "active";
   round: number;
   aHp: number;
@@ -29,6 +32,9 @@ const schema = new Schema<IHunterDuel>({
   aName: { type: String, default: "Challenger" },
   bName: { type: String, default: "Opponent" },
   bet: { type: Number, default: 0 },
+  aChar: { type: String, default: "gon" },
+  bChar: { type: String, default: "gon" },
+  lang: { type: String, default: "en" },
   status: { type: String, default: "pending" },
   round: { type: Number, default: 0 },
   aHp: { type: Number, default: 0 },

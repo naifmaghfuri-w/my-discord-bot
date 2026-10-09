@@ -24,6 +24,14 @@ export interface IHunterProfile {
   lastExamAt?: Date | null;
   pvpDay: string;
   pvpToday: number;
+  /** الشخصيات المملوكة والنشطة */
+  chars: string[];
+  active: string;
+  /** تطوير كل شخصية: { gon: { atk, def, dod } } */
+  upg: Record<string, { atk?: number; def?: number; dod?: number }>;
+  /** عدد فصول القصة المكتملة */
+  story: number;
+  lang: "en" | "ar";
 }
 
 const schema = new Schema<IHunterProfile>(
@@ -48,6 +56,11 @@ const schema = new Schema<IHunterProfile>(
     lastExamAt: { type: Date, default: null },
     pvpDay: { type: String, default: "" },
     pvpToday: { type: Number, default: 0 },
+    chars: { type: [String], default: [] },
+    active: { type: String, default: "" },
+    upg: { type: Schema.Types.Mixed, default: {} },
+    story: { type: Number, default: 0 },
+    lang: { type: String, default: "en" },
   },
   { timestamps: true },
 );

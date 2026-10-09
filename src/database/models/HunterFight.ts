@@ -5,6 +5,9 @@ export interface IHunterFight {
   guildId: string;
   userId: string;
   enemyId: string;
+  charId: string;
+  /** رقم فصل القصة (0 = قتال عادي) */
+  story: number;
   hp: number;
   aura: number;
   eHp: number;
@@ -18,6 +21,8 @@ const schema = new Schema<IHunterFight>({
   guildId: { type: String, required: true },
   userId: { type: String, required: true },
   enemyId: { type: String, required: true },
+  charId: { type: String, default: "gon" },
+  story: { type: Number, default: 0 },
   hp: { type: Number, required: true },
   aura: { type: Number, required: true },
   eHp: { type: Number, required: true },
