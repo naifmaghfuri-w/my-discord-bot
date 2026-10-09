@@ -4,6 +4,7 @@ import { LabProfile, type ILabProfile } from "../database/models/LabProfile";
 import { LabSession, type ILabSession } from "../database/models/LabSession";
 import { UserProfile } from "../database/models/UserProfile";
 import { logTransaction } from "../services/transactions";
+import { accidentChance, applyRadiation, sickMinutesLeft, tolerance } from "./workshop";
 
 export async function getLabProfile(userId: string, guildId: string): Promise<ILabProfile> {
   const doc = await LabProfile.findOneAndUpdate(
@@ -169,15 +170,22 @@ export interface ReactionSnapshot {
 }
 
 export type ReactResult =
-  | { ok: true; success: true; compound: CompoundDef; discoveredNow: boolean; xpResult: GrantXpResult; snapshot: ReactionSnapshot }
+  | { ok: true; success: true; compound: CompoundDef; discoveredNow: boolean; xpResult: GrantXpResult; snapshot: ReactionSnapshot; notes: string[] }
   | { ok: true; success: false; kind: "near"; compound: CompoundDef; hints: string[] }
-  | { ok: true; success: false; kind: "fail"; xp: number; waste: number; snapshot: ReactionSnapshot }
-  | { ok: false; reason: "empty_mix" | "missing" };
+  | { ok: true; success: false; kind: "fail"; xp: number; waste: number; snapshot: ReactionSnapshot; notes: string[] }
+  | { ok: true; success: false; kind: "accident"; compound: CompoundDef; xp: number; waste: number; snapshot: ReactionSnapshot; notes: string[] }
+  | { ok: false; reason: "empty_mix" | "missing" | "sick"; minutes?: number };
 
 export async function attemptReaction(userId: string, guildId: string): Promise<ReactResult> {
   const session = await getSession(userId, guildId);
   const mixEntries = Object.entries(session.mix).filter(([, qty]) => qty > 0);
   if (mixEntries.length === 0) return { ok: false, reason: "empty_mix" };
+
+  // مصاب بالإشعاع: المختبر معطّل
+  const gear = await getLabProfile(userId, guildId);
+  const sick = sickMinutesLeft(gear);
+  if (sick > 0) return { ok: false, reason: "sick", minutes: sick };
+  const tol = tolerance(gear);
   const snapshot: ReactionSnapshot = { mix: Object.fromEntries(mixEntries), temp: session.temp, pressure: session.pressure };
 
   const sameIngredients = (c: CompoundDef) => {
@@ -190,8 +198,11 @@ export async function attemptReaction(userId: string, guildId: string): Promise<
 
   // المكونات صح لكن الحرارة/الضغط غلط: نعطي تلميحاً ولا نستهلك شيئاً
   if (candidate) {
-    const [tMin, tMax] = candidate.tempRange;
-    const [pMin, pMax] = candidate.pressureRange;
+    // الفرن والمضخة المطوّرة توسّع هامش الحرارة والضغط المسموح
+    const tMin = candidate.tempRange[0] - tol.temp;
+    const tMax = candidate.tempRange[1] + tol.temp;
+    const pMin = candidate.pressureRange[0] - tol.pressure;
+    const pMax = candidate.pressureRange[1] + tol.pressure;
     const hints: string[] = [];
     if (session.temp < tMin) hints.push("🌡️ الحرارة منخفضة، ارفعها");
     if (session.temp > tMax) hints.push("🌡️ الحرارة عالية، خفّضها");
@@ -215,13 +226,26 @@ export async function attemptReaction(userId: string, guildId: string): Promise<
   }
   await resetSession(userId, guildId);
 
+  // تعرّض للإشعاع لو الخليط فيه مادة مشعة (يحميك منه البدلة)
+  const radiationNote = await applyRadiation(userId, guildId, mixEntries.map(([id]) => id));
+  const notes = radiationNote ? [radiationNote] : [];
+
   if (!candidate) {
     // التجربة الفاشلة ما تروح بدون فايدة: خبرة صغيرة + نفايات كيميائية قابلة لإعادة التدوير
     const waste = Math.max(1, Math.min(3, mixEntries.reduce((a, [, q]) => a + q, 0) - 1));
     await LabProfile.updateOne({ userId, guildId }, { $inc: { "inventory.waste": waste } });
     const xp = 4;
     await grantLabXp(userId, guildId, xp);
-    return { ok: true, success: false, kind: "fail", xp, waste, snapshot };
+    return { ok: true, success: false, kind: "fail", xp, waste, snapshot, notes };
+  }
+
+  // حادث مختبر: التفاعلات الخطرة قد تنفجر، ومعدات السلامة تقلل الاحتمال
+  if (Math.random() < accidentChance(candidate, gear)) {
+    const waste = 1 + Math.floor(Math.random() * 2);
+    const xp = 4;
+    await LabProfile.updateOne({ userId, guildId }, { $inc: { "inventory.waste": waste } });
+    await grantLabXp(userId, guildId, xp);
+    return { ok: true, success: false, kind: "accident", compound: candidate, xp, waste, snapshot, notes };
   }
 
   const profile = await getLabProfile(userId, guildId);
@@ -239,7 +263,7 @@ export async function attemptReaction(userId: string, guildId: string): Promise<
   if (discoveredNow && DISCOVERY_REPUTATION[candidate.rarity]) {
     await LabProfile.updateOne({ userId, guildId }, { $inc: { reputation: DISCOVERY_REPUTATION[candidate.rarity] } });
   }
-  return { ok: true, success: true, compound: candidate, discoveredNow, xpResult, snapshot };
+  return { ok: true, success: true, compound: candidate, discoveredNow, xpResult, snapshot, notes };
 }
 
 export const ARTICLE_REPUTATION = 50;

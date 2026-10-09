@@ -8,6 +8,8 @@ export interface ElementDef {
   unlockCost?: number;
   /** لون السائل في القارورة */
   color: string;
+  /** عنصر مشع: يحتاج بدلة حماية */
+  radioactive?: boolean;
 }
 
 export const ELEMENTS: ElementDef[] = [
@@ -28,6 +30,7 @@ export const ELEMENTS: ElementDef[] = [
   { id: "phosphorus", name: "فوسفور", icon: "🔴", tier: 2, price: 32, unlockCost: 3, color: "#ef4444" },
   { id: "helium", name: "هيليوم", icon: "🎈", tier: 2, price: 45, unlockCost: 5, color: "#f0abfc" },
   { id: "calcium", name: "كالسيوم", icon: "🦴", tier: 2, price: 28, unlockCost: 3, color: "#fde68a" },
+  { id: "uranium", name: "يورانيوم", icon: "☢️", tier: 3, price: 0, color: "#a3e635", radioactive: true },
   { id: "waste", name: "نفايات كيميائية", icon: "☣️", tier: 3, price: 0, color: "#65a30d" },
 ];
 

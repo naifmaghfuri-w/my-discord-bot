@@ -9,6 +9,21 @@ import { CURRENCY, jenny } from "../constants";
 import { nextResetUnix, todayKey } from "../quests/time";
 import { COMPOUND_MAP, COMPOUNDS, RARITY_INFO, type Rarity } from "./compounds";
 import { ELEMENT_MAP, ELEMENTS } from "./elements";
+import { COMPOUND_INFO, ELEMENT_INFO, REALISM_LABEL } from "./info";
+import {
+  GEAR,
+  MAX_LEVEL,
+  UPGRADE_COST,
+  currentRadiation,
+  doneOrders,
+  expeditionState,
+  hasGear,
+  level as equipLevel,
+  ordersForDay,
+  sickMinutesLeft,
+  tolerance,
+  EXPEDITION_HOURS,
+} from "./workshop";
 import {
   BACK,
   CODEX_PAGE,
@@ -19,6 +34,13 @@ import {
   OPEN_HINTS,
   OPEN_QUESTS,
   OPEN_TRADE_HELP,
+  OPEN_EQUIP,
+  EQUIP_BUY_SELECT,
+  OPEN_ORDERS,
+  ORDER_DELIVER_SELECT,
+  OPEN_EXPED,
+  EXPED_START,
+  EXPED_COLLECT,
   OPEN_EXTRA,
   OPEN_LAB,
   LEVELS_UNLOCK_SELECT,
@@ -73,6 +95,14 @@ function bar(value: number, max: number, size = 12): string {
   return "▰".repeat(filled) + "▱".repeat(size - filled);
 }
 
+/** حالة الإشعاع والإصابة تظهر بالمعمل لما تكون موجودة */
+function statusLine(profile: ILabProfile): string {
+  const sick = sickMinutesLeft(profile);
+  if (sick > 0) return `🤒 مصاب بالإشعاع — المختبر معطّل **${sick}** دقيقة`;
+  const rad = currentRadiation(profile);
+  return rad > 0 ? `☢️ الإشعاع: **${rad}/100** ${hasGear(profile, "hazmat") ? "(محمي بالبدلة)" : ""}`.trim() : "";
+}
+
 export async function buildMainPanel(profile: ILabProfile, session: ILabSession, note?: string): Promise<PanelResult> {
   const owner = profile.userId;
   const buffer = await renderFlask(session.mix, session.temp, session.pressure);
@@ -92,6 +122,7 @@ export async function buildMainPanel(profile: ILabProfile, session: ILabSession,
         `**المستوى ${profile.labLevel}** \`${bar(profile.labXp, need)}\` ${profile.labXp}/${need}`,
         `🔬 رموز: **${profile.labTokens}** • ✨ سمعة: **${profile.reputation}**`,
         `🌡️ **${session.temp}°** • 💨 **${session.pressure}** • الخطوة: **${mult === 1 ? "عادية" : "سريعة ×" + mult}**`,
+        statusLine(profile),
         "",
         `**الخليط:** ${mixLines.length ? mixLines.join("، ") : "فاضي، أضف مكونات من القوائم بالأسفل"}`,
       ].join("\n"),
@@ -217,6 +248,9 @@ export function buildExtraPanel(owner: string): PanelResult {
         "🏅 **الإنجازات** — أهداف طويلة المدى",
         "💡 **تلميح** — اكشف جزءاً من وصفة مجهولة",
         "🤝 **تبادل** — بع مركباً للاعب آخر",
+        "🛠️ **الأجهزة** — طوّر الفرن والمضخة واشترِ معدات السلامة",
+        "📋 **الطلبات** — طلبات العملاء اليومية بمكافآت أعلى",
+        "🧭 **الاستكشاف** — أرسل مساعداً يجيب لك عناصر",
       ].join("\n"),
     );
   const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -231,7 +265,12 @@ export function buildExtraPanel(owner: string): PanelResult {
     new ButtonBuilder().setCustomId(cid(OPEN_TRADE_HELP, owner)).setLabel("تبادل").setEmoji("🤝").setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId(cid(BACK, owner)).setLabel("الرئيسية").setEmoji("🏠").setStyle(ButtonStyle.Secondary),
   );
-  return sub(embed, [row1, row2]);
+  const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(cid(OPEN_EQUIP, owner)).setLabel("الأجهزة").setEmoji("🛠️").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(cid(OPEN_ORDERS, owner)).setLabel("الطلبات").setEmoji("📋").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(cid(OPEN_EXPED, owner)).setLabel("الاستكشاف").setEmoji("🧭").setStyle(ButtonStyle.Primary),
+  );
+  return sub(embed, [row1, row2, row3]);
 }
 
 /** كل العروض الفرعية تمسح صورة القارورة وتحدّث الرسالة بدون ملفات */
@@ -241,7 +280,7 @@ function sub(embed: EmbedBuilder, components: Row[], note?: string): PanelResult
 
 export function buildWarehouseView(profile: ILabProfile, coins: number, note?: string): PanelResult {
   const elementLines = ELEMENTS.filter((e) => (profile.inventory[e.id] ?? 0) > 0).map(
-    (e) => `${e.icon} ${e.name} ×**${profile.inventory[e.id]}**`,
+    (e) => `${e.icon} ${e.name}${ELEMENT_INFO[e.id] ? ` (${ELEMENT_INFO[e.id].symbol})` : ""} ×**${profile.inventory[e.id]}**`,
   );
   const compoundLines = COMPOUNDS.filter((c) => (profile.compounds[c.id] ?? 0) > 0).map(
     (c) => `${c.icon} ${c.name} ×**${profile.compounds[c.id]}** — ${RARITY_INFO[c.rarity].name}`,
@@ -278,7 +317,9 @@ export function buildCodexView(profile: ILabProfile, page = 0): PanelResult {
     const recipe = Object.entries(c.recipe)
       .map(([id, q]) => `${ELEMENT_MAP[id]?.name ?? COMPOUND_MAP[id]?.name ?? id}×${q}`)
       .join(" + ");
-    return `${c.icon} **${c.name}**\n┗ ${recipe}\n┗ 🌡️ ${c.tempRange[0]}-${c.tempRange[1]} • 💨 ${c.pressureRange[0]}-${c.pressureRange[1]}`;
+    const info = COMPOUND_INFO[c.id];
+    const infoLine = info ? `\n┗ 🧬 ${info.formula !== "—" ? `\`${info.formula}\` • ` : ""}${info.type} • ${REALISM_LABEL[info.real]}` : "";
+    return `${c.icon} **${c.name}**\n┗ ${recipe}\n┗ 🌡️ ${c.tempRange[0]}-${c.tempRange[1]} • 💨 ${c.pressureRange[0]}-${c.pressureRange[1]}${infoLine}`;
   });
 
   const embed = new EmbedBuilder()
@@ -414,6 +455,14 @@ export async function buildReactSuccessView(
     discoveredNow ? "🆕 أول مرة تكتشفه!" : "✅ صنعته بنجاح",
     `+${compound.xp} XP${leveledUp ? `  🆙 المستوى **${level}** (+${tokensGained} 🔬)` : ""}`,
   ];
+  const info = COMPOUND_INFO[compoundId];
+  if (info) {
+    lines.push(
+      "",
+      `🧬 ${info.formula !== "—" ? `**${info.formula}** • ` : ""}${info.type} • ${REALISM_LABEL[info.real]}`,
+      `📚 ${info.fact}`,
+    );
+  }
   if (compound.rarity === "legendary" && discoveredNow) {
     lines.push("", `📰 مركب نادر جداً! انشر مقالاً علمياً لرفع سمعتك (+${ARTICLE_REPUTATION} ✨).`);
   }
@@ -465,6 +514,148 @@ export function buildReactFailView(owner: string, gif: Buffer | null, xp: number
     components: [backRow(owner, "lab")],
     files: gif ? [{ attachment: gif, name: "react.gif" }] : [],
   };
+}
+
+export function buildAccidentView(owner: string, gif: Buffer | null, compoundId: string, xp: number, waste: number, extraLines: string[] = []): PanelResult {
+  const c = COMPOUND_MAP[compoundId];
+  const lines = [
+    `💥 انفجر الخليط أثناء تحضير **${c?.name ?? "المركب"}**! الظروف صحيحة لكن التفاعل خطير.`,
+    `+${xp} XP • +${waste} ☣️ نفايات`,
+    "_معدات السلامة (نظارات، قفازات، بدلة) تقلل احتمال الحوادث. شوف **الأجهزة**._",
+  ];
+  if (extraLines.length) lines.push("", ...extraLines);
+  const embed = new EmbedBuilder().setColor(0xef4444).setTitle("🚨 حادث مختبر").setDescription(lines.join("\n"));
+  if (gif) embed.setImage("attachment://react.gif");
+  return {
+    content: undefined,
+    embeds: [embed],
+    components: [backRow(owner, "lab")],
+    files: gif ? [{ attachment: gif, name: "react.gif" }] : [],
+  };
+}
+
+/* ───────────── الأجهزة / الطلبات / الاستكشاف ───────────── */
+
+const unixIn = (ms: number) => Math.floor(ms / 1000);
+
+export function buildEquipView(profile: ILabProfile, coins: number, note?: string): PanelResult {
+  const f = equipLevel(profile, "furnace");
+  const p = equipLevel(profile, "pump");
+  const tol = tolerance(profile);
+  const upCost = (lv: number) => (lv >= MAX_LEVEL ? "أعلى مستوى" : jenny(UPGRADE_COST[lv - 1]));
+
+  const gearLines = (Object.keys(GEAR) as (keyof typeof GEAR)[]).map((k) => {
+    const g = GEAR[k];
+    return `${g.icon} **${g.name}** — ${hasGear(profile, k) ? "✅ مملوكة" : jenny(g.price)}\n┗ ${g.desc}`;
+  });
+
+  const embed = new EmbedBuilder()
+    .setColor(0x64748b)
+    .setTitle("🛠️ الأجهزة ومعدات السلامة")
+    .setDescription(
+      [
+        `🔥 **الفرن** مستوى **${f}/${MAX_LEVEL}** — يوسّع هامش الحرارة ±${tol.temp}°\n┗ الترقية: ${upCost(f)}`,
+        `💨 **مضخة الضغط** مستوى **${p}/${MAX_LEVEL}** — ${tol.pressure > 0 ? `يوسّع هامش الضغط ±${tol.pressure}` : "تبدأ تفيد من المستوى 3"}\n┗ الترقية: ${upCost(p)}`,
+        "",
+        "**🦺 معدات السلامة**",
+        ...gearLines,
+        "",
+        "_التفاعلات الخطرة (مثل وقود الصواريخ والثيرمايت) قد تنفجر. المواد المشعة تتطلب بدلة الحماية._",
+        `💼 رصيدك: ${jenny(coins)}`,
+      ].join("\n"),
+    );
+
+  const options: { label: string; value: string; emoji: string; description: string }[] = [];
+  if (f < MAX_LEVEL) options.push({ label: `ترقية الفرن → ${f + 1}`, value: "furnace", emoji: "🔥", description: `${UPGRADE_COST[f - 1]} ${CURRENCY.name}` });
+  if (p < MAX_LEVEL) options.push({ label: `ترقية المضخة → ${p + 1}`, value: "pump", emoji: "💨", description: `${UPGRADE_COST[p - 1]} ${CURRENCY.name}` });
+  for (const k of Object.keys(GEAR) as (keyof typeof GEAR)[]) {
+    if (!hasGear(profile, k)) options.push({ label: GEAR[k].name, value: k, emoji: GEAR[k].icon, description: `${GEAR[k].price} ${CURRENCY.name}` });
+  }
+
+  const rows: Row[] = [];
+  if (options.length) {
+    rows.push(
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder().setCustomId(cid(EQUIP_BUY_SELECT, profile.userId)).setPlaceholder("🛒 اشترِ أو طوّر").addOptions(options),
+      ),
+    );
+  }
+  rows.push(backRow(profile.userId, "extra"));
+  return sub(embed, rows, note);
+}
+
+export function buildOrdersView(profile: ILabProfile, note?: string): PanelResult {
+  const day = todayKey();
+  const orders = ordersForDay(day, profile.userId);
+  const done = doneOrders(profile, day);
+
+  const lines = orders.map((o) => {
+    const c = COMPOUND_MAP[o.compoundId];
+    const have = profile.compounds[o.compoundId] ?? 0;
+    const status = done.includes(o.compoundId) ? "✅ تم التسليم" : `معك ${have}/${o.qty}`;
+    return `${c.icon} **${c.name}** ×${o.qty}\n┗ ${jenny(o.coins)} • +${o.xp} XP • ${status}`;
+  });
+
+  const embed = new EmbedBuilder()
+    .setColor(0x22c55e)
+    .setTitle("📋 طلبات العملاء")
+    .setDescription(
+      [
+        "عملاء اليوم يطلبون مركبات بسعر أعلى من السوق بنحو 40%.",
+        "",
+        ...lines,
+        "",
+        `🔄 تتجدد <t:${nextResetUnix()}:R>`,
+      ].join("\n"),
+    );
+
+  const options = orders
+    .filter((o) => !done.includes(o.compoundId))
+    .map((o) => {
+      const c = COMPOUND_MAP[o.compoundId];
+      return { label: `سلّم ${c.name} ×${o.qty}`, value: o.compoundId, emoji: c.icon, description: `${o.coins} ${CURRENCY.name}` };
+    });
+
+  const rows: Row[] = [];
+  if (options.length) {
+    rows.push(
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder().setCustomId(cid(ORDER_DELIVER_SELECT, profile.userId)).setPlaceholder("📦 سلّم طلباً").addOptions(options),
+      ),
+    );
+  }
+  rows.push(backRow(profile.userId, "extra"));
+  return sub(embed, rows, note);
+}
+
+export function buildExpeditionView(profile: ILabProfile, note?: string): PanelResult {
+  const owner = profile.userId;
+  const st = expeditionState(profile);
+
+  const lines: string[] = [
+    "أرسل مساعداً يجمع لك عناصر أولية. ما تحتاج تبقى متصل، تعال واستلمها لما ينتهي الوقت.",
+    "",
+    "• **ساعة**: عنصران عشوائيان + 50 Jenny",
+    "• **ساعتان**: 4 عناصر + 100 Jenny، وفرصة نادرة لإيجاد **يورانيوم ☢️** من مستوى 8",
+  ];
+  const row = new ActionRowBuilder<ButtonBuilder>();
+
+  if (st.status === "running") {
+    lines.push("", `🧭 المساعد في رحلة (${st.hours} ساعة) — يرجع <t:${unixIn(st.endsAt)}:R>`);
+    row.addComponents(new ButtonBuilder().setCustomId(cid(OPEN_EXPED, owner)).setLabel("تحديث").setEmoji("🔄").setStyle(ButtonStyle.Secondary));
+  } else if (st.status === "ready") {
+    lines.push("", "✅ رجع المساعد! استلم غنائمك.");
+    row.addComponents(new ButtonBuilder().setCustomId(cid(EXPED_COLLECT, owner)).setLabel("استلام الغنائم").setEmoji("🎁").setStyle(ButtonStyle.Success));
+  } else {
+    for (const h of EXPEDITION_HOURS) {
+      row.addComponents(
+        new ButtonBuilder().setCustomId(cid(EXPED_START, owner, h)).setLabel(h === 1 ? "رحلة ساعة" : "رحلة ساعتين").setEmoji("🧭").setStyle(h === 1 ? ButtonStyle.Primary : ButtonStyle.Success),
+      );
+    }
+  }
+
+  const embed = new EmbedBuilder().setColor(0x0ea5e9).setTitle("🧭 رحلات الاستكشاف").setDescription(lines.join("\n"));
+  return sub(embed, [row, backRow(owner, "extra")], note);
 }
 
 /* ───────────── المهام / الإنجازات / التلميحات / التبادل ───────────── */

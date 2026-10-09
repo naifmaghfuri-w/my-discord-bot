@@ -37,6 +37,13 @@ export const OPEN_ACH = "lab_open_ach";
 export const OPEN_HINTS = "lab_open_hints";
 export const HINT_PAGE = "lab_hint_page";
 export const HINT_BUY_SELECT = "lab_hint_buy_select";
+export const OPEN_EQUIP = "lab_open_equip";
+export const EQUIP_BUY_SELECT = "lab_equip_buy_select";
+export const OPEN_ORDERS = "lab_open_orders";
+export const ORDER_DELIVER_SELECT = "lab_order_deliver_select";
+export const OPEN_EXPED = "lab_open_exped";
+export const EXPED_START = "lab_exped_start";
+export const EXPED_COLLECT = "lab_exped_collect";
 export const OPEN_TRADE_HELP = "lab_open_trade_help";
 
 export const TRADE_PICK = "lab_trade_pick";

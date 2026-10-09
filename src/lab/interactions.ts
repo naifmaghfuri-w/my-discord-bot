@@ -14,6 +14,13 @@ import {
   OPEN_HINTS,
   OPEN_QUESTS,
   OPEN_TRADE_HELP,
+  OPEN_EQUIP,
+  EQUIP_BUY_SELECT,
+  OPEN_ORDERS,
+  ORDER_DELIVER_SELECT,
+  OPEN_EXPED,
+  EXPED_START,
+  EXPED_COLLECT,
   TRADE_CANCEL,
   TRADE_NO,
   TRADE_OK,
@@ -46,6 +53,7 @@ import { sellAllCompound, sellCompound } from "./market";
 import { recordEvent } from "./progress";
 import { renderReactionGif } from "./render";
 import { OFFER_TTL_MS, buildOffer, executeTrade } from "./trade";
+import { buyEquipment, collectExpedition, deliverOrder, lootLines, startExpedition } from "./workshop";
 import { COMPOUND_MAP } from "./compounds";
 import { RARITY_INFO } from "./compounds";
 import {
@@ -63,6 +71,10 @@ import {
   unlockElement,
 } from "./service";
 import {
+  buildAccidentView,
+  buildEquipView,
+  buildExpeditionView,
+  buildOrdersView,
   buildArticleEmbed,
   buildCodexView,
   buildAchievementsView,
@@ -214,13 +226,43 @@ export async function handleLabButton(interaction: ButtonInteraction): Promise<b
         await interaction.update(asUpdate(buildLevelsView(await getLabProfile(userId, guildId))));
         return true;
 
+      case OPEN_EQUIP: {
+        const [profile, coins] = await Promise.all([getLabProfile(userId, guildId), coinsOf(userId, guildId)]);
+        await interaction.update(asUpdate(buildEquipView(profile, coins)));
+        return true;
+      }
+
+      case OPEN_ORDERS:
+        await interaction.update(asUpdate(buildOrdersView(await getLabProfile(userId, guildId))));
+        return true;
+
+      case OPEN_EXPED:
+        await interaction.update(asUpdate(buildExpeditionView(await getLabProfile(userId, guildId))));
+        return true;
+
+      case EXPED_START: {
+        const res = await startExpedition(userId, guildId, Number(extra) || 0);
+        const note = res.ok ? "🧭 انطلق المساعد في رحلته!" : "❌ المساعد في رحلة بالفعل.";
+        await interaction.update(asUpdate(buildExpeditionView(await getLabProfile(userId, guildId), note)));
+        return true;
+      }
+
+      case EXPED_COLLECT: {
+        const loot = await collectExpedition(userId, guildId);
+        const note = loot ? `🎁 غنائم الرحلة:\n${lootLines(loot)}` : "⏳ المساعد لسه ما رجع.";
+        await interaction.update(asUpdate(buildExpeditionView(await getLabProfile(userId, guildId), note)));
+        return true;
+      }
+
       case REACT: {
         // توليد الـ GIF قد يأخذ أكثر من 3 ثواني، فنؤجل الرد أولاً
         await interaction.deferUpdate();
         const result = await attemptReaction(userId, guildId);
 
         if (!result.ok) {
-          if (result.reason === "missing") {
+          if (result.reason === "sick") {
+            await interaction.editReply(asUpdate(await renderMain(userId, guildId, `🤒 أنت مصاب بالإشعاع، المختبر معطّل **${result.minutes}** دقيقة. بدلة الحماية تمنع هذا مستقبلاً.`)));
+          } else if (result.reason === "missing") {
             await interaction.editReply(asUpdate(await renderMain(userId, guildId, "❌ مكونات الخليط ما تكفي، جرب تصفير الخليط.")));
           } else {
             await interaction.followUp({ content: "❌ خليطك فاضي، أضف عناصر أول.", flags: MessageFlags.Ephemeral });
@@ -239,7 +281,12 @@ export async function handleLabButton(interaction: ButtonInteraction): Promise<b
             renderReactionGif(result.snapshot.mix, result.snapshot.temp, result.snapshot.pressure, { kind: "fail" }),
             recordEvent(userId, guildId, { type: "experiment_failed" }),
           ]);
-          await interaction.editReply(asUpdate(buildReactFailView(userId, gif, result.xp, result.waste, lines)));
+          const all = [...result.notes, ...lines];
+          const view =
+            result.kind === "accident"
+              ? buildAccidentView(userId, gif, result.compound.id, result.xp, result.waste, all)
+              : buildReactFailView(userId, gif, result.xp, result.waste, all);
+          await interaction.editReply(asUpdate(view));
           return true;
         }
 
@@ -261,7 +308,7 @@ export async function handleLabButton(interaction: ButtonInteraction): Promise<b
           result.xpResult.leveledUp,
           result.xpResult.tokensGained,
           gif,
-          lines,
+          [...result.notes, ...lines],
         );
         await interaction.editReply(asUpdate(view));
         return true;
@@ -421,6 +468,34 @@ export async function handleLabSelect(interaction: StringSelectMenuInteraction):
           ? `💡 تلميح جديد: **${res.clue}** (−${jenny(res.price)}) • باقي ${res.left}`
           : messages[res.reason];
         await interaction.update(asUpdate(buildHintsView(profile, coins, page, note)));
+        return true;
+      }
+
+      case EQUIP_BUY_SELECT: {
+        const res = await buyEquipment(userId, guildId, value);
+        const messages: Record<string, string> = {
+          max: "❌ وصلت أعلى مستوى.",
+          owned: "❌ تملكها بالفعل.",
+          coins: "❌ رصيدك ما يكفي.",
+          unknown: "❌ عنصر غير معروف.",
+        };
+        const note = res.ok ? `✅ ${res.label} (−${jenny(res.spent)})` : messages[res.reason];
+        const [profile, coins] = await Promise.all([getLabProfile(userId, guildId), coinsOf(userId, guildId)]);
+        await interaction.update(asUpdate(buildEquipView(profile, coins, note)));
+        return true;
+      }
+
+      case ORDER_DELIVER_SELECT: {
+        const res = await deliverOrder(userId, guildId, value);
+        const messages: Record<string, string> = {
+          no_order: "❌ هذا مو من طلبات اليوم.",
+          done: "❌ سلّمت هذا الطلب بالفعل.",
+          stock: "❌ ما عندك الكمية المطلوبة من هذا المركب.",
+        };
+        const note = res.ok
+          ? `✅ تم التسليم! +${jenny(res.coins)} • +${res.xp} XP${res.levelUp ? ` • 🆙 المستوى **${res.level}**` : ""}`
+          : messages[res.reason];
+        await interaction.update(asUpdate(buildOrdersView(await getLabProfile(userId, guildId), note)));
         return true;
       }
 
