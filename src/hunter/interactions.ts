@@ -5,7 +5,7 @@ import type { Action } from "./engine";
 import { HX_DUEL_ACCEPT, HX_DUEL_ACT, HX_DUEL_DECLINE, HX_DUEL_FORFEIT, HX_EXAM, HX_EXAM_GO, HX_ACT, HX_APPLY, HX_CARD, HX_FIGHT_MENU, HX_PICK_ENEMY, HX_RETREAT, HX_TRAIN_MENU, HX_TRAIN_PICK, parseCid } from "./ids";
 import { advanceExam, createHunter, getHunter, playRound, retreat, startFight, trainStat } from "./service";
 import { acceptDuel, createChallenge, declineDuel, duelChoose, duelForfeit } from "./duel";
-import { HunterDuel } from "../database/models/HunterDuel";
+import type { IHunterDuel } from "../database/models/HunterDuel";
 import { maxAura } from "./engine";
 import { buildDuelChallenge, buildDuelResult, buildDuelView, buildExamView, buildApplyView, buildCardView, buildEnemyMenu, buildFightView, buildResultView, buildRevealView, buildTrainView, fmtMs } from "./views";
 import { HunterFight } from "../database/models/HunterFight";
@@ -30,7 +30,7 @@ async function noHunter(i: ButtonInteraction | StringSelectMenuInteraction, owne
   await i.update(buildApplyView(owner));
 }
 
-async function duelView(duel: Awaited<ReturnType<typeof HunterDuel.findById>> & object) {
+async function duelView(duel: IHunterDuel) {
   const [pa, pb] = await Promise.all([getHunter(duel.aId, duel.guildId), getHunter(duel.bId, duel.guildId)]);
   const ae = pa?.end ?? 10;
   const be = pb?.end ?? 10;
