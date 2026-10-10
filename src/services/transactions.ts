@@ -26,6 +26,8 @@ const TYPE_LABELS: Record<TransactionType, string> = {
   shop_purchase: "🛒 شراء من المتجر",
   lab_sale: "🧪 بيع مركب بالمختبر",
   lab_purchase: "⚗️ شراء عنصر من المختبر",
+  salary: "💼 راتب وظيفة",
+  job_fee: "📝 رسوم تقديم وظيفة",
 };
 
 export function transactionLabel(type: TransactionType): string {
