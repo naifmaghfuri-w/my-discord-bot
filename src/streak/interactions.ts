@@ -39,7 +39,7 @@ export function buildStreakPanel(owner: string, streak: number, best: number): B
       { label: "اخفاء / اظهار", value: "hide", description: "يخفي او يظهر الستريك في اسمك", emoji: "🙈" },
       { label: "تغيير", value: "sep", description: "يغير ايقونة الفاصلة", emoji: "✨" },
       { label: "توب", value: "top", description: "يظهر اعلى مستعملي الستريك", emoji: "🏆" },
-      { label: "اشعارات", value: "notify", description: "ايقاف او تشغيل 🔥 ورسائل المراحل", emoji: "🔔" },
+      { label: "اشعارات", value: "notify", description: "ايقاف او تشغيل رسائل جوائز المراحل", emoji: "🔔" },
     );
   return { embeds: [embed], components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)] };
 }
