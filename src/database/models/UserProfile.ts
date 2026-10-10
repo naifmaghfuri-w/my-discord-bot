@@ -8,6 +8,11 @@ export interface IUserProfile {
   xp: number;
   level: number;
   lastDaily?: Date;
+  /** شعلة النشاط: أيام متتالية أرسل فيها أي رسالة */
+  streak?: number;
+  bestStreak?: number;
+  /** آخر يوم (بتوقيت الرياض) انحسب فيه الستريك، بصيغة YYYY-MM-DD */
+  lastStreakDay?: string;
   /** آخر مرة لعب فيها عملة صورة أو كتابة (مرة كل 24 ساعة) */
   lastCoinflipAt?: Date;
   /** رصيد البنك (آمن من السرقة، عكس coins اللي هي المحفظة) */
@@ -45,6 +50,9 @@ const schema = new Schema<IUserProfile>(
     xp: { type: Number, default: 0 },
     level: { type: Number, default: 1 },
     lastDaily: { type: Date },
+    streak: { type: Number, default: 0 },
+    bestStreak: { type: Number, default: 0 },
+    lastStreakDay: { type: String },
     lastCoinflipAt: { type: Date },
     bank: { type: Number, default: 0 },
     accountNumber: { type: String },
