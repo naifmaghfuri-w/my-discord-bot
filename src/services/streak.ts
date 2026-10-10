@@ -23,6 +23,9 @@ export interface StreakTick {
   streak: number;
   milestone: number;
   broke: number;
+  sep: string;
+  hidden: boolean;
+  notify: boolean;
 }
 
 /** يُستدعى مع كل رسالة. يرجع نتيجة فقط أول رسالة باليوم. */
@@ -52,7 +55,14 @@ export async function tickStreak(userId: string, guildId: string): Promise<Strea
     const streak = updated.streak ?? 1;
     const milestone = STREAK_MILESTONES[streak] ?? 0;
     if (milestone > 0) await UserProfile.updateOne({ userId, guildId }, { $inc: { coins: milestone } });
-    return { streak, milestone, broke: streak === 1 && before.lastStreakDay && prev > 1 ? prev : 0 };
+    return {
+      streak,
+      milestone,
+      broke: streak === 1 && before.lastStreakDay && prev > 1 ? prev : 0,
+      sep: updated.streakSep || "»",
+      hidden: Boolean(updated.streakHidden),
+      notify: updated.streakNotify !== false,
+    };
   } catch (err) {
     seen.delete(key);
     logger.error(`streak tick failed: ${String(err)}`);
