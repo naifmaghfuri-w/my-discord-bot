@@ -13,6 +13,12 @@ export interface IUserProfile {
   bestStreak?: number;
   /** آخر يوم (بتوقيت الرياض) انحسب فيه الستريك، بصيغة YYYY-MM-DD */
   lastStreakDay?: string;
+  /** يخفي الشعلة من الاسم */
+  streakHidden?: boolean;
+  /** الفاصل بين الاسم والرقم */
+  streakSep?: string;
+  /** false = بدون 🔥 ورسائل المراحل */
+  streakNotify?: boolean;
   /** آخر مرة لعب فيها عملة صورة أو كتابة (مرة كل 24 ساعة) */
   lastCoinflipAt?: Date;
   /** رصيد البنك (آمن من السرقة، عكس coins اللي هي المحفظة) */
@@ -53,6 +59,9 @@ const schema = new Schema<IUserProfile>(
     streak: { type: Number, default: 0 },
     bestStreak: { type: Number, default: 0 },
     lastStreakDay: { type: String },
+    streakHidden: { type: Boolean, default: false },
+    streakSep: { type: String, default: "»" },
+    streakNotify: { type: Boolean, default: true },
     lastCoinflipAt: { type: Date },
     bank: { type: Number, default: 0 },
     accountNumber: { type: String },
