@@ -2,14 +2,100 @@ import type { Message } from "discord.js";
 import { CountingState } from "../database/models/CountingState";
 import { logger } from "../utils/logger";
 
-const CHECK_MARK = "☑️";
+const COUNT_EMOJI = "a:6nice:1527585495125590076";
+const FALLBACK_EMOJI = "☑️";
 
 export type CountResult = "ignored" | "correct" | "wrong";
 
-function parseNumber(text: string): number | null {
-  const t = text.trim().replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
-  return /^\d{1,15}$/.test(t) ? Number(t) : null;
+const MAX_EXPR_LEN = 60;
+const MAX_VALUE = 1e15;
+
+/** يقرأ الرسالة كعملية حسابية آمنة (بدون eval): + - × ÷ ^ ( ) وجذر. يرجع رقم صحيح أو null */
+export function evalCountExpression(text: string): number | null {
+  const src = text
+    .trim()
+    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+    .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
+    .replace(/[×✖xX*]/g, "*")
+    .replace(/[÷:\/]/g, "/")
+    .replace(/[−–—]/g, "-")
+    .replace(/[٫,]/g, ".")
+    .replace(/(جذر|√|sqrt|root)/gi, "√")
+    .replace(/\s+/g, "");
+  if (!src || src.length > MAX_EXPR_LEN || !/\d/.test(src) || !/^[\d.+\-*/^()√]+$/.test(src)) return null;
+
+  let i = 0;
+  const peek = (): string => src[i] ?? "";
+  const fail = (): never => {
+    throw new Error("bad expr");
+  };
+
+  const primary = (): number => {
+    if (peek() === "(") {
+      i++;
+      const v = expr();
+      if (peek() !== ")") fail();
+      i++;
+      return v;
+    }
+    const m = /^\d+(?:\.\d+)?/.exec(src.slice(i));
+    if (!m) return fail();
+    i += m[0].length;
+    return Number(m[0]);
+  };
+  const unary = (): number => {
+    const c = peek();
+    if (c === "-") return (i++, -unary());
+    if (c === "+") return (i++, unary());
+    if (c === "√") {
+      i++;
+      const v = unary();
+      if (v < 0) fail();
+      return Math.sqrt(v);
+    }
+    return primary();
+  };
+  const power = (): number => {
+    const base = unary();
+    if (peek() === "^") {
+      i++;
+      const e = power();
+      if (Math.abs(e) > 64) fail();
+      return base ** e;
+    }
+    return base;
+  };
+  const term = (): number => {
+    let v = power();
+    while (peek() === "*" || peek() === "/") {
+      const op = src[i++];
+      const r = power();
+      if (op === "/" && r === 0) fail();
+      v = op === "*" ? v * r : v / r;
+    }
+    return v;
+  };
+  const expr = (): number => {
+    let v = term();
+    while (peek() === "+" || peek() === "-") {
+      const op = src[i++];
+      const r = term();
+      v = op === "+" ? v + r : v - r;
+    }
+    return v;
+  };
+
+  try {
+    const v = expr();
+    if (i !== src.length || !Number.isFinite(v) || Math.abs(v) > MAX_VALUE) return null;
+    const r = Math.round(v);
+    return Math.abs(v - r) < 1e-9 && r >= 0 ? r : null;
+  } catch {
+    return null;
+  }
 }
+
+const parseNumber = evalCountExpression;
 
 /** أول مرة بدون حالة محفوظة: نكمل من آخر رقم موجود في القناة (لو فيه) */
 async function ensureState(message: Message<true>): Promise<void> {
@@ -37,13 +123,17 @@ async function ensureState(message: Message<true>): Promise<void> {
 
 /**
  * يعالج رسالة في قناة العد.
- * - رقم صحيح (السابق + 1): يضيف ☑️ ويرجع "correct"
+ * - رقم صحيح (السابق + 1) أو عملية حسابية ناتجها الرقم الصحيح: يضيف الإيموجي ويرجع "correct"
  * - رقم غلط أو من نفس الشخص اللي عدّ قبله: تنمسح الرسالة والسلسلة ما تنقطع، ويرجع "wrong"
- * - أي شيء ثاني (مو رقم): "ignored"
+ * - أي شيء ثاني (كلام/ايموجي/ستكر/صورة): يُمسح
  */
 export async function handleCountingMessage(message: Message<true>): Promise<CountResult> {
   const n = parseNumber(message.content);
-  if (n === null) return "ignored";
+  if (n === null) {
+    // أي كلام/ايموجي/ستكر/صورة أو غير رقم صحيح: يُمسح
+    await message.delete().catch(() => undefined);
+    return "wrong";
+  }
 
   try {
     await ensureState(message);
@@ -61,7 +151,7 @@ export async function handleCountingMessage(message: Message<true>): Promise<Cou
       return "wrong";
     }
 
-    await message.react(CHECK_MARK).catch(() => undefined);
+    await message.react(COUNT_EMOJI).catch(() => message.react(FALLBACK_EMOJI).catch(() => undefined));
     return "correct";
   } catch (err) {
     logger.error("خطأ في قناة العد", err);
