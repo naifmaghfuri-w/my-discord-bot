@@ -16,6 +16,9 @@ export interface Fighter {
   stats: Stats;
   hp: number;
   aura: number;
+  /** مهارة خاصة بدون نن (مثل صنارة غون) */
+  special?: boolean;
+  skill?: string;
 }
 
 export type Rng = () => number;
@@ -27,7 +30,7 @@ export function dodgeChance(defSpd: number, attSpd: number): number {
 }
 
 function canNen(f: Fighter): boolean {
-  return f.nen !== null && f.stats.aura > 0 && f.aura >= NEN_COST;
+  return (f.nen !== null || Boolean(f.special)) && f.stats.aura > 0 && f.aura >= NEN_COST;
 }
 
 /** لو اللاعب طلب Nen وما عنده أورا يكفي، يتحول لهجوم عادي */
@@ -74,7 +77,7 @@ function strike(att: Fighter, def: Fighter, act: Action, defAct: Action, rng: Rn
   if (act === "nen") {
     const aff = affinity(att.nen, def.nen);
     raw = (att.stats.aura + att.stats.str * 0.4) * aff * jitter(rng, 0.1);
-    verb = aff > 1 ? "unleashes a **super-effective Nen** attack" : aff < 1 ? "unleashes a resisted Nen attack" : "unleashes a Nen attack";
+    verb = att.skill ? `strikes with **${att.skill}**` : aff > 1 ? "unleashes a **super-effective Nen** attack" : aff < 1 ? "unleashes a resisted Nen attack" : "unleashes a Nen attack";
   } else {
     raw = att.stats.str * jitter(rng, 0.15);
     verb = "strikes";

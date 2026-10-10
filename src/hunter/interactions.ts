@@ -7,20 +7,22 @@ import {
 } from "discord.js";
 import { HunterFight } from "../database/models/HunterFight";
 import type { IHunterDuel } from "../database/models/HunterDuel";
-import { CHAR_MAP, ENEMY_MAP, charStats, type Lang, type UpgKey } from "./data";
+import { CHAPTERS, CHAR_MAP, ENEMY_MAP, charStats, type Lang, type UpgKey } from "./data";
 import { acceptDuel, createChallenge, declineDuel, duelChoose, duelForfeit } from "./duel";
 import type { Action } from "./engine";
 import {
-  HX_ACT, HX_BOT_MENU, HX_BUY, HX_CHARS, HX_DUEL_ACCEPT, HX_DUEL_ACT, HX_DUEL_DECLINE, HX_DUEL_FORFEIT,
+  HX_ACT, HX_FISH, HX_BOT_MENU, HX_BUY, HX_CHARS, HX_DUEL_ACCEPT, HX_DUEL_ACT, HX_DUEL_DECLINE, HX_DUEL_FORFEIT,
   HX_FIGHT_MENU, HX_GREED, HX_HUB, HX_LANG, HX_OPTIONS, HX_PICK_ENEMY, HX_PVP_MENU, HX_PVP_PICK,
   HX_RETREAT, HX_SELECT_CHAR, HX_SHOP, HX_STORY, HX_STORY_GO, HX_UPG, parseCid,
 } from "./ids";
+import { renderFishing } from "./fishingImage";
+import type { FishAction } from "./fishing";
 import { tr, type Key } from "./i18n";
 import {
-  activeCharId, buyChar, ensureHunter, getHunter, langOf, playRound, retreat, setActive, setLang, startFight, startStory, upgOf, upgradeChar,
+  activeCharId, buyChar, ensureHunter, fishRound, startFishing, getHunter, langOf, playRound, retreat, setActive, setLang, startFight, startStory, upgOf, upgradeChar,
 } from "./service";
 import {
-  buildBotMenu, buildCharsView, buildDuelChallenge, buildDuelResult, buildDuelView, buildFightMenu, buildFightView, buildHub,
+  buildBotMenu, buildChapterEnd, buildCharsView, buildFishingFail, buildFishingView, buildDuelChallenge, buildDuelResult, buildDuelView, buildFightMenu, buildFightView, buildHub,
   buildOptions, buildPvpMenu, buildResultView, buildShopView, buildStory, fmtMs, type View,
 } from "./views";
 
@@ -30,7 +32,7 @@ export const DUEL_TRIGGER = /^(?:قتال|duel|fight)\s+(?:<@!?(\d{15,25})>|(\d{
 
 const BASES = new Set([
   HX_HUB, HX_STORY, HX_STORY_GO, HX_GREED, HX_FIGHT_MENU, HX_BOT_MENU, HX_PVP_MENU, HX_CHARS, HX_SHOP, HX_SELECT_CHAR,
-  HX_UPG, HX_BUY, HX_OPTIONS, HX_LANG, HX_ACT, HX_RETREAT,
+  HX_UPG, HX_BUY, HX_OPTIONS, HX_LANG, HX_ACT, HX_RETREAT, HX_FISH,
 ]);
 const DUEL_BASES = new Set([HX_DUEL_ACCEPT, HX_DUEL_DECLINE, HX_DUEL_ACT, HX_DUEL_FORFEIT]);
 
@@ -147,7 +149,7 @@ export async function handleHunterButton(i: ButtonInteraction): Promise<boolean>
   let p = await ensureHunter(uid, guildId);
   const lang = langOf(p);
   const name = nameOf(i);
-  const idxOf = (s?: string) => Number(s?.split(":").pop() ?? 0) || 0;
+  const idxOf = (s?: string) => Number(/(\d+)$/.exec(s ?? "")?.[1] ?? 0) || 0;
 
   switch (base) {
     case HX_HUB:
@@ -160,7 +162,19 @@ export async function handleHunterButton(i: ButtonInteraction): Promise<boolean>
       await i.reply({ content: tr(lang, "greed_locked"), flags: MessageFlags.Ephemeral });
       break;
     case HX_STORY_GO: {
-      const r = await startStory(uid, guildId, Number(extra));
+      const chId = Number(extra);
+      const ch = CHAPTERS.find((c) => c.id === chId);
+      if (ch?.type === "fishing") {
+        const r = await startFishing(uid, guildId, chId);
+        if (!r.ok) {
+          const note = r.reason === "locked" ? tr(lang, "story_locked_lvl", { level: r.minLevel ?? 1 }) : tr(lang, "outdated");
+          await edit(i, buildStory(uid, p, lang, note));
+          break;
+        }
+        await edit(i, buildFishingView(uid, ch, lang, r.state, await renderFishing(r.state.tension, r.state.progress)));
+        break;
+      }
+      const r = await startStory(uid, guildId, chId);
       if (!r.ok) {
         const note =
           r.reason === "locked" ? tr(lang, "story_locked_lvl", { level: r.minLevel ?? 1 }) :
@@ -169,6 +183,23 @@ export async function handleHunterButton(i: ButtonInteraction): Promise<boolean>
         break;
       }
       await edit(i, buildFightView(uid, p, r.fight, r.enemy, lang, name));
+      break;
+    }
+    case HX_FISH: {
+      const [act, roundStr] = (extra ?? "").split(":");
+      if (!["pull", "balance", "relax"].includes(act)) break;
+      const res = await fishRound(uid, guildId, act as FishAction, Number(roundStr));
+      if (res.status === "stale") {
+        await i.reply({ content: tr(lang, "fish_stale"), flags: MessageFlags.Ephemeral });
+      } else if (res.status === "ongoing") {
+        const ch = CHAPTERS.find((c) => c.id === res.state.chapter)!;
+        await edit(i, buildFishingView(uid, ch, lang, res.state, await renderFishing(res.state.tension, res.state.progress)));
+      } else if (res.status === "failed") {
+        await edit(i, buildFishingFail(uid, CHAPTERS.find((c) => c.id === res.chapter)!, lang, res.reason));
+      } else {
+        const ch = res.end.chapter!;
+        await edit(i, buildChapterEnd(uid, ch, res.end, lang, [], ch.image ?? "logo.jpg"));
+      }
       break;
     }
     case HX_FIGHT_MENU: {
@@ -242,7 +273,8 @@ export async function handleHunterButton(i: ButtonInteraction): Promise<boolean>
       } else if (res.status === "ongoing") {
         await edit(i, buildFightView(uid, p, res.fight, res.enemy, lang, name));
       } else {
-        await edit(i, buildResultView(uid, res.enemy, res.charId, res.log, res.end, lang));
+        if (res.end.chapter) await edit(i, buildChapterEnd(uid, res.end.chapter, res.end, lang, res.log, CHAR_MAP[res.charId].image));
+        else await edit(i, buildResultView(uid, res.enemy, res.charId, res.log, res.end, lang));
       }
       break;
     }

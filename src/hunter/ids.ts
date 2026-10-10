@@ -15,6 +15,7 @@ export const HX_UPG = "hx_upg";
 export const HX_BUY = "hx_buy";
 export const HX_OPTIONS = "hx_options";
 export const HX_LANG = "hx_lang";
+export const HX_FISH = "hx_fish";
 export const HX_ACT = "hx_act";
 export const HX_RETREAT = "hx_retreat";
 

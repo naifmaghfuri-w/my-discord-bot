@@ -136,6 +136,23 @@ const EN = {
   d_xp: "+{x} Hunter XP for the winner",
   d_capped: "_Winner hit the daily duel reward limit — no XP._",
   d_forfeited: "🏳️ {u} forfeited the duel.",
+  story_mission: "Mission: {m}",
+  btn_fish: "Fishing",
+  btn_next: "Next",
+  btn_retry: "Try again",
+  fish_status: "🎣 Line tension: **{t}%**  ·  📈 Progress: **{p}%**",
+  fish_thrash: "The fish is thrashing wildly! Ease off the line!",
+  fish_steady: "The fish swims steadily.",
+  fish_tired: "The fish is tiring — reel it in!",
+  fish_pull: "Pull",
+  fish_balance: "Balanced",
+  fish_relax: "Relax",
+  fish_footer: "Turn {r}/{max}",
+  fish_snapped: "💥 The line snapped! The fish got away.",
+  fish_escaped: "😮‍💨 The fish wore you out and escaped.",
+  fish_stale: "That fishing panel is outdated. Open `hunter` again.",
+  btn_skill: "Skill",
+  nen_none_skill: "No Nen yet · {icon} {skill}",
 } as const;
 
 export type Key = keyof typeof EN;
@@ -276,6 +293,23 @@ const AR: Record<Key, string> = {
   d_xp: "+{x} خبرة صياد للفائز",
   d_capped: "_الفائز وصل حد مكافآت المبارزات اليومي — بدون خبرة._",
   d_forfeited: "🏳️ {u} استسلم من المبارزة.",
+  story_mission: "مهمة: {m}",
+  btn_fish: "صيد",
+  btn_next: "التالي",
+  btn_retry: "حاول مرة أخرى",
+  fish_status: "🎣 توتر الخيط: **{t}%**  ·  📈 التقدم: **{p}%**",
+  fish_thrash: "السمكة تتخبط بعنف! أرخِ الخيط!",
+  fish_steady: "السمكة تسبح بثبات.",
+  fish_tired: "السمكة تعبت — اسحبها!",
+  fish_pull: "شد",
+  fish_balance: "متوازن",
+  fish_relax: "ارخاء",
+  fish_footer: "الدور {r}/{max}",
+  fish_snapped: "💥 انقطع الخيط! هربت السمكة.",
+  fish_escaped: "😮‍💨 السمكة أنهكتك وهربت.",
+  fish_stale: "لوحة الصيد هذي قديمة. افتح `hunter` من جديد.",
+  btn_skill: "مهارة",
+  nen_none_skill: "بدون نن بعد · {icon} {skill}",
 };
 
 const ENEMY_AR: Record<string, string> = {
@@ -287,6 +321,7 @@ const ENEMY_AR: Record<string, string> = {
   brawler: "مقاتل الساحة",
   exam_beast: "وحش الاختبار",
   exam_rival: "منافس الاختبار",
+  rookie_crusher: "محطّم المبتدئين",
 };
 const RANK_AR: Record<string, string> = {
   Applicant: "متقدم",

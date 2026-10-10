@@ -15,15 +15,14 @@ import type { IHunterFight } from "../database/models/HunterFight";
 import type { IHunterProfile } from "../database/models/HunterProfile";
 import {
   CHAPTERS,
+  type Chapter,
   CHARS,
   CHAR_MAP,
   ENEMIES,
-  ENEMY_MAP,
   NEN,
   SHOP_CHARS,
   STAT_INFO,
   STAT_KEYS,
-  STORY_LENGTH,
   UPG_KEYS,
   UPG_MAX,
   charStats,
@@ -36,11 +35,13 @@ import {
 } from "./data";
 import { MAX_ROUNDS, NEN_COST, maxAura, maxHp } from "./engine";
 import {
-  HX_ACT, HX_BOT_MENU, HX_BUY, HX_CHARS, HX_DUEL_ACCEPT, HX_DUEL_ACT, HX_DUEL_DECLINE, HX_DUEL_FORFEIT,
+  HX_ACT, HX_FISH, HX_BOT_MENU, HX_BUY, HX_CHARS, HX_DUEL_ACCEPT, HX_DUEL_ACT, HX_DUEL_DECLINE, HX_DUEL_FORFEIT,
   HX_FIGHT_MENU, HX_GREED, HX_HUB, HX_LANG, HX_OPTIONS, HX_PICK_ENEMY, HX_PVP_MENU, HX_PVP_PICK,
   HX_RETREAT, HX_SELECT_CHAR, HX_SHOP, HX_STORY, HX_STORY_GO, HX_UPG, cid,
 } from "./ids";
 import { enemyName, rankName, tr, type Key } from "./i18n";
+import type { FishMood } from "./fishing";
+import { FISH_MAX_ROUNDS } from "./fishing";
 import { DAILY_REWARDED_FIGHTS, activeCharId, upgOf, type FightEnd } from "./service";
 import type { DuelEnd } from "./duel";
 
@@ -91,7 +92,7 @@ export function buildHub(owner: string, p: IHunterProfile | null, lang: Lang): V
         btn(cid(HX_FIGHT_MENU, owner), tr(lang, "btn_fight"), ButtonStyle.Danger, "⚔️"),
       ),
       row(
-        btn(cid(HX_SHOP, owner, 0), tr(lang, "btn_shop"), ButtonStyle.Primary, "🛒"),
+        btn(cid(HX_SHOP, owner, "R0"), tr(lang, "btn_shop"), ButtonStyle.Primary, "🛒"),
         btn(cid(HX_OPTIONS, owner), tr(lang, "btn_options"), ButtonStyle.Secondary, "⚙️"),
       ),
     ],
@@ -100,32 +101,100 @@ export function buildHub(owner: string, p: IHunterProfile | null, lang: Lang): V
 
 /* ───────────── القصة ───────────── */
 
+export const GON_EMOJI = "<:Gon:1558228812414722159>";
+
 export function buildStory(owner: string, p: IHunterProfile, lang: Lang, note?: string): View {
   const next = CHAPTERS.find((c) => c.id === p.story + 1);
+  const rows: ActionRowBuilder<ButtonBuilder>[] = [];
   const lines: string[] = [];
   if (note) lines.push(note, "");
-  lines.push(tr(lang, "story_progress", { done: p.story, total: STORY_LENGTH }));
-  const rows: ActionRowBuilder<ButtonBuilder>[] = [];
   let image = "logo.jpg";
   if (next) {
-    const e = ENEMY_MAP[next.enemyId];
-    const extra = (next.unlock ? tr(lang, "story_unlock", { name: cName(CHAR_MAP[next.unlock], lang) }) : "") + (next.license ? tr(lang, "story_license") : "");
-    lines.push(
-      "",
-      `**${tr(lang, "story_chapter", { n: next.id, title: next.title[lang] })}**`,
-      `_${next.story[lang]}_`,
-      "",
-      tr(lang, "story_enemy", { enemy: `${e.icon} ${enemyName(lang, e.id, e.name)}`, level: next.minLevel }),
-      tr(lang, "story_reward", { xp: next.xp, coins: next.coins, extra }),
-    );
+    lines.push(`**${tr(lang, "story_chapter", { n: next.id, title: next.title[lang] })}**`, tr(lang, "story_mission", { m: next.mission[lang] }));
     const locked = p.level < next.minLevel;
     if (locked) lines.push("", tr(lang, "story_locked_lvl", { level: next.minLevel }));
-    if (next.unlock) image = CHAR_MAP[next.unlock].image;
-    rows.push(row(btn(cid(HX_STORY_GO, owner, next.id), tr(lang, "story_start", { n: next.id }), ButtonStyle.Success, "▶️", locked)));
-  } else lines.push("", tr(lang, "story_done"));
+    image = next.image ?? (next.unlock ? CHAR_MAP[next.unlock].image : "logo.jpg");
+    const go = next.type === "fishing"
+      ? btn(cid(HX_STORY_GO, owner, next.id), tr(lang, "btn_fish"), ButtonStyle.Success, GON_EMOJI, locked)
+      : btn(cid(HX_STORY_GO, owner, next.id), tr(lang, "btn_fight"), ButtonStyle.Danger, "⚔️", locked);
+    rows.push(row(go));
+  } else lines.push(tr(lang, "story_done"));
   rows.push(backRow(owner, lang));
-  const embed = new EmbedBuilder().setColor(0x9b59b6).setTitle(tr(lang, "story_title")).setDescription(lines.join("\n")).setImage(`attachment://${image}`);
+  const embed = new EmbedBuilder().setColor(0x9b59b6).setDescription(lines.join("\n")).setImage(`attachment://${image}`);
   return { embeds: [embed], files: [file(image)], components: rows };
+}
+
+/* ───────────── صيد السمكة ───────────── */
+
+const MOOD_KEY: Record<FishMood, Key> = { thrash: "fish_thrash", steady: "fish_steady", tired: "fish_tired" };
+
+export function buildFishingView(
+  owner: string,
+  ch: Chapter,
+  lang: Lang,
+  s: { tension: number; progress: number; round: number; mood: FishMood },
+  image: Buffer | null,
+): View {
+  const embed = new EmbedBuilder()
+    .setColor(0x1abc9c)
+    .setTitle(`🎣 ${ch.mission[lang]}`)
+    .setDescription(`${tr(lang, MOOD_KEY[s.mood])}\n\n${tr(lang, "fish_status", { t: Math.round(s.tension), p: Math.round(s.progress) })}`)
+    .setFooter({ text: tr(lang, "fish_footer", { r: s.round + 1, max: FISH_MAX_ROUNDS }) });
+  const files = [];
+  if (image) {
+    files.push(new AttachmentBuilder(image, { name: "fishing.png" }));
+    embed.setImage("attachment://fishing.png");
+  }
+  const r = s.round;
+  return {
+    embeds: [embed],
+    files,
+    components: [
+      row(
+        btn(cid(HX_FISH, owner, `pull:${r}`), tr(lang, "fish_pull"), ButtonStyle.Danger, "🔴"),
+        btn(cid(HX_FISH, owner, `balance:${r}`), tr(lang, "fish_balance"), ButtonStyle.Primary, "🟡"),
+        btn(cid(HX_FISH, owner, `relax:${r}`), tr(lang, "fish_relax"), ButtonStyle.Success, "🟢"),
+      ),
+    ],
+  };
+}
+
+export function buildFishingFail(owner: string, ch: Chapter, lang: Lang, reason: "snapped" | "escaped"): View {
+  const embed = new EmbedBuilder()
+    .setColor(0xe74c3c)
+    .setTitle(`🎣 ${ch.mission[lang]}`)
+    .setDescription(tr(lang, reason === "snapped" ? "fish_snapped" : "fish_escaped"))
+    .setImage(`attachment://${ch.image ?? "logo.jpg"}`);
+  return {
+    embeds: [embed],
+    files: [file(ch.image ?? "logo.jpg")],
+    components: [row(btn(cid(HX_STORY, owner), tr(lang, "btn_retry"), ButtonStyle.Success, "🔁"), btn(cid(HX_HUB, owner), tr(lang, "btn_back"), ButtonStyle.Secondary, "↩️"))],
+  };
+}
+
+/** نهاية فصل (نجاح/فشل): ماذا حصل، الجوائز، الشخصية المفتوحة، ثم زر التالي */
+export function buildChapterEnd(owner: string, ch: Chapter, end: FightEnd, lang: Lang, log: string[], image: string): View {
+  const win = end.outcome === "win";
+  const parts: string[] = [];
+  if (log.length) parts.push(log.join("\n"), "");
+  if (win) {
+    parts.push(`${tr(lang, "story_cleared", { n: ch.id })}`, ch.outro[lang], "");
+    if (end.cleared) {
+      parts.push(tr(lang, "story_reward", { xp: end.xp, coins: end.coins, extra: "" }));
+      if (end.leveledUp) parts.push(tr(lang, "r_level", { lv: end.level }));
+      if (end.unlocked) parts.push(tr(lang, "story_unlocked", { name: cName(CHAR_MAP[end.unlocked], lang) }));
+      if (end.license) parts.push(tr(lang, "story_license_got"));
+    }
+  } else parts.push(end.outcome === "loss" ? tr(lang, "r_loss") : tr(lang, "r_draw"));
+  const unlockedImg = end.unlocked ? CHAR_MAP[end.unlocked].image : image;
+  const embed = new EmbedBuilder()
+    .setColor(win ? 0x2ecc71 : 0xe74c3c)
+    .setDescription(parts.join("\n"))
+    .setImage(`attachment://${unlockedImg}`);
+  const nextRow = win
+    ? row(btn(cid(HX_STORY, owner), tr(lang, "btn_next"), ButtonStyle.Success, "➡️"))
+    : row(btn(cid(HX_STORY, owner), tr(lang, "btn_retry"), ButtonStyle.Success, "🔁"), btn(cid(HX_HUB, owner), tr(lang, "btn_back"), ButtonStyle.Secondary, "↩️"));
+  return { embeds: [embed], files: [file(unlockedImg)], components: [nextRow] };
 }
 
 /* ───────────── قائمة القتال ───────────── */
@@ -139,7 +208,7 @@ export function buildFightMenu(owner: string, lang: Lang, note?: string): View {
       row(
         btn(cid(HX_BOT_MENU, owner), tr(lang, "btn_bot"), ButtonStyle.Danger, "🤖"),
         btn(cid(HX_PVP_MENU, owner), tr(lang, "btn_pvp"), ButtonStyle.Danger, "🥊"),
-        btn(cid(HX_CHARS, owner, 0), tr(lang, "btn_chars"), ButtonStyle.Primary, "🧑‍🤝‍🧑"),
+        btn(cid(HX_CHARS, owner, "R0"), tr(lang, "btn_chars"), ButtonStyle.Primary, "🧑‍🤝‍🧑"),
       ),
       backRow(owner, lang),
     ],
@@ -147,7 +216,7 @@ export function buildFightMenu(owner: string, lang: Lang, note?: string): View {
 }
 
 export function buildBotMenu(owner: string, p: IHunterProfile, lang: Lang, note?: string): View {
-  const list = ENEMIES.filter((e) => !e.exam);
+  const list = ENEMIES.filter((e) => !e.exam && !e.storyOnly);
   const lockedFor = (e: EnemyDef) => p.level < e.minLevel || (Boolean(e.needsLicense) && !p.license);
   const lines = list
     .map((e) => {
@@ -197,6 +266,7 @@ function charStatsText(c: CharDef, p: IHunterProfile, lang: Lang): string {
 }
 
 function nenText(c: CharDef, lang: Lang): string {
+  if (c.special) return tr(lang, "nen_none_skill", { icon: c.special.icon, skill: c.special.name[lang] });
   return c.nen ? `${NEN[c.nen].icon} ${NEN[c.nen].name}` : tr(lang, "nen_none");
 }
 
@@ -235,9 +305,9 @@ export function buildCharsView(owner: string, p: IHunterProfile, lang: Lang, idx
     files: [file(c.image)],
     components: [
       row(
-        btn(cid(HX_CHARS, owner, wrap(i - 1, owned.length)), "◀", ButtonStyle.Secondary),
+        btn(cid(HX_CHARS, owner, `L${wrap(i - 1, owned.length)}`), "◀", ButtonStyle.Secondary),
         btn(cid(HX_SELECT_CHAR, owner, `${c.id}:${i}`), tr(lang, "btn_select"), ButtonStyle.Success, "✅", isActive),
-        btn(cid(HX_CHARS, owner, wrap(i + 1, owned.length)), "▶", ButtonStyle.Secondary),
+        btn(cid(HX_CHARS, owner, `R${wrap(i + 1, owned.length)}`), "▶", ButtonStyle.Secondary),
       ),
       upgRow,
       backRow(owner, lang, HX_FIGHT_MENU),
@@ -268,9 +338,9 @@ export function buildShopView(owner: string, p: IHunterProfile, lang: Lang, idx:
     files: [file(c.image)],
     components: [
       row(
-        btn(cid(HX_SHOP, owner, wrap(i - 1, SHOP_CHARS.length)), "◀", ButtonStyle.Secondary),
+        btn(cid(HX_SHOP, owner, `L${wrap(i - 1, SHOP_CHARS.length)}`), "◀", ButtonStyle.Secondary),
         btn(cid(HX_BUY, owner, `${c.id}:${i}`), owned ? tr(lang, "shop_owned") : tr(lang, "btn_buy", { price }), ButtonStyle.Success, "🛒", owned),
-        btn(cid(HX_SHOP, owner, wrap(i + 1, SHOP_CHARS.length)), "▶", ButtonStyle.Secondary),
+        btn(cid(HX_SHOP, owner, `R${wrap(i + 1, SHOP_CHARS.length)}`), "▶", ButtonStyle.Secondary),
       ),
       backRow(owner, lang),
     ],
@@ -303,7 +373,7 @@ export function buildFightView(owner: string, p: IHunterProfile, fight: IHunterF
   const pAura = maxAura(s.aura);
   const eMax = maxHp(enemy.stats.end);
   const eAuraMax = maxAura(enemy.stats.aura);
-  const canNen = c.nen !== null && s.aura > 0 && fight.aura >= NEN_COST;
+  const canNen = (c.nen !== null || Boolean(c.special)) && s.aura > 0 && fight.aura >= NEN_COST;
   const eName = enemyName(lang, enemy.id, enemy.name);
   const embed = new EmbedBuilder()
     .setColor(0xe74c3c)
@@ -323,7 +393,7 @@ export function buildFightView(owner: string, p: IHunterProfile, fight: IHunterF
       row(
         btn(cid(HX_ACT, owner, `attack:${r}`), tr(lang, "btn_attack"), ButtonStyle.Danger, "👊"),
         btn(cid(HX_ACT, owner, `guard:${r}`), tr(lang, "btn_guard"), ButtonStyle.Primary, "🛡️"),
-        btn(cid(HX_ACT, owner, `nen:${r}`), tr(lang, "btn_nen"), ButtonStyle.Success, "🔮", !canNen),
+        btn(cid(HX_ACT, owner, `nen:${r}`), c.special ? c.special.name[lang] : tr(lang, "btn_nen"), ButtonStyle.Success, c.special ? c.special.icon : "🔮", !canNen),
         btn(cid(HX_ACT, owner, `dodge:${r}`), tr(lang, "btn_dodge"), ButtonStyle.Secondary, "💨"),
         btn(cid(HX_RETREAT, owner), tr(lang, "btn_retreat"), ButtonStyle.Secondary),
       ),
@@ -407,7 +477,7 @@ export function buildDuelView(duel: IHunterDuel, aStats: { end: number; aura: nu
       row(
         mk("attack", "btn_attack", "👊", ButtonStyle.Danger),
         mk("guard", "btn_guard", "🛡️", ButtonStyle.Primary),
-        mk("nen", "btn_nen", "🔮", ButtonStyle.Success),
+        mk("nen", "btn_skill", "✨", ButtonStyle.Success),
         mk("dodge", "btn_dodge", "💨", ButtonStyle.Secondary),
         btn(cid(HX_DUEL_FORFEIT, "-", id), tr(lang, "d_forfeit"), ButtonStyle.Secondary),
       ),

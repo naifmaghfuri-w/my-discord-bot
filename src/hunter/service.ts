@@ -1,4 +1,5 @@
 import { HunterFight, type IHunterFight } from "../database/models/HunterFight";
+import { HunterFishing, type IHunterFishing } from "../database/models/HunterFishing";
 import { HunterProfile, type IHunterProfile } from "../database/models/HunterProfile";
 import { UserProfile } from "../database/models/UserProfile";
 import { todayKey } from "../quests/time";
@@ -16,6 +17,7 @@ import {
   type Lang,
   type UpgKey,
 } from "./data";
+import { newFishState, stepFishing, type FishAction, type FishOutcome } from "./fishing";
 import {
   chooseEnemyAction,
   maxAura,
@@ -62,7 +64,7 @@ export function activeCharId(p: IHunterProfile): string | null {
 export function fighterFor(p: IHunterProfile, charId: string, name: string, hp?: number, aura?: number): Fighter {
   const c = CHAR_MAP[charId];
   const s = charStats(c, p.level, upgOf(p, charId));
-  return { name, nen: c.nen, stats: s, hp: hp ?? maxHp(s.end), aura: aura ?? maxAura(s.aura) };
+  return { name, nen: c.nen, special: Boolean(c.special), skill: c.special?.name.en, stats: s, hp: hp ?? maxHp(s.end), aura: aura ?? maxAura(s.aura) };
 }
 
 export function enemyFighter(e: EnemyDef, hp?: number, aura?: number): Fighter {
@@ -174,7 +176,7 @@ export async function startFight(userId: string, guildId: string, enemyId: strin
   const charId = activeCharId(p);
   if (!charId) return { ok: false, reason: "no_char" };
   const enemy = ENEMY_MAP[enemyId];
-  if (!enemy || enemy.exam) return { ok: false, reason: "unknown" };
+  if (!enemy || enemy.exam || enemy.storyOnly) return { ok: false, reason: "unknown" };
   if (enemy.needsLicense && !p.license) return { ok: false, reason: "locked", minLevel: enemy.minLevel, license: true };
   if (p.level < enemy.minLevel) return { ok: false, reason: "locked", minLevel: enemy.minLevel };
   const wait = cooldownLeft(p);
@@ -189,6 +191,7 @@ export async function startStory(userId: string, guildId: string, chapterId: num
   const ch = CHAPTERS.find((c) => c.id === chapterId);
   if (!ch || chapterId !== p.story + 1) return { ok: false, reason: "unknown" };
   const enemy = ENEMY_MAP[ch.enemyId];
+  if (!enemy) return { ok: false, reason: "unknown" };
   if (p.level < ch.minLevel) return { ok: false, reason: "locked", minLevel: ch.minLevel };
   const wait = cooldownLeft(p);
   if (wait > 0) return { ok: false, reason: "cooldown", msLeft: wait };
@@ -270,12 +273,16 @@ async function settleFight(p: IHunterProfile, enemy: EnemyDef, outcome: Exclude<
 
 async function settleStory(p: IHunterProfile, chapterId: number, outcome: Exclude<Outcome, "ongoing">): Promise<FightEnd> {
   const { userId, guildId } = p;
-  const ch = CHAPTERS.find((c) => c.id === chapterId)!;
-  const base: FightEnd = { outcome, xp: 0, coins: 0, capped: false, level: p.level, leveledUp: false, chapter: ch };
   await HunterProfile.updateOne({ userId, guildId }, { $set: { lastFightAt: new Date() }, $inc: { wins: outcome === "win" ? 1 : 0, losses: outcome === "loss" ? 1 : 0 } });
-  if (outcome !== "win") return base;
+  if (outcome !== "win") return { outcome, xp: 0, coins: 0, capped: false, level: p.level, leveledUp: false, chapter: CHAPTERS.find((c) => c.id === chapterId) };
+  return completeChapter(p, chapterId);
+}
 
-  // التقدم ذرّي: المكافأة تُعطى مرة واحدة فقط
+/** إنهاء فصل بنجاح: التقدم ذرّي والمكافأة مرة واحدة فقط */
+export async function completeChapter(p: IHunterProfile, chapterId: number): Promise<FightEnd> {
+  const { userId, guildId } = p;
+  const ch = CHAPTERS.find((c) => c.id === chapterId)!;
+  const base: FightEnd = { outcome: "win", xp: 0, coins: 0, capped: false, level: p.level, leveledUp: false, chapter: ch };
   const adv = await HunterProfile.updateOne(
     { userId, guildId, story: chapterId - 1 },
     { $set: { story: chapterId, ...(ch.license ? { license: true } : {}) } },
@@ -286,6 +293,53 @@ async function settleStory(p: IHunterProfile, chapterId: number, outcome: Exclud
   let unlocked: string | undefined;
   if (ch.unlock && (await unlockChar(userId, guildId, ch.unlock))) unlocked = ch.unlock;
   return { ...base, xp: ch.xp, coins: ch.coins, level: g.level, leveledUp: g.leveledUp, cleared: true, unlocked, license: ch.license };
+}
+
+/* ───────────── صيد السمكة (فصل 1) ───────────── */
+
+export type FishStart =
+  | { ok: true; state: IHunterFishing }
+  | { ok: false; reason: "no_hunter" | "unknown" | "locked"; minLevel?: number };
+
+export async function startFishing(userId: string, guildId: string, chapterId: number): Promise<FishStart> {
+  const p = await getHunter(userId, guildId);
+  if (!p) return { ok: false, reason: "no_hunter" };
+  const ch = CHAPTERS.find((c) => c.id === chapterId);
+  if (!ch || ch.type !== "fishing" || chapterId !== p.story + 1) return { ok: false, reason: "unknown" };
+  if (p.level < ch.minLevel) return { ok: false, reason: "locked", minLevel: ch.minLevel };
+  const f = newFishState();
+  const state = await HunterFishing.findOneAndUpdate(
+    { userId, guildId },
+    { $set: { chapter: chapterId, tension: f.tension, progress: f.progress, round: 0, mood: f.mood, updatedAt: new Date() } },
+    { upsert: true, new: true },
+  );
+  if (!state) throw new Error("Failed to start fishing");
+  return { ok: true, state };
+}
+
+export type FishRound =
+  | { status: "stale" }
+  | { status: "ongoing"; state: IHunterFishing }
+  | { status: "failed"; reason: Exclude<FishOutcome, "ongoing" | "won">; chapter: number }
+  | { status: "won"; end: FightEnd };
+
+export async function fishRound(userId: string, guildId: string, action: FishAction, roundSeen: number): Promise<FishRound> {
+  const [cur, p] = await Promise.all([HunterFishing.findOne({ userId, guildId }), getHunter(userId, guildId)]);
+  if (!cur || !p || cur.round !== roundSeen) return { status: "stale" };
+  const { state, outcome } = stepFishing({ tension: cur.tension, progress: cur.progress, round: cur.round, mood: cur.mood }, action);
+
+  if (outcome === "ongoing") {
+    const updated = await HunterFishing.findOneAndUpdate(
+      { userId, guildId, round: roundSeen },
+      { $set: { tension: state.tension, progress: state.progress, round: state.round, mood: state.mood, updatedAt: new Date() } },
+      { new: true },
+    );
+    return updated ? { status: "ongoing", state: updated } : { status: "stale" };
+  }
+  const removed = await HunterFishing.findOneAndDelete({ userId, guildId, round: roundSeen });
+  if (!removed) return { status: "stale" };
+  if (outcome === "won") return { status: "won", end: await completeChapter(p, cur.chapter) };
+  return { status: "failed", reason: outcome, chapter: cur.chapter };
 }
 
 /** الانسحاب: بدون عقوبة ولا مكافأة */

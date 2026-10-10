@@ -111,6 +111,8 @@ export interface EnemyDef {
   coins: number;
   /** خصم اختبار الصياد: مرحلة الاختبار اللي يظهر فيها (مخفي من قائمة القتال) */
   exam?: 2 | 3;
+  /** يظهر في القصة فقط */
+  storyOnly?: boolean;
   /** يحتاج رخصة صياد */
   needsLicense?: boolean;
 }
@@ -123,6 +125,7 @@ export const ENEMIES: EnemyDef[] = [
   { id: "uvogin", name: "Uvogin", icon: "🦍", desc: "A brawler who fights for the thrill of it.", minLevel: 6, nen: "enhancer", stats: { str: 28, spd: 20, end: 20, aura: 18 }, personality: "brute", xp: 160, coins: 420, needsLicense: true },
   { id: "hisoka", name: "Hisoka", icon: "🃏", desc: "A smiling magician who toys with his prey.", minLevel: 9, nen: "transmuter", stats: { str: 34, spd: 36, end: 25, aura: 38 }, personality: "trickster", xp: 320, coins: 850, needsLicense: true },
   { id: "brawler", name: "Arena Brawler", icon: "🥊", desc: "A veteran of the Heavens Arena floors.", minLevel: 4, nen: null, stats: { str: 22, spd: 17, end: 19, aura: 0 }, personality: "brute", xp: 110, coins: 280 },
+  { id: "rookie_crusher", name: "Rookie Crusher", icon: "🧃", desc: "A veteran applicant who preys on newcomers.", minLevel: 2, nen: null, stats: { str: 14, spd: 11, end: 14, aura: 0 }, personality: "tank", xp: 0, coins: 0, storyOnly: true },
   { id: "exam_beast", name: "Examination Beast", icon: "🐗", desc: "The Hunt stage: a beast that guards the trail.", minLevel: 1, nen: null, stats: { str: 15, spd: 12, end: 14, aura: 0 }, personality: "wild", xp: 0, coins: 0, exam: 2 },
   { id: "exam_rival", name: "Exam Rival", icon: "🥋", desc: "The Final Match: another applicant who wants the license too.", minLevel: 1, nen: null, stats: { str: 20, spd: 18, end: 17, aura: 6 }, personality: "trickster", xp: 0, coins: 0, exam: 3 },
 ];
@@ -152,13 +155,16 @@ export interface CharDef {
   image: string;
   unlock: { type: "story"; chapter: number } | { type: "shop"; price: number };
   desc: Bi;
+  /** مهارة خاصة تحل محل النن (للي ما عنده نن) */
+  special?: { name: Bi; icon: string };
 }
 
 export const CHARS: CharDef[] = [
-  { id: "gon", name: { en: "Gon", ar: "غون" }, icon: "🌿", nen: "enhancer", base: { str: 14, spd: 11, end: 11, aura: 10 }, fav: "str", image: "gon.jpg", unlock: { type: "story", chapter: 1 }, desc: { en: "A cheerful boy with raw strength and endless determination.", ar: "فتى مرح بقوة خام وإصرار لا ينتهي." } },
-  { id: "killua", name: { en: "Killua", ar: "كيلوا" }, icon: "⚡", nen: "transmuter", base: { str: 11, spd: 15, end: 10, aura: 11 }, fav: "spd", image: "killua.jpg", unlock: { type: "story", chapter: 4 }, desc: { en: "A lightning-fast assassin-trained prodigy.", ar: "عبقري سريع كالبرق تدرّب على الاغتيال." } },
-  { id: "kurapika", name: { en: "Kurapika", ar: "كورابيكا" }, icon: "⛓️", nen: "conjurer", base: { str: 10, spd: 11, end: 14, aura: 11 }, fav: "end", image: "kurapika.jpg", unlock: { type: "story", chapter: 3 }, desc: { en: "A calm, durable strategist who outlasts his foes.", ar: "استراتيجي هادئ وصلب يتفوق بالصبر." } },
+  { id: "gon", name: { en: "Gon", ar: "غون" }, icon: "🌿", nen: null, special: { name: { en: "Fishing Rod", ar: "الصنارة" }, icon: "🎣" }, base: { str: 14, spd: 11, end: 11, aura: 10 }, fav: "str", image: "gon.jpg", unlock: { type: "story", chapter: 1 }, desc: { en: "A cheerful boy with raw strength and endless determination.", ar: "فتى مرح بقوة خام وإصرار لا ينتهي." } },
+  { id: "killua", name: { en: "Killua", ar: "كيلوا" }, icon: "⚡", nen: "transmuter", base: { str: 11, spd: 15, end: 10, aura: 11 }, fav: "spd", image: "killua.jpg", unlock: { type: "story", chapter: 5 }, desc: { en: "A lightning-fast assassin-trained prodigy.", ar: "عبقري سريع كالبرق تدرّب على الاغتيال." } },
+  { id: "kurapika", name: { en: "Kurapika", ar: "كورابيكا" }, icon: "⛓️", nen: "conjurer", base: { str: 10, spd: 11, end: 14, aura: 11 }, fav: "end", image: "kurapika.jpg", unlock: { type: "story", chapter: 4 }, desc: { en: "A calm, durable strategist who outlasts his foes.", ar: "استراتيجي هادئ وصلب يتفوق بالصبر." } },
   { id: "leorio", name: { en: "Leorio", ar: "ليوريو" }, icon: "💼", nen: "emitter", base: { str: 10, spd: 10, end: 11, aura: 15 }, fav: "aura", image: "leorio.jpg", unlock: { type: "story", chapter: 2 }, desc: { en: "A determined future doctor with strong aura attacks.", ar: "طالب طب مصمم، قوي بهجمات الأورا." } },
+  { id: "tonpa", name: { en: "Tonpa", ar: "تونبا" }, icon: "🧃", nen: null, base: { str: 11, spd: 10, end: 14, aura: 0 }, fav: "end", image: "tonpa.jpg", unlock: { type: "story", chapter: 3 }, desc: { en: "A veteran examinee with a thick skin and a trick or two.", ar: "متقدم قديم بجلد سميك وحيلة أو اثنتين." } },
   { id: "hanzo", name: { en: "Hanzo", ar: "هانزو" }, icon: "🥷", nen: null, base: { str: 16, spd: 15, end: 13, aura: 0 }, fav: "spd", image: "hanzo.jpg", unlock: { type: "shop", price: 4000 }, desc: { en: "A shinobi master of pure physical technique — no Nen needed.", ar: "شينوبي محترف بتقنية جسدية بحتة بدون نن." } },
   { id: "hisoka", name: { en: "Hisoka", ar: "هيسوكا" }, icon: "🃏", nen: "transmuter", base: { str: 15, spd: 15, end: 13, aura: 16 }, fav: "aura", image: "hisoka.jpg", unlock: { type: "shop", price: 12000 }, desc: { en: "A cunning magician whose aura sticks and stretches.", ar: "ساحر ماكر أوراه يلتصق ويتمدد." } },
 ];
@@ -189,7 +195,13 @@ export function charStats(c: CharDef, accountLevel: number, upg: Upgrades = {}):
 export interface Chapter {
   id: number;
   title: Bi;
-  story: Bi;
+  /** المهمة المعروضة قبل البدء */
+  mission: Bi;
+  /** ماذا حصل بعد النجاح */
+  outro: Bi;
+  type: "fight" | "fishing";
+  /** صورة الفصل (ملف في assets/hunter)، وإلا صورة الشخصية المفتوحة */
+  image?: string;
   enemyId: string;
   minLevel: number;
   xp: number;
@@ -199,13 +211,14 @@ export interface Chapter {
 }
 
 export const CHAPTERS: Chapter[] = [
-  { id: 1, title: { en: "Whale Island", ar: "جزيرة الحوت" }, story: { en: "A boy sets out to become a Hunter, but a wolf blocks the forest path.", ar: "فتى ينطلق ليصبح صيادًا، لكن ذئبًا يسد طريق الغابة." }, enemyId: "wolf", minLevel: 1, xp: 60, coins: 150, unlock: "gon" },
-  { id: 2, title: { en: "Road to the Exam", ar: "الطريق إلى الاختبار" }, story: { en: "On the way to the exam site you meet a future doctor... and a bandit who wants your money.", ar: "في الطريق لموقع الاختبار تقابل طالب طب مستقبلي... وقاطع طريق يريد مالك." }, enemyId: "bandit", minLevel: 1, xp: 80, coins: 200, unlock: "leorio" },
-  { id: 3, title: { en: "The Marsh", ar: "المستنقع" }, story: { en: "The Hunt begins in the swamp. A blond examinee watches your every move.", ar: "تبدأ المطاردة في المستنقع. متقدم أشقر يراقب كل حركة منك." }, enemyId: "exam_beast", minLevel: 3, xp: 100, coins: 250, unlock: "kurapika" },
-  { id: 4, title: { en: "Trick Tower", ar: "برج الفخاخ" }, story: { en: "A shinobi stands in your way, and a silver-haired boy decides to join you.", ar: "شينوبي يقف في طريقك، وفتى فضي الشعر يقرر الانضمام إليك." }, enemyId: "hanzo", minLevel: 5, xp: 150, coins: 350, unlock: "killua" },
-  { id: 5, title: { en: "The Final Match", ar: "المباراة النهائية" }, story: { en: "One last bout decides who earns the Hunter License.", ar: "نزال أخير يقرر من ينال رخصة الصياد." }, enemyId: "exam_rival", minLevel: 6, xp: 200, coins: 800, license: true },
-  { id: 6, title: { en: "Heavens Arena", ar: "ساحة السماء" }, story: { en: "Hunters now, you climb the arena floors. The crowd roars for a brawler.", ar: "صرتم صيادين، وتتسلقون طوابق الساحة. والجمهور يهتف لمقاتل شرس." }, enemyId: "brawler", minLevel: 7, xp: 250, coins: 600 },
-  { id: 7, title: { en: "Yorknew City", ar: "مدينة يوركنيو" }, story: { en: "A dangerous brawler of the Phantom Troupe appears in the city's shadows.", ar: "مقاتل خطير من فرقة الأشباح يظهر في ظلال المدينة." }, enemyId: "uvogin", minLevel: 9, xp: 400, coins: 1000 },
+  { id: 1, type: "fishing", image: "chapter1.jpg", title: { en: "Departure from Whale Island", ar: "الانطلاق من جزيرة الحوت" }, mission: { en: "Catch the Lady of the Lake [giant fish]", ar: "اصطياد سيدة البحيرة [سمكة عملاقة]" }, outro: { en: "After a long struggle you reel in the Lady of the Lake! Proud and ready, you set off from Whale Island toward the Hunter Exam.", ar: "بعد صراع طويل سحبت سيدة البحيرة! فخور وجاهز، انطلقت من جزيرة الحوت نحو اختبار الصيادين." }, enemyId: "", minLevel: 1, xp: 60, coins: 150, unlock: "gon" },
+  { id: 2, type: "fight", title: { en: "On the Road to the Exam", ar: "في الطريق إلى الاختبار" }, mission: { en: "Defeat the bandit blocking the road", ar: "اهزم قاطع الطريق الذي يسد الطريق" }, outro: { en: "The bandit flees! A tall student who watched the whole fight introduces himself and decides to travel with you.", ar: "هرب قاطع الطريق! طالب طويل شاهد القتال كله عرّف بنفسه وقرر السفر معك." }, enemyId: "bandit", minLevel: 1, xp: 80, coins: 200, unlock: "leorio" },
+  { id: 3, type: "fight", title: { en: "The Rookie Crusher", ar: "محطّم المبتدئين" }, mission: { en: "Beat the veteran applicant who preys on newcomers", ar: "اهزم المتقدم القديم الذي يستغل المبتدئين" }, outro: { en: "The veteran admits defeat, hands you a (suspicious) drink and decides to tag along.", ar: "اعترف المتقدم القديم بالهزيمة، وقدّم لك مشروبًا (مشكوكًا فيه) وقرر مرافقتك." }, enemyId: "rookie_crusher", minLevel: 2, xp: 90, coins: 220, unlock: "tonpa" },
+  { id: 4, type: "fight", title: { en: "The Marsh", ar: "المستنقع" }, mission: { en: "Survive the Hunt in the swamp", ar: "انجُ من المطاردة في المستنقع" }, outro: { en: "The beast falls. A calm blond examinee, who had been watching your every move, joins your group.", ar: "سقط الوحش. متقدم أشقر هادئ كان يراقب كل حركة منك ينضم إلى مجموعتك." }, enemyId: "exam_beast", minLevel: 3, xp: 100, coins: 250, unlock: "kurapika" },
+  { id: 5, type: "fight", title: { en: "Trick Tower", ar: "برج الفخاخ" }, mission: { en: "Defeat the shinobi guarding the tower", ar: "اهزم الشينوبي الذي يحرس البرج" }, outro: { en: "The shinobi yields. A silver-haired boy, impressed, decides to join you.", ar: "استسلم الشينوبي. فتى فضي الشعر أُعجب بك وقرر الانضمام إليك." }, enemyId: "hanzo", minLevel: 5, xp: 150, coins: 350, unlock: "killua" },
+  { id: 6, type: "fight", title: { en: "The Final Match", ar: "المباراة النهائية" }, mission: { en: "Win the last bout of the exam", ar: "اربح النزال الأخير من الاختبار" }, outro: { en: "You did it! The examiner hands you the **Hunter License**. A new world opens up.", ar: "نجحت! سلّمك الممتحن **رخصة الصياد**. عالم جديد ينفتح أمامك." }, enemyId: "exam_rival", minLevel: 6, xp: 200, coins: 800, license: true },
+  { id: 7, type: "fight", title: { en: "Heavens Arena", ar: "ساحة السماء" }, mission: { en: "Climb the arena floors and beat the brawler", ar: "اصعد طوابق الساحة واهزم المقاتل الشرس" }, outro: { en: "The crowd roars as the brawler hits the mat. Word of your name spreads through the arena.", ar: "الجمهور يهتف والمقاتل على الأرض. اسمك بدأ ينتشر في الساحة." }, enemyId: "brawler", minLevel: 7, xp: 250, coins: 600 },
+  { id: 8, type: "fight", title: { en: "Yorknew City", ar: "مدينة يوركنيو" }, mission: { en: "Face the dangerous brawler lurking in the city", ar: "واجه المقاتل الخطير المتربص في المدينة" }, outro: { en: "The brawler is down. The shadows of Yorknew grow quiet... for now.", ar: "سقط المقاتل. ظلال يوركنيو تهدأ... مؤقتًا." }, enemyId: "uvogin", minLevel: 10, xp: 400, coins: 1000 },
 ];
 /** عدد فصول القصة الحالية؛ بعدها يبدأ أرك Greed Island (قريبًا) */
 export const STORY_LENGTH = CHAPTERS.length;
