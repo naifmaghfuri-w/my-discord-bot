@@ -10,6 +10,7 @@ import { CURRENCY, jenny } from "../constants";
 import { getGender, type Gender } from "../family/gender";
 import { touchRoom } from "../chat/service";
 import { buildHelpHome } from "../help/views";
+import { JOBS_TRIGGER, RESIGN_TRIGGER, WORK_TRIGGER, handleJobMessage } from "../jobs/interactions";
 import { DUEL_TRIGGER, HUNTER_TRIGGER, handleDuelMessage, handleHunterMessage } from "../hunter/interactions";
 import { handleCountingMessage } from "../counting/service";
 import { CLEAR_TRIGGER, handleClearMessage } from "../moderation/clearText";
@@ -97,6 +98,20 @@ const event: BotEvent = {
     const duelMatch = DUEL_TRIGGER.exec(rawContent.trim());
     if (duelMatch) {
       await handleDuelMessage(message, duelMatch);
+      return;
+    }
+
+    // --- الوظائف: "وظائف" / "دوام" / "استقالة" ---
+    if (JOBS_TRIGGER.test(rawContent.trim())) {
+      await handleJobMessage(message, "panel");
+      return;
+    }
+    if (WORK_TRIGGER.test(rawContent.trim())) {
+      await handleJobMessage(message, "work");
+      return;
+    }
+    if (RESIGN_TRIGGER.test(rawContent.trim())) {
+      await handleJobMessage(message, "resign");
       return;
     }
 
