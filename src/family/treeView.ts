@@ -50,12 +50,14 @@ export async function sendFamilyTree(message: Message<true>, targetId: string): 
     );
   };
 
-  const [ego, parents, siblings, spouses, children] = await Promise.all([
+  const [ego, parents, siblings, spouses, children, grandparents, grandchildren] = await Promise.all([
     build(targetId, null),
     Promise.all(view.parents.map((p) => build(p.userId, "parent"))),
     Promise.all(view.siblings.map((s) => build(s.userId, "sibling"))),
     Promise.all(view.spouses.map((s) => build(s.userId, "spouse"))),
     Promise.all(view.children.map((c) => build(c.userId, "child"))),
+    Promise.all(view.grandparents.map(async (g) => ({ member: await build(g.profile.userId, "grandparent"), viaId: g.viaId }))),
+    Promise.all(view.grandchildren.map(async (g) => ({ member: await build(g.profile.userId, "grandchild"), viaId: g.viaId }))),
   ]);
 
   if (!ego) {
@@ -71,6 +73,8 @@ export async function sendFamilyTree(message: Message<true>, targetId: string): 
     siblings: keep(siblings),
     spouses: keep(spouses),
     children: keep(children),
+    grandparents: grandparents.flatMap((g) => (g.member ? [{ member: g.member, viaId: g.viaId }] : [])),
+    grandchildren: grandchildren.flatMap((g) => (g.member ? [{ member: g.member, viaId: g.viaId }] : [])),
   }).catch((err) => {
     logger.error("فشل توليد صورة شجرة العائلة", err);
     return null;

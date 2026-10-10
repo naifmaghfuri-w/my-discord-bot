@@ -1,3 +1,4 @@
+import { Marriage } from "../database/models/Marriage";
 import { UserProfile, type IUserProfile } from "../database/models/UserProfile";
 import { getProfile } from "../services/economy";
 import { logTransaction } from "../services/transactions";
@@ -90,6 +91,15 @@ export async function marry(
     return { ok: false, reason: "target_full" };
   }
 
+  // نسجّل المهر لأجل الخلع (يرجع نصفه للزوج)
+  const husbandId = fromGender === "male" ? fromId : toId;
+  const wifeId = husbandId === fromId ? toId : fromId;
+  await Marriage.updateOne(
+    { guildId, husbandId, wifeId },
+    { $set: { dowry, paidBy: fromId, createdAt: new Date() } },
+    { upsert: true },
+  ).catch(() => undefined);
+
   // المهر 0 ما نسجله كعملية مالية (ما فيه مبلغ ينتقل)
   if (dowry > 0) {
     await logTransaction(guildId, fromId, "pay_sent", dowry, toId);
@@ -101,10 +111,12 @@ export async function marry(
 async function unlinkSpouses(aId: string, bId: string, guildId: string): Promise<void> {
   await UserProfile.updateOne({ userId: aId, guildId }, { $pull: { spouseIds: bId } });
   await UserProfile.updateOne({ userId: bId, guildId }, { $pull: { spouseIds: aId } });
+  await Marriage.deleteMany({ guildId, $or: [{ husbandId: aId, wifeId: bId }, { husbandId: bId, wifeId: aId }] });
 }
 
 export type DivorceResult =
-  | { ok: true; exSpouseId: string }
+  | { ok: true; exSpouseId: string; refund?: number }
+  | { ok: false; reason: "insufficient_refund"; needed: number }
   | { ok: false; reason: "not_married" }
   | { ok: false; reason: "not_found" }
   | { ok: false; reason: "specify_wife" };
@@ -126,15 +138,27 @@ export async function talaqDivorce(husbandId: string, guildId: string, wifeId?: 
   return { ok: true, exSpouseId: target };
 }
 
-/** خلع: للزوجة فقط (حد أقصى زوج واحد أصلاً، فما فيه لبس بمين) */
+/** خلع: للزوجة فقط. ترجع نصف المهر لزوجها (لو المهر مسجّل ودفعه الزوج) */
 export async function khulaDivorce(wifeId: string, guildId: string): Promise<DivorceResult> {
   const wife = await getProfile(wifeId, guildId);
   const husbands = wife.spouseIds ?? [];
   if (husbands.length === 0) return { ok: false, reason: "not_married" };
 
   const husbandId = husbands[0];
+  const record = await Marriage.findOne({ guildId, husbandId, wifeId });
+  const refund = record && record.paidBy === husbandId ? Math.floor(record.dowry / 2) : 0;
+
+  if (refund > 0) {
+    // خصم ذرّي من محفظة الزوجة: لو ما تكفي ما يتم الخلع
+    const took = await UserProfile.findOneAndUpdate({ userId: wifeId, guildId, coins: { $gte: refund } }, { $inc: { coins: -refund } });
+    if (!took) return { ok: false, reason: "insufficient_refund", needed: refund };
+    await UserProfile.updateOne({ userId: husbandId, guildId }, { $inc: { coins: refund } });
+    await logTransaction(guildId, wifeId, "pay_sent", refund, husbandId);
+    await logTransaction(guildId, husbandId, "pay_received", refund, wifeId);
+  }
+
   await unlinkSpouses(wifeId, husbandId, guildId);
-  return { ok: true, exSpouseId: husbandId };
+  return { ok: true, exSpouseId: husbandId, refund };
 }
 
 export type AdoptResult =
@@ -198,6 +222,17 @@ export async function disown(fatherId: string, childId: string, guildId: string)
   return { ok: true };
 }
 
+export type RunAwayResult = { ok: true; parentIds: string[] } | { ok: false; reason: "no_family" };
+
+/** هروب: الابن يتخلى عن عائلته بالكامل (يفك رابطه مع كل والديه، ومعهم يروح الإخوة) */
+export async function runAway(childId: string, guildId: string): Promise<RunAwayResult> {
+  const child = await getProfile(childId, guildId);
+  const parentIds = child.parentIds ?? [];
+  if (parentIds.length === 0) return { ok: false, reason: "no_family" };
+  await UserProfile.updateOne({ userId: childId, guildId }, { $set: { parentIds: [] } });
+  return { ok: true, parentIds };
+}
+
 export async function getChildren(userId: string, guildId: string): Promise<IUserProfile[]> {
   return UserProfile.find({ guildId, parentIds: userId });
 }
@@ -231,9 +266,13 @@ export interface FamilyView {
   spouses: IUserProfile[];
   siblings: IUserProfile[];
   children: IUserProfile[];
+  /** الأجداد (أهل الوالدين) مع معرف الوالد اللي ينتمون له */
+  grandparents: { profile: IUserProfile; viaId: string }[];
+  /** الأحفاد (أبناء الأبناء) مع معرف الابن اللي ينتمون له */
+  grandchildren: { profile: IUserProfile; viaId: string }[];
 }
 
-/** يجمع كل أطراف عائلة العضو (والدان، أزواج، إخوة، أبناء) */
+/** يجمع كل أطراف عائلة العضو (والدان، أجداد، أزواج، إخوة، أبناء، أحفاد) */
 export async function getFamilyView(userId: string, guildId: string): Promise<FamilyView> {
   const [parents, siblings, children, spouses] = await Promise.all([
     getParents(userId, guildId),
@@ -241,6 +280,21 @@ export async function getFamilyView(userId: string, guildId: string): Promise<Fa
     getChildren(userId, guildId),
     getSpouses(userId, guildId),
   ]);
-  return { parents, siblings, children, spouses };
-}
 
+  // الأجداد: والدا كل والد
+  const gpIds = [...new Set(parents.flatMap((p) => p.parentIds ?? []))];
+  const gpDocs = gpIds.length ? await UserProfile.find({ guildId, userId: { $in: gpIds } }) : [];
+  const grandparents = gpDocs.map((profile) => ({
+    profile,
+    viaId: parents.find((p) => (p.parentIds ?? []).includes(profile.userId))?.userId ?? parents[0]?.userId ?? "",
+  }));
+
+  // الأحفاد: أبناء كل ابن
+  const childIds = children.map((c) => c.userId);
+  const gcDocs = childIds.length ? await UserProfile.find({ guildId, parentIds: { $in: childIds } }) : [];
+  const grandchildren = gcDocs
+    .filter((g) => g.userId !== userId)
+    .map((profile) => ({ profile, viaId: (profile.parentIds ?? []).find((id) => childIds.includes(id)) ?? childIds[0] }));
+
+  return { parents, siblings, children, spouses, grandparents, grandchildren };
+}
