@@ -11,7 +11,9 @@ export type TransactionType =
   | "pay_received"
   | "shop_purchase"
   | "lab_sale"
-  | "lab_purchase";
+  | "lab_purchase"
+  | "salary"
+  | "job_fee";
 
 export interface ITransaction {
   guildId: string;
