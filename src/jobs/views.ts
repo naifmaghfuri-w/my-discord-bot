@@ -54,15 +54,12 @@ export function buildJobsPanel(owner: string, jp: IJobProfile, ctx: JobContext, 
   const rank = job.ranks[jp.rank] ?? job.ranks[0];
   lines.push(`${job.icon} **${job.name}** — ${rank.title}`, `الراتب: ${jenny(rank.pay)}${job.kind === "career" ? " لكل دوام" : " لكل 24 ساعة"}`, `الدوامات: **${jp.shifts}**`);
 
-  let workLabel = "دوام";
-  let workDisabled = false;
   const now = Date.now();
   if (job.kind === "career") {
     const last = jp.lastShiftAt ? new Date(jp.lastShiftAt).getTime() : 0;
     const wait = JOB_RULES.shiftCooldownMs - (now - last);
     if (wait > 0) {
       lines.push(`⏳ الدوام القادم بعد ${fmtMs(wait)}`);
-      workDisabled = true;
     }
     const next = nextRankOf(jp);
     if (next) {
@@ -70,28 +67,17 @@ export function buildJobsPanel(owner: string, jp: IJobProfile, ctx: JobContext, 
       lines.push(left > 0 ? `الترقية إلى **${next.title}** بعد ${left} دوام` : `✅ مؤهّل للترقية إلى **${next.title}**${next.labDiscoveries ? ` (يحتاج ${next.labDiscoveries} اكتشافًا في المختبر)` : ""}`);
     } else lines.push("🏆 وصلت لأعلى رتبة.");
   } else if (!jp.shiftStartedAt) {
-    workLabel = "ابدأ الدوام (24 ساعة)";
+    lines.push("اكتب `دوام` لتبدأ دوامك الكامل (24 ساعة).");
   } else {
     const endsAt = new Date(jp.shiftStartedAt).getTime() + JOB_RULES.fullDayMs;
     if (now < endsAt) {
       lines.push(`⏳ دوامك ينتهي بعد ${fmtMs(endsAt - now)}`);
-      workLabel = "استلم الراتب";
-      workDisabled = true;
-    } else workLabel = "استلم الراتب";
+    } else lines.push("✅ خلص دوامك! اكتب `دوام` لتستلم راتبك.");
   }
-  lines.push("", `_ما تداوم أسبوعًا = تنفصل من الوظيفة._`);
+  lines.push("", "الأوامر: `دوام` • `ترقية` • `استقالة`", "_ما تداوم أسبوعًا = تنفصل من الوظيفة._");
 
-  const next = nextRankOf(jp);
-  const promoReady = job.kind === "career" && Boolean(next) && jp.shifts >= (next?.shiftsNeeded ?? Infinity);
   const embed = new EmbedBuilder().setColor(0x2ecc71).setTitle("💼 وظيفتك").setDescription(lines.join("\n"));
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(jid(JOB_WORK, owner)).setLabel(workLabel).setEmoji("🛠️").setStyle(ButtonStyle.Success).setDisabled(workDisabled),
-    ...(job.kind === "career"
-      ? [new ButtonBuilder().setCustomId(jid(JOB_PROMO, owner)).setLabel("طلب ترقية").setEmoji("📈").setStyle(ButtonStyle.Primary).setDisabled(!promoReady)]
-      : []),
-    new ButtonBuilder().setCustomId(jid(JOB_QUIT, owner)).setLabel("استقالة").setEmoji("🚪").setStyle(ButtonStyle.Danger),
-  );
-  return { embeds: [embed], components: [row] };
+  return { embeds: [embed], components: [] };
 }
 
 export function buildQuitConfirm(owner: string, jp: IJobProfile): View {

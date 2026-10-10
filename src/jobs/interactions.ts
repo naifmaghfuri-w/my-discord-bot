@@ -6,6 +6,7 @@ import { JOB_APPLY, JOB_HOME, JOB_PROMO, JOB_QUIT, JOB_QUIT_YES, JOB_WORK, build
 export const JOBS_TRIGGER = /^(وظائف|وظيفة|jobs?)$/i;
 export const WORK_TRIGGER = /^(دوام|work)$/i;
 export const RESIGN_TRIGGER = /^استقالة$/i;
+export const PROMO_TRIGGER = /^(ترقية|اطلب ترقية|promotion)$/i;
 
 const BASES = new Set([JOB_WORK, JOB_PROMO, JOB_QUIT, JOB_QUIT_YES, JOB_HOME]);
 
@@ -25,11 +26,11 @@ function workText(r: WorkResult): string {
   if (r.kind === "started") return "🛠️ بدأت دوامك الكامل! ارجع بعد 24 ساعة واكتب `دوام` لتستلم راتبك.";
   if (r.kind === "claimed")
     return r.accident ? `🤕 تعرضت لإصابة في الدوام! استلمت ${jenny(r.pay)} فقط.` : `✅ خلص دوامك واستلمت ${jenny(r.pay)}.`;
-  return `✅ داومت كـ **${r.rankTitle}** واستلمت ${jenny(r.pay)} (مجموع دوامك: ${r.shifts})${r.promoReady ? "\n📈 صرت مؤهلًا للترقية! اكتب `وظائف` واضغط «طلب ترقية»." : ""}`;
+  return `✅ داومت كـ **${r.rankTitle}** واستلمت ${jenny(r.pay)} (مجموع دوامك: ${r.shifts})${r.promoReady ? "\n📈 صرت مؤهلًا للترقية! اكتب `ترقية`." : ""}`;
 }
 
 /** "وظائف" / "دوام" / "استقالة" بالكتابة */
-export async function handleJobMessage(message: Message, kind: "panel" | "work" | "resign"): Promise<void> {
+export async function handleJobMessage(message: Message, kind: "panel" | "work" | "resign" | "promo"): Promise<void> {
   if (!message.inGuild()) return;
   const uid = message.author.id;
   const gid = message.guildId;
@@ -44,7 +45,19 @@ export async function handleJobMessage(message: Message, kind: "panel" | "work" 
       await message.reply("❌ ما عندك وظيفة عشان تستقيل منها.").catch(() => undefined);
       return;
     }
-    await message.channel.send(buildQuitConfirm(uid, jp)).catch(() => undefined);
+    await resign(uid, gid);
+    await message.reply({ content: "🚪 استقلت من وظيفتك. تقدر تقدّم على وظيفة جديدة بعد 24 ساعة.", allowedMentions: { repliedUser: false } }).catch(() => undefined);
+    return;
+  }
+  if (kind === "promo") {
+    const r = await requestPromotion(uid, gid);
+    const text = r.ok
+      ? `🎉 تمت ترقيتك إلى **${r.title}**! راتبك الجديد ${jenny(r.pay)} + مكافأة ${jenny(r.bonus)}.`
+      : r.reason === "no_job" ? "❌ ما عندك وظيفة فيها ترقيات."
+      : r.reason === "max" ? "🏆 أنت في أعلى رتبة."
+      : r.reason === "not_ready" ? `ما وصلت بعد، باقي ${r.shiftsLeft ?? 0} دوام.`
+      : `تحتاج ${r.need} اكتشافًا إضافيًا في المختبر.`;
+    await message.reply({ content: text, allowedMentions: { repliedUser: false } }).catch(() => undefined);
     return;
   }
   await message.channel.send(await panel(uid, gid)).catch(() => undefined);
