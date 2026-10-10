@@ -29,6 +29,7 @@ import { progressQuest, toAnnouncer } from "../quests/service";
 import { progressWeeklyQuest } from "../quests/weeklyService";
 import { getBirthday, parseBirthdayInput, setBirthday } from "../services/birthday";
 import { recordMessage } from "../services/stats";
+import { tickStreak } from "../services/streak";
 import type { BotEvent } from "../types";
 import { logger } from "../utils/logger";
 
@@ -62,6 +63,13 @@ const event: BotEvent = {
   name: Events.MessageCreate,
   async execute(client: BotClient, message: Message) {
     if (!message.inGuild() || message.author.bot || message.webhookId) return;
+
+    // 🔥 شعلة النشاط: أي رسالة (نص/صورة/ايموجي/ستيكر) في أي روم تحسب يوم
+    void tickStreak(message.author.id, message.guildId).then((t) => {
+      if (!t) return;
+      void message.react("🔥").catch(() => undefined);
+      if (t.milestone > 0) void message.reply({ content: `🏆 شعلتك وصلت **${t.streak}** يوم! جائزتك ${jenny(t.milestone)}`, allowedMentions: { repliedUser: false } }).catch(() => undefined);
+    });
 
     const guildId = message.guildId;
     const userId = message.author.id;
