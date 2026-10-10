@@ -1,5 +1,6 @@
 import { createCanvas, loadImage, type Image, type SKRSContext2D } from "@napi-rs/canvas";
 import { FONT_BOLD, ensureFontsRegistered } from "../quests/render/fonts";
+import { stripStreak } from "../streak/nick";
 import type { Gender } from "./gender";
 
 const NODE_R = 55;
@@ -25,6 +26,8 @@ export interface FamilyMember {
   gender: Gender;
   /** من هو بالنسبة لمن يشاهد الشجرة (يُكتب تحت الصورة): الأب، الأخت، غريب... */
   relation: string;
+  /** معرفات والدَي العضو (تُستخدم لرسم الخط من منتصف الزوجين) */
+  parentIds?: string[];
 }
 
 export interface FamilyTreeInput {
@@ -36,8 +39,10 @@ export interface FamilyTreeInput {
   children: FamilyMember[];
   /** الأجداد، viaId = الوالد اللي ينتمون له */
   grandparents: { member: FamilyMember; viaId: string }[];
-  /** الأحفاد، viaId = الابن اللي ينتمون له */
-  grandchildren: { member: FamilyMember; viaId: string }[];
+  /** أزواج/زوجات الأبناء (الصهر والكنة)، viaId = الابن/الابنة */
+  childSpouses: { member: FamilyMember; viaId: string }[];
+  /** الأحفاد، viaIds = والداهم (الابن وزوجه) */
+  grandchildren: { member: FamilyMember; viaIds: string[] }[];
 }
 
 export type Role = "parent" | "sibling" | "spouse" | "child" | "grandparent" | "grandchild";
@@ -50,6 +55,15 @@ const ROLE_LABELS: Record<Role, { male: string; female: string; unknown: string 
   grandparent: { male: "الجد", female: "الجدة", unknown: "الجد/الجدة" },
   grandchild: { male: "الحفيد", female: "الحفيدة", unknown: "الحفيد/الحفيدة" },
 };
+
+/** صهر (زوج البنت) أو كنة (زوجة الابن): نعتمد جنس الزوج نفسه، وإلا عكس جنس الابن */
+export function inLawLabel(spouseGender: Gender, childGender: Gender): string {
+  if (spouseGender === "male") return "الصهر";
+  if (spouseGender === "female") return "الكنة";
+  if (childGender === "female") return "الصهر";
+  if (childGender === "male") return "الكنة";
+  return "الصهر/الكنة";
+}
 
 /** تسمية العلاقة حسب الدور والجنس */
 export function roleLabel(role: Role, gender: Gender): string {
@@ -68,7 +82,7 @@ export function cleanName(name: string, fallback: string): string {
       .replace(/[^\p{Script=Arabic}\p{Script=Latin}\p{N}\s_.\-]/gu, "")
       .replace(/\s+/g, " ")
       .trim();
-  return clean(name) || clean(fallback) || "عضو";
+  return clean(stripStreak(name)) || clean(stripStreak(fallback)) || "عضو";
 }
 
 async function fetchAvatar(url: string): Promise<Image | null> {
@@ -163,8 +177,8 @@ function drawNode(ctx: SKRSContext2D, n: Placed) {
 
 /**
  * شجرة بصفوف مرتبة:
- *  0) الأجداد   1) الوالدان   2) الإخوة (يسار) • الشخص • الأزواج (يمين)   3) الأبناء   4) الأحفاد
- * وتحت كل دائرة: الاسم ثم علاقته بمن يشاهد الشجرة.
+ *  0) الأجداد   1) الوالدان   2) الإخوة (يسار) • الشخص • الأزواج (يمين)   3) الأبناء (مع أزواجهم)   4) الأحفاد
+ * صاحب الشجرة دايمًا بمنتصف الصورة، والصورة تصغر لو صارت عريضة.
  */
 export async function renderFamilyTree(data: FamilyTreeInput): Promise<Buffer | null> {
   if (!ensureFontsRegistered()) return null;
@@ -173,13 +187,15 @@ export async function renderFamilyTree(data: FamilyTreeInput): Promise<Buffer | 
   const MAX_SPOUSES = 4;
   const MAX_CHILDREN = 6;
   const MAX_GRANDCHILDREN = 8;
+  const MAX_PARENTS = 4;
+  const UNIT_GAP = 40;
+  const MAX_WIDTH = 1200;
 
   const siblings = data.siblings.slice(0, MAX_SIBLINGS);
   const spouses = data.spouses.slice(0, MAX_SPOUSES);
   const children = data.children.slice(0, MAX_CHILDREN);
   const extraChildren = data.children.length - children.length;
-  const childSlots = children.length + (extraChildren > 0 ? 1 : 0);
-  const parents = data.parents.slice(0, 2);
+  const parents = data.parents.slice(0, MAX_PARENTS);
   const hasParents = parents.length > 0;
   const grandparents = data.grandparents.filter((g) => parents.some((p) => p.userId === g.viaId)).slice(0, 4);
   const hasGrand = grandparents.length > 0;
@@ -193,11 +209,28 @@ export async function renderFamilyTree(data: FamilyTreeInput): Promise<Buffer | 
   const spouseXs = spouses.map((_, i) => SLOT * (i + 1));
   const rowXs = [...sibXs, egoX];
   const groupMid = (Math.min(...rowXs) + Math.max(...rowXs)) / 2;
-  // لو فيه أجداد نوسّع المسافة بين الوالدين حتى ما تتداخل دوائر الأجداد
-  const parentGap = hasGrand && parents.length === 2 ? SLOT : 125;
-  const parentXs = parents.length === 2 ? [groupMid - parentGap, groupMid + parentGap] : [groupMid];
-  const childXs = children.map((_, i) => egoX + (i - (childSlots - 1) / 2) * SLOT);
-  const extraX = extraChildren > 0 ? egoX + (children.length - (childSlots - 1) / 2) * SLOT : null;
+  // الوالدان (وزوجاتهم/أزواجهم لو الابن متبنى من متزوج) صف واحد حول منتصف الإخوة
+  const parentSpacing = parents.length === 2 ? (hasGrand ? SLOT * 2 : 250) : SLOT;
+  const parentXs = parents.map((_, i) => groupMid + (i - (parents.length - 1) / 2) * parentSpacing);
+
+  // الأبناء: كل ابن + أزواجه بجنبه، وتتوزع الوحدات حول منتصف الصورة
+  const units = children.map((c) => ({
+    child: c,
+    spouses: data.childSpouses.filter((s) => s.viaId === c.userId).map((s) => s.member).slice(0, 2),
+  }));
+  const rel: { childX: number; spouseXs: number[] }[] = [];
+  let cursor = 0;
+  for (const u of units) {
+    rel.push({ childX: cursor, spouseXs: u.spouses.map((_, k) => cursor + SLOT * (k + 1)) });
+    cursor += SLOT * u.spouses.length + SLOT + UNIT_GAP;
+  }
+  const extraRel = extraChildren > 0 ? cursor : null;
+  const lastRel = extraRel ?? (rel.length ? Math.max(...rel.flatMap((r) => [r.childX, ...r.spouseXs])) : 0);
+  const childOffset = egoX - lastRel / 2;
+  const childXs = rel.map((r) => r.childX + childOffset);
+  const childSpouseXs = rel.map((r) => r.spouseXs.map((x) => x + childOffset));
+  const extraX = extraRel !== null ? extraRel + childOffset : null;
+  const hasChildren = children.length > 0 || extraChildren > 0;
 
   // الأجداد فوق والدهم
   const gpXs: number[] = [];
@@ -213,14 +246,13 @@ export async function renderFamilyTree(data: FamilyTreeInput): Promise<Buffer | 
   const gcExtraX = extraGrandchildren > 0 ? egoX + (grandchildren.length - (gcSlots - 1) / 2) * SLOT : null;
 
   const allXs = [
-    ...rowXs, ...spouseXs, ...(hasParents ? parentXs : []), ...childXs, ...(extraX !== null ? [extraX] : []),
+    ...rowXs, ...spouseXs, ...parentXs, ...childXs, ...childSpouseXs.flat(), ...(extraX !== null ? [extraX] : []),
     ...gpXs, ...gcXs, ...(gcExtraX !== null ? [gcExtraX] : []),
   ];
-  const minX = Math.min(...allXs) - MARGIN_X;
-  const maxX = Math.max(...allXs) + MARGIN_X;
-  const W = Math.max(760, Math.round(maxX - minX));
-  const shift = -minX + (W - (maxX - minX)) / 2;
-  const X = (x: number) => Math.round(x + shift);
+  // صاحب الشجرة دايمًا بالمنتصف: العرض متماثل حول x = 0
+  const half = Math.max(Math.abs(Math.min(...allXs)), Math.abs(Math.max(...allXs))) + MARGIN_X;
+  const W = Math.max(760, Math.round(half * 2));
+  const X = (x: number) => Math.round(x + W / 2);
 
   // ───── المواضع العمودية ─────
   const top = 80 + 30 + NODE_R;
@@ -228,12 +260,15 @@ export async function renderFamilyTree(data: FamilyTreeInput): Promise<Buffer | 
   const parentY = hasGrand ? gpY + ROW_GAP : top;
   const egoY = hasParents ? parentY + ROW_GAP : top;
   const childY = egoY + ROW_GAP;
-  const gcY = (childSlots > 0 ? childY : egoY) + ROW_GAP;
-  const lastY = gcSlots > 0 ? gcY : childSlots > 0 ? childY : egoY;
+  const gcY = (hasChildren ? childY : egoY) + ROW_GAP;
+  const lastY = gcSlots > 0 ? gcY : hasChildren ? childY : egoY;
   const H = lastY + NODE_R + PILL_H + 50;
 
-  const canvas = createCanvas(W, H);
+  // لو الصورة عريضة نصغّرها بدل ما تنحرف الشجرة لجهة
+  const scale = Math.min(1, MAX_WIDTH / W);
+  const canvas = createCanvas(Math.round(W * scale), Math.round(H * scale));
   const ctx = canvas.getContext("2d");
+  ctx.scale(scale, scale);
 
   // الخلفية
   const grad = ctx.createLinearGradient(0, 0, 0, H);
@@ -256,12 +291,13 @@ export async function renderFamilyTree(data: FamilyTreeInput): Promise<Buffer | 
 
   // ───── تحميل الصور بالتوازي ─────
   const load = (m: FamilyMember) => fetchAvatar(m.avatarURL);
-  const [egoImg, parentImgs, sibImgs, spouseImgs, childImgs, gpImgs, gcImgs] = await Promise.all([
+  const [egoImg, parentImgs, sibImgs, spouseImgs, childImgs, csImgs, gpImgs, gcImgs] = await Promise.all([
     load(data.ego),
     Promise.all(parents.map(load)),
     Promise.all(siblings.map(load)),
     Promise.all(spouses.map(load)),
     Promise.all(children.map(load)),
+    Promise.all(units.map((u) => Promise.all(u.spouses.map(load)))),
     Promise.all(grandparents.map((g) => load(g.member))),
     Promise.all(grandchildren.map((g) => load(g.member))),
   ]);
@@ -272,10 +308,12 @@ export async function renderFamilyTree(data: FamilyTreeInput): Promise<Buffer | 
   siblings.forEach((m, i) => nodes.push({ member: m, image: sibImgs[i], x: X(sibXs[i]), y: egoY, ring: COLORS.sibling }));
   spouses.forEach((m, i) => nodes.push({ member: m, image: spouseImgs[i], x: X(spouseXs[i]), y: egoY, ring: COLORS.spouse }));
   children.forEach((m, i) => nodes.push({ member: m, image: childImgs[i], x: X(childXs[i]), y: childY, ring: COLORS.child }));
+  units.forEach((u, i) => u.spouses.forEach((m, k) => nodes.push({ member: m, image: csImgs[i][k], x: X(childSpouseXs[i][k]), y: childY, ring: COLORS.spouse })));
   grandchildren.forEach((g, i) => nodes.push({ member: g.member, image: gcImgs[i], x: X(gcXs[i]), y: gcY, ring: COLORS.grandchild }));
   nodes.push({ member: data.ego, image: egoImg, x: X(egoX), y: egoY, ring: COLORS.ego });
 
   const below = (y: number) => y + NODE_R + PILL_H + 16;
+  const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 
   // ───── الخطوط (ترسم أولاً حتى تكون خلف الدوائر) ─────
   // الأجداد ← الوالد
@@ -292,41 +330,57 @@ export async function renderFamilyTree(data: FamilyTreeInput): Promise<Buffer | 
     });
   }
 
-  // الوالدان ← ناقل أفقي ← الإخوة والشخص
+  // الوالدان ← الخط ينزل من منتصفهم ← الإخوة والشخص
   if (hasParents) {
     const busY = egoY - NODE_R - 45;
-    const midX = X(parentXs.length === 2 ? (parentXs[0] + parentXs[1]) / 2 : parentXs[0]);
-    if (parents.length === 2) line(ctx, X(parentXs[0]), parentY, X(parentXs[1]), parentY, COLORS.parent);
-    const dropFrom = parents.length === 2 ? parentY : below(parentY);
+    const pxs = parentXs.map(X);
+    const midX = Math.round(mean(pxs));
+    if (parents.length >= 2) line(ctx, Math.min(...pxs), parentY, Math.max(...pxs), parentY, COLORS.parent);
+    const dropFrom = parents.length >= 2 ? parentY : below(parentY);
     line(ctx, midX, dropFrom, midX, busY, COLORS.parent);
     const xs = rowXs.map(X);
     line(ctx, Math.min(midX, ...xs), busY, Math.max(midX, ...xs), busY, COLORS.parent);
     for (const x of xs) line(ctx, x, busY, x, egoY - NODE_R - 4, COLORS.parent);
   }
 
-  // الأزواج: خط أفقي من الشخص (يمر خلف الأزواج الأقرب) مع قلب بين كل اثنين
-  if (spouses.length > 0) {
-    line(ctx, X(egoX), egoY, X(spouseXs[spouses.length - 1]), egoY, COLORS.spouse);
-  }
+  // الأزواج: خط أفقي من الشخص مع قلب بين كل اثنين
+  if (spouses.length > 0) line(ctx, X(egoX), egoY, X(spouseXs[spouses.length - 1]), egoY, COLORS.spouse);
+  // أزواج الأبناء
+  units.forEach((_, i) => {
+    if (childSpouseXs[i].length > 0) line(ctx, X(childXs[i]), childY, X(childSpouseXs[i][childSpouseXs[i].length - 1]), childY, COLORS.spouse);
+  });
 
-  // الأبناء ← ناقل أفقي
-  if (childSlots > 0) {
+  // الأبناء: الخط ينزل من منتصف الأب والأم (أو من الشخص لو وحده هو والدهم)
+  if (hasChildren) {
     const busY = childY - NODE_R - 45;
-    line(ctx, X(egoX), below(egoY), X(egoX), busY, COLORS.child);
-    const xs = [...childXs, ...(extraX !== null ? [extraX] : [])].map(X);
-    line(ctx, Math.min(X(egoX), ...xs), busY, Math.max(X(egoX), ...xs), busY, COLORS.child);
-    for (const x of xs) line(ctx, x, busY, x, childY - NODE_R - 4, COLORS.child);
+    const coupleXs = [egoX, ...spouseXs];
+    const coupleIds = [data.ego.userId, ...spouses.map((s) => s.userId)];
+    const childSrc = children.map((c) => {
+      const mine = coupleIds.map((id, k) => ((c.parentIds ?? []).includes(id) ? coupleXs[k] : null)).filter((x): x is number => x !== null);
+      return mine.length >= 2 ? { x: X(mean(mine)), y: egoY } : { x: X(mine[0] ?? egoX), y: below(egoY) };
+    });
+    const allChildXs = [...childXs, ...(extraX !== null ? [extraX] : [])].map(X);
+    const drops = new Map<number, number>();
+    for (const sc of childSrc) drops.set(sc.x, sc.y);
+    if (extraX !== null || childSrc.length === 0) drops.set(X(egoX), below(egoY));
+    const srcXs = [...drops.keys()];
+    for (const [sx, sy] of drops) line(ctx, sx, sy, sx, busY, COLORS.child);
+    line(ctx, Math.min(...srcXs, ...allChildXs), busY, Math.max(...srcXs, ...allChildXs), busY, COLORS.child);
+    for (const x of allChildXs) line(ctx, x, busY, x, childY - NODE_R - 4, COLORS.child);
   }
 
-  // الأحفاد ← كل حفيد يتصل بأبيه/أمه (الابن) عبر مرفق أفقي
+  // الأحفاد ← من منتصف الابن وزوجه
   if (gcSlots > 0) {
     const busY = gcY - NODE_R - 45;
+    const posOf = new Map<string, number>();
+    children.forEach((c, i) => posOf.set(c.userId, childXs[i]));
+    units.forEach((u, i) => u.spouses.forEach((m, k) => posOf.set(m.userId, childSpouseXs[i][k])));
     grandchildren.forEach((g, i) => {
-      const ci = children.findIndex((c) => c.userId === g.viaId);
-      const fromX = ci >= 0 ? X(childXs[ci]) : X(egoX);
+      const mine = g.viaIds.map((id) => posOf.get(id)).filter((x): x is number => x !== undefined);
+      const src = mine.length >= 2 ? { x: X(mean(mine)), y: childY } : { x: X(mine[0] ?? egoX), y: below(childY) };
       const gx = X(gcXs[i]);
-      line(ctx, fromX, below(childY), fromX, busY, COLORS.grandchild);
-      line(ctx, Math.min(fromX, gx), busY, Math.max(fromX, gx), busY, COLORS.grandchild);
+      line(ctx, src.x, src.y, src.x, busY, COLORS.grandchild);
+      line(ctx, Math.min(src.x, gx), busY, Math.max(src.x, gx), busY, COLORS.grandchild);
       line(ctx, gx, busY, gx, gcY - NODE_R - 4, COLORS.grandchild);
     });
   }
@@ -338,6 +392,12 @@ export async function renderFamilyTree(data: FamilyTreeInput): Promise<Buffer | 
   spouseXs.forEach((sx, i) => {
     const prev = i === 0 ? egoX : spouseXs[i - 1];
     heart(ctx, X((prev + sx) / 2), egoY - 18, 11);
+  });
+  units.forEach((_, i) => {
+    childSpouseXs[i].forEach((sx, k) => {
+      const prev = k === 0 ? childXs[i] : childSpouseXs[i][k - 1];
+      heart(ctx, X((prev + sx) / 2), childY - 18, 11);
+    });
   });
 
   const more = (cx: number, cy: number, n: number, fill: string) => {

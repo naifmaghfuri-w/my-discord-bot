@@ -208,6 +208,13 @@ export async function adopt(
   if (!check.ok) return check;
 
   await UserProfile.updateOne({ userId: childId, guildId }, { $addToSet: { parentIds: parentId } }, { upsert: true });
+
+  // المتبنّي متزوج؟ الابن يصير ابنهم كلهم (الزوج/الزوجات)
+  const adopter = await getProfile(parentId, guildId);
+  const partners = (adopter.spouseIds ?? []).filter((id) => id !== childId && id !== parentId);
+  if (partners.length > 0) {
+    await UserProfile.updateOne({ userId: childId, guildId }, { $addToSet: { parentIds: { $each: partners } } });
+  }
   return { ok: true };
 }
 
@@ -268,6 +275,8 @@ export interface FamilyView {
   children: IUserProfile[];
   /** الأجداد (أهل الوالدين) مع معرف الوالد اللي ينتمون له */
   grandparents: { profile: IUserProfile; viaId: string }[];
+  /** أزواج/زوجات الأبناء (الصهر والكنة) مع معرف الابن/الابنة */
+  childSpouses: { profile: IUserProfile; viaId: string }[];
   /** الأحفاد (أبناء الأبناء) مع معرف الابن اللي ينتمون له */
   grandchildren: { profile: IUserProfile; viaId: string }[];
 }
@@ -296,5 +305,17 @@ export async function getFamilyView(userId: string, guildId: string): Promise<Fa
     .filter((g) => g.userId !== userId)
     .map((profile) => ({ profile, viaId: (profile.parentIds ?? []).find((id) => childIds.includes(id)) ?? childIds[0] }));
 
-  return { parents, siblings, children, spouses, grandparents, grandchildren };
+  // أزواج الأبناء (حتى اثنين لكل ابن)
+  const spouseIdsOf = new Map<string, string[]>(children.map((c) => [c.userId, (c.spouseIds ?? []).filter((id) => id !== userId).slice(0, 2)]));
+  const csIds = [...new Set([...spouseIdsOf.values()].flat())];
+  const csDocs = csIds.length ? await UserProfile.find({ guildId, userId: { $in: csIds } }) : [];
+  const childSpouses: { profile: IUserProfile; viaId: string }[] = [];
+  for (const c of children) {
+    for (const id of spouseIdsOf.get(c.userId) ?? []) {
+      const profile = csDocs.find((d) => d.userId === id);
+      if (profile) childSpouses.push({ profile, viaId: c.userId });
+    }
+  }
+
+  return { parents, siblings, children, spouses, grandparents, childSpouses, grandchildren };
 }

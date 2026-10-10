@@ -2,7 +2,7 @@ import type { Message } from "discord.js";
 import { logger } from "../utils/logger";
 import { getGender, type Gender } from "./gender";
 import { computeRelationship } from "./graph";
-import { cleanName, renderFamilyTree, roleLabel, toFamilyMember, type FamilyMember, type Role } from "./render";
+import { cleanName, inLawLabel, renderFamilyTree, roleLabel, toFamilyMember, type FamilyMember, type Role } from "./render";
 import { getFamilyView } from "./service";
 
 /**
@@ -50,14 +50,36 @@ export async function sendFamilyTree(message: Message<true>, targetId: string): 
     );
   };
 
-  const [ego, parents, siblings, spouses, children, grandparents, grandchildren] = await Promise.all([
+  const childDoc = new Map(view.children.map((c) => [c.userId, c]));
+  const childGender = new Map<string, Gender>();
+
+  const [ego, parents, siblings, spouses, children, grandparents, grandchildren, childSpouses] = await Promise.all([
     build(targetId, null),
     Promise.all(view.parents.map((p) => build(p.userId, "parent"))),
     Promise.all(view.siblings.map((s) => build(s.userId, "sibling"))),
     Promise.all(view.spouses.map((s) => build(s.userId, "spouse"))),
-    Promise.all(view.children.map((c) => build(c.userId, "child"))),
+    Promise.all(
+      view.children.map(async (c) => {
+        const m = await build(c.userId, "child");
+        if (m) {
+          m.parentIds = c.parentIds ?? [];
+          childGender.set(c.userId, m.gender);
+        }
+        return m;
+      }),
+    ),
     Promise.all(view.grandparents.map(async (g) => ({ member: await build(g.profile.userId, "grandparent"), viaId: g.viaId }))),
-    Promise.all(view.grandchildren.map(async (g) => ({ member: await build(g.profile.userId, "grandchild"), viaId: g.viaId }))),
+    Promise.all(view.grandchildren.map(async (g) => ({ member: await build(g.profile.userId, "grandchild"), viaId: g.viaId, parentIds: g.profile.parentIds ?? [] }))),
+    Promise.all(
+      view.childSpouses.map(async (cs) => {
+        const member = await build(cs.profile.userId, "spouse");
+        if (!member) return { member: null, viaId: cs.viaId };
+        // صهر/كنة: عند الأب أو الأم نفسه (أو عند من هو والد الابن) نكتب التسمية الدقيقة
+        const parentOfChild = (childDoc.get(cs.viaId)?.parentIds ?? []).includes(viewerId);
+        if (ownTree || parentOfChild) member.relation = inLawLabel(member.gender, childGender.get(cs.viaId) ?? null);
+        return { member, viaId: cs.viaId };
+      }),
+    ),
   ]);
 
   if (!ego) {
@@ -74,7 +96,8 @@ export async function sendFamilyTree(message: Message<true>, targetId: string): 
     spouses: keep(spouses),
     children: keep(children),
     grandparents: grandparents.flatMap((g) => (g.member ? [{ member: g.member, viaId: g.viaId }] : [])),
-    grandchildren: grandchildren.flatMap((g) => (g.member ? [{ member: g.member, viaId: g.viaId }] : [])),
+    childSpouses: childSpouses.flatMap((c) => (c.member ? [{ member: c.member, viaId: c.viaId }] : [])),
+    grandchildren: grandchildren.flatMap((g) => (g.member ? [{ member: g.member, viaIds: g.parentIds }] : [])),
   }).catch((err) => {
     logger.error("فشل توليد صورة شجرة العائلة", err);
     return null;
