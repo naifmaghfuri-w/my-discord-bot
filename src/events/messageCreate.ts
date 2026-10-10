@@ -30,6 +30,8 @@ import { progressWeeklyQuest } from "../quests/weeklyService";
 import { getBirthday, parseBirthdayInput, setBirthday } from "../services/birthday";
 import { recordMessage } from "../services/stats";
 import { tickStreak } from "../services/streak";
+import { STREAK_TRIGGER, handleStreakMessage } from "../streak/interactions";
+import { applyStreakNick } from "../streak/nick";
 import type { BotEvent } from "../types";
 import { logger } from "../utils/logger";
 
@@ -67,8 +69,9 @@ const event: BotEvent = {
     // 🔥 شعلة النشاط: أي رسالة (نص/صورة/ايموجي/ستيكر) في أي روم تحسب يوم
     void tickStreak(message.author.id, message.guildId).then((t) => {
       if (!t) return;
-      void message.react("🔥").catch(() => undefined);
-      if (t.milestone > 0) void message.reply({ content: `🏆 شعلتك وصلت **${t.streak}** يوم! جائزتك ${jenny(t.milestone)}`, allowedMentions: { repliedUser: false } }).catch(() => undefined);
+      if (t.notify) void message.react("🔥").catch(() => undefined);
+      if (t.notify && t.milestone > 0) void message.reply({ content: `🏆 شعلتك وصلت **${t.streak}** يوم! جائزتك ${jenny(t.milestone)}`, allowedMentions: { repliedUser: false } }).catch(() => undefined);
+      if (message.member) void applyStreakNick(message.member, t.streak, t.sep, t.hidden);
     });
 
     const guildId = message.guildId;
@@ -110,6 +113,10 @@ const event: BotEvent = {
     }
 
     // --- الوظائف: "وظائف" / "دوام" / "استقالة" ---
+    if (STREAK_TRIGGER.test(rawContent.trim())) {
+      await handleStreakMessage(message);
+      return;
+    }
     if (JOBS_TRIGGER.test(rawContent.trim())) {
       await handleJobMessage(message, "panel");
       return;

@@ -10,6 +10,7 @@ import { handleFamilyButton } from "../family/interactions";
 import { handleLabButton, handleLabSelect } from "../lab/interactions";
 import { handleHunterButton, handleHunterSelect } from "../hunter/interactions";
 import { handleJobButton, handleJobSelect } from "../jobs/interactions";
+import { handleStreakButton, handleStreakSelect } from "../streak/interactions";
 import { handleMenuButton } from "../menu/interactions";
 import type { BotEvent } from "../types";
 import { logger } from "../utils/logger";
@@ -31,6 +32,7 @@ const event: BotEvent = {
           (await handleBirthdayButton(interaction)) ||
           (await handleHunterButton(interaction)) ||
           (await handleJobButton(interaction)) ||
+          (await handleStreakButton(interaction)) ||
           (await handleBankButton(interaction)) ||
           (await handleFamilyButton(interaction));
         if (!handled) await handleLabButton(interaction);
@@ -42,7 +44,7 @@ const event: BotEvent = {
 
     if (interaction.isStringSelectMenu() || interaction.isUserSelectMenu()) {
       try {
-        const handled = (await handleChatSelect(interaction)) || (await handleHunterSelect(interaction)) || (interaction.isStringSelectMenu() && (await handleJobSelect(interaction)));
+        const handled = (await handleChatSelect(interaction)) || (await handleHunterSelect(interaction)) || (interaction.isStringSelectMenu() && ((await handleJobSelect(interaction)) || (await handleStreakSelect(interaction))));
         if (!handled && interaction.isStringSelectMenu()) await handleLabSelect(interaction);
       } catch (err) {
         logger.error("خطأ في قائمة منسدلة", err);
