@@ -21,7 +21,7 @@ import { LabProfile } from "../database/models/LabProfile";
 import { computeRelationship } from "../family/graph";
 import { ADOPT_ACCEPT_PREFIX, ADOPT_DECLINE_PREFIX, MARRY_ACCEPT_PREFIX, MARRY_DECLINE_PREFIX } from "../family/ids";
 import { sendFamilyTree } from "../family/treeView";
-import { canAdopt, canPropose, disown, getParents, khulaDivorce, talaqDivorce } from "../family/service";
+import { canAdopt, canPropose, disown, getParents, khulaDivorce, runAway, talaqDivorce } from "../family/service";
 import { buildMenuMessage } from "../menu/interactions";
 import { QUEST_SETTINGS, type QuestId } from "../quests/definitions";
 import { progressQuest, toAnnouncer } from "../quests/service";
@@ -43,6 +43,8 @@ const MARRY_TRIGGER = /^تزوج\s+<@!?(\d+)>\s+مهر[:\s]+(\d+)$/i;
 const TALAQ_TRIGGER = /^طلاق(?:\s+<@!?(\d+)>)?$/i;
 const ADOPT_TRIGGER = /^تبن[ىي]\s+<@!?(\d+)>$/i;
 const DISOWN_TRIGGER = /^تبرؤ\s+<@!?(\d+)>$/i;
+/** هروب: الابن يتخلى عن عائلته بالكامل */
+const RUNAWAY_TRIGGER = /^(?:هروب|هرب)$/i;
 /** شجرة العائلة: "شجرة" لشجرتك، أو "شجرة @شخص" لشجرة غيرك */
 const TREE_TRIGGER = /^شجرة(?:\s+<@!?(\d+)>)?$/;
 const RELATION_TRIGGER = /^قرابة\s+<@!?(\d+)>$/i;
@@ -364,11 +366,16 @@ const event: BotEvent = {
       });
 
       if (!result.ok) {
-        await message.channel.send("❌ أنتِ مو متزوجة أصلاً.").catch(() => undefined);
+        const text =
+          result.reason === "insufficient_refund"
+            ? `❌ الخلع يتطلب إرجاع نصف المهر لزوجك، وتحتاجين ${jenny(result.needed)} ${CURRENCY.emoji} في محفظتك.`
+            : "❌ أنتِ مو متزوجة أصلاً.";
+        await message.channel.send(text).catch(() => undefined);
         return;
       }
 
-      await message.channel.send(`💔 طلبت <@${userId}> الخلع من <@${result.exSpouseId}>، وتم.`).catch(() => undefined);
+      const refundText = result.refund ? ` وأرجعت نصف المهر (${jenny(result.refund)} ${CURRENCY.emoji}) لزوجها.` : ".";
+      await message.channel.send(`💔 طلبت <@${userId}> الخلع من <@${result.exSpouseId}>${refundText}`).catch(() => undefined);
       return;
     }
 
@@ -433,14 +440,6 @@ const event: BotEvent = {
     const disownMatch = DISOWN_TRIGGER.exec(trimmed);
     if (disownMatch) {
       const childId = disownMatch[1];
-      const member = message.member ?? (await guild.members.fetch(userId).catch(() => null));
-      const gender = member ? getGender(member) : null;
-
-      if (gender !== "male") {
-        await message.channel.send("❌ أمر `تبرؤ` للأب بس.").catch(() => undefined);
-        return;
-      }
-
       const result = await disown(userId, childId, guildId).catch((err) => {
         logger.error("فشل التبرؤ", err);
         return { ok: false as const, reason: "not_your_child" as const };
@@ -453,6 +452,21 @@ const event: BotEvent = {
 
       await message.channel
         .send(`⚠️ تبرّأ <@${userId}> من <@${childId}>.`)
+        .catch(() => undefined);
+      return;
+    }
+
+    if (RUNAWAY_TRIGGER.test(trimmed)) {
+      const result = await runAway(userId, guildId).catch((err) => {
+        logger.error("فشل الهروب", err);
+        return { ok: false as const, reason: "no_family" as const };
+      });
+      if (!result.ok) {
+        await message.channel.send("❌ ما عندك عائلة مسجّلة عشان تهرب منها.").catch(() => undefined);
+        return;
+      }
+      await message.channel
+        .send(`🏃 هرب <@${userId}> من عائلته وتخلى عن الجميع.`)
         .catch(() => undefined);
       return;
     }
