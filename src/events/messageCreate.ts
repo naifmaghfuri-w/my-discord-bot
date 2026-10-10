@@ -73,6 +73,14 @@ const event: BotEvent = {
       if (message.member) void applyStreakNick(message.member, t.streak, t.sep, t.hidden);
     });
 
+    // --- قناة العد: رقم صحيح (أو عملية ناتجها الرقم الصحيح) يتعلّم، وأي شيء ثاني يُمسح بدون ما يحسب لأي مهمة ---
+    let countedCorrectly = false;
+    if (config.countingChannelId && message.channelId === config.countingChannelId) {
+      const result = await handleCountingMessage(message);
+      if (result === "wrong") return; // انمسحت: كأنها ما انكتبت
+      countedCorrectly = result === "correct";
+    }
+
     const guildId = message.guildId;
     const userId = message.author.id;
     const rawContent = message.content ?? "";
@@ -594,14 +602,6 @@ const event: BotEvent = {
           }
         }
       }
-    }
-
-    // --- قناة العد: رقم صحيح ☑️ | رقم غلط يُمسح بدون ما يحسب لأي مهمة ---
-    let countedCorrectly = false;
-    if (config.countingChannelId && message.channelId === config.countingChannelId) {
-      const result = await handleCountingMessage(message);
-      if (result === "wrong") return; // انمسحت: كأنها ما انكتبت
-      countedCorrectly = result === "correct";
     }
 
     const channel = toAnnouncer(message.channel);
