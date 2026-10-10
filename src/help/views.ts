@@ -100,7 +100,8 @@ export const SECTIONS: HelpSection[] = [
     style: ButtonStyle.Success,
     title: "💰 الاقتصاد",
     lines: [
-      "`daily` ← مكافأتك اليومية",
+      "`daily` ← مكافأتك اليومية ",
+      "`streak` ← شعلتك 🔥 (أيام تراسلك المتتالية في السيرفر)",
       "`pay` ← حوّل Jenny لعضو",
       "`rob` ← حاول تسرق عضواً (مخاطرة!)",
       "`top` و`leaderboard` ← لوحات الصدارة",
