@@ -62,7 +62,6 @@ export const SECTIONS: HelpSection[] = [
       "`قرابة @شخص` ← من هو بالنسبة لك",
     ],
   },
-  
   {
     id: "economy",
     emoji: "💰",
