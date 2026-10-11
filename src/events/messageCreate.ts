@@ -17,6 +17,7 @@ import { CLEAR_TRIGGER, handleClearMessage } from "../moderation/clearText";
 import { handleTextCommand } from "../handlers/textCommands";
 import { buildLabHub } from "../lab/interactions";
 import { TRADE_TRIGGER, startTradeFromMessage } from "../lab/trade";
+import { handleLabTasksMessage } from "../lab/tasks";
 import { buildLabCard } from "../lab/views";
 import { LabProfile } from "../database/models/LabProfile";
 import { computeRelationship } from "../family/graph";
@@ -207,6 +208,9 @@ const event: BotEvent = {
       await message.channel.send({ ...card, allowedMentions: { parse: [] } }).catch(() => undefined);
       return;
     }
+
+    // --- مهام المختبر: "$LT" (روم مخصص فقط) ---
+    if (await handleLabTasksMessage(message).catch(() => false)) return;
 
     // --- تبادل مركبات: "عرض @شخص السعر [الكمية]" ---
     const tradeMatch = TRADE_TRIGGER.exec(rawContent.trim());
