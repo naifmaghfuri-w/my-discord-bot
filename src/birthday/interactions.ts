@@ -107,7 +107,7 @@ export async function handleBirthdayButton(interaction: ButtonInteraction): Prom
       return true;
     }
     await interaction.reply({
-      content: hidden ? "🙈 Your age is now **hidden** from others." : "👀 Your age is now **visible** to others.",
+      content: hidden ? "Your age is now **hidden** from others." : " Your age is now **visible** to others.",
       flags: MessageFlags.Ephemeral,
     });
     return true;
