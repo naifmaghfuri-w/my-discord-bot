@@ -289,9 +289,6 @@ export function buildExtraPanel(owner: string): PanelResult {
     .setTitle("📂 القائمة الإضافية")
     .setDescription(
       [
-        "📦 **المستودع** — عناصرك ومركباتك",
-        "📖 **المكتبة** — وصفات ما اكتشفته",
-        "🎚️ **المستويات** — شجرة الفتح: عناصر وأجهزة وتقنيات",
         "🏅 **الإنجازات** — أهداف طويلة المدى",
         "💡 **تلميح** — اكشف جزءاً من وصفة مجهولة",
         "🛠️ **الأجهزة** — طوّر الفرن والمضخة واشترِ معدات السلامة",
@@ -300,9 +297,6 @@ export function buildExtraPanel(owner: string): PanelResult {
       ].join("\n"),
     );
   const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(cid(OPEN_WAREHOUSE, owner)).setLabel("المستودع").setEmoji("📦").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(cid(OPEN_CODEX, owner, 0)).setLabel("المكتبة").setEmoji("📖").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(cid(OPEN_LEVELS, owner)).setLabel("المستويات").setEmoji("🎚️").setStyle(ButtonStyle.Secondary),
   );
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(cid(OPEN_ACH, owner)).setLabel("الإنجازات").setEmoji("🏅").setStyle(ButtonStyle.Primary),
@@ -322,28 +316,40 @@ function sub(embed: EmbedBuilder, components: Row[], note?: string): PanelResult
   return { content: note, embeds: [embed], components, files: [] };
 }
 
-export function buildWarehouseView(profile: ILabProfile, coins: number, note?: string): PanelResult {
-  const elementLines = ELEMENTS.filter((e) => (profile.inventory[e.id] ?? 0) > 0).map(
-    (e) => `${e.icon} ${e.name}${ELEMENT_INFO[e.id] ? ` (${ELEMENT_INFO[e.id].symbol})` : ""} ×**${profile.inventory[e.id]}**`,
-  );
-  const compoundLines = COMPOUNDS.filter((c) => (profile.compounds[c.id] ?? 0) > 0).map(
-    (c) => `${c.icon} ${c.name} ×**${profile.compounds[c.id]}** — ${RARITY_INFO[c.rarity].name}`,
-  );
+const STOCK_PER_PAGE = 8;
+
+/** المخزون ($LS): تبويب للعناصر وتبويب للمركبات، وأسهم للتنقل بين الصفحات */
+export function buildWarehouseView(profile: ILabProfile, coins: number, note?: string, tab: "e" | "c" = "e", page = 0): PanelResult {
+  const owner = profile.userId;
+  const isEl = tab === "e";
+  const lines = isEl
+    ? ELEMENTS.filter((e) => (profile.inventory[e.id] ?? 0) > 0).map(
+        (e) => `${e.icon} **${e.name}**${ELEMENT_INFO[e.id] ? ` \`${ELEMENT_INFO[e.id].symbol}\`` : ""} — ×**${profile.inventory[e.id]}**`,
+      )
+    : COMPOUNDS.filter((c) => (profile.compounds[c.id] ?? 0) > 0).map(
+        (c) => `${c.icon} **${c.name}** — ×**${profile.compounds[c.id]}** _(${RARITY_INFO[c.rarity].name})_`,
+      );
+  const pages = Math.max(1, Math.ceil(lines.length / STOCK_PER_PAGE));
+  const p = Math.min(Math.max(0, page), pages - 1);
+  const shown = lines.slice(p * STOCK_PER_PAGE, (p + 1) * STOCK_PER_PAGE);
 
   const embed = new EmbedBuilder()
-    .setColor(0x64748b)
-    .setTitle("📦 المستودع")
-    .addFields(
-      ...chunkLines(elementLines).map((v, i) => ({ name: i === 0 ? "🧱 العناصر" : "🧱 العناصر (تابع)", value: v })),
-      ...(elementLines.length === 0 ? [{ name: "🧱 العناصر", value: "فاضي — اشتر من المتجر 🏪" }] : []),
-      ...chunkLines(compoundLines).map((v, i) => ({ name: i === 0 ? "🧬 المركبات المصنّعة" : "🧬 المركبات (تابع)", value: v })),
-      ...(compoundLines.length === 0 ? [{ name: "🧬 المركبات المصنّعة", value: "ما صنعت شيء بعد — جرّب تفاعلاً!" }] : []),
-      {
-        name: "💼 الرصيد",
-        value: `${jenny(coins)} • 🔬 ${profile.labTokens} نقطة فتح • ✨ ${profile.reputation} سمعة`,
-      },
-    );
-  return sub(embed, [backRow(profile.userId, "extra")], note);
+    .setColor(isEl ? 0x38bdf8 : 0xa855f7)
+    .setTitle(`📦 المخزون — ${isEl ? "🧱 العناصر" : "🧬 المركبات"}`)
+    .setDescription(
+      [
+        shown.length ? shown.join("\n") : isEl ? "ما عندك عناصر — اشترِ من المتجر 🏪" : "ما صنعت شيء بعد — جرّب تفاعلاً!",
+      ].join("\n"),
+    )
+    .setFooter({ text: `صفحة ${p + 1} من ${pages} • ${lines.length} صنف` });
+
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(cid(OPEN_WAREHOUSE, owner, "e:0")).setLabel("العناصر").setEmoji("🧱").setStyle(isEl ? ButtonStyle.Primary : ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(cid(OPEN_WAREHOUSE, owner, "c:0")).setLabel("المركبات").setEmoji("🧬").setStyle(isEl ? ButtonStyle.Secondary : ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(cid(OPEN_WAREHOUSE, owner, `${tab}:${p - 1}`)).setEmoji("◀️").setStyle(ButtonStyle.Secondary).setDisabled(p === 0),
+    new ButtonBuilder().setCustomId(cid(OPEN_WAREHOUSE, owner, `${tab}:${p + 1}`)).setEmoji("▶️").setStyle(ButtonStyle.Secondary).setDisabled(p >= pages - 1),
+  );
+  return sub(embed, [row], note);
 }
 
 const CODEX_PER_PAGE = 7;
@@ -395,7 +401,7 @@ export function buildCodexView(profile: ILabProfile, page = 0): PanelResult {
     new ButtonBuilder().setCustomId(cid(NOOP, owner)).setLabel(`${p + 1}/${all.length}`).setStyle(ButtonStyle.Secondary).setDisabled(true),
     new ButtonBuilder().setCustomId(cid(CODEX_PAGE, owner, p + 1)).setLabel("التالي").setEmoji("▶️").setStyle(ButtonStyle.Primary).setDisabled(p === last),
   );
-  return sub(embed, [nav, backRow(owner, "extra")]);
+  return sub(embed, [nav]);
 }
 
 export async function buildMarketView(guildId: string, profile: ILabProfile, note?: string, page = 0): Promise<PanelResult> {
@@ -539,7 +545,6 @@ export function buildLevelsView(profile: ILabProfile, note?: string, tab: Engram
       ),
     );
   }
-  rows.push(backRow(owner, "extra"));
   return sub(embed, rows, note);
 }
 
