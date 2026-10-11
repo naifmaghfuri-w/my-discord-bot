@@ -322,12 +322,14 @@ const STOCK_PER_PAGE = 8;
 export function buildWarehouseView(profile: ILabProfile, coins: number, note?: string, tab: "e" | "c" = "e", page = 0): PanelResult {
   const owner = profile.userId;
   const isEl = tab === "e";
+  const EXTRA_SYMBOL: Record<string, string> = { water: "H₂O", salt: "NaCl" };
+  const tag = (sym?: string) => (sym && sym !== "—" ? `\`${sym}\` ` : "");
   const lines = isEl
     ? ELEMENTS.filter((e) => (profile.inventory[e.id] ?? 0) > 0).map(
-        (e) => `${e.icon} **${e.name}**${ELEMENT_INFO[e.id] ? ` \`${ELEMENT_INFO[e.id].symbol}\`` : ""} — ×**${profile.inventory[e.id]}**`,
+        (e) => `${tag(EXTRA_SYMBOL[e.id] ?? ELEMENT_INFO[e.id]?.symbol)}**${e.name}** — ×**${profile.inventory[e.id]}**`,
       )
     : COMPOUNDS.filter((c) => (profile.compounds[c.id] ?? 0) > 0).map(
-        (c) => `${c.icon} **${c.name}** — ×**${profile.compounds[c.id]}** _(${RARITY_INFO[c.rarity].name})_`,
+        (c) => `${tag(COMPOUND_INFO[c.id]?.formula)}**${c.name}** — ×**${profile.compounds[c.id]}** _(${RARITY_INFO[c.rarity].name})_`,
       );
   const pages = Math.max(1, Math.ceil(lines.length / STOCK_PER_PAGE));
   const p = Math.min(Math.max(0, page), pages - 1);
