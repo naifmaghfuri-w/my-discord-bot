@@ -9,6 +9,8 @@ export interface ILabSession {
   pressure: number;
   /** مضاعف خطوة الحرارة/الضغط (1 أو 5) */
   stepMult: number;
+  /** صفحة قوائم العناصر والمركبات بالمعمل */
+  page: number;
   updatedAt: Date;
 }
 
@@ -20,6 +22,7 @@ const schema = new Schema<ILabSession>(
     temp: { type: Number, default: 20 },
     pressure: { type: Number, default: 1 },
     stepMult: { type: Number, default: 1 },
+    page: { type: Number, default: 0 },
     updatedAt: { type: Date, default: () => new Date() },
   },
   { minimize: false },

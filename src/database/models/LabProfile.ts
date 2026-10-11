@@ -41,6 +41,14 @@ export interface ILabProfile {
   /** رحلة الاستكشاف الحالية */
   expeditionEndsAt?: Date | null;
   expeditionHours: number;
+  /** إنجرامات مفتوحة (أجهزة وتقنيات). العناصر تبقى في unlockedElements */
+  engrams: string[];
+  /** مستهلكات: { catalyst, stabilizer, antirad, energy } */
+  consumables: Record<string, number>;
+  /** الروبوت الآلي: مركب قيد التصنيع وعدده ووقت الانتهاء */
+  robotCompound: string;
+  robotQty: number;
+  robotEndsAt?: Date | null;
 }
 
 const schema = new Schema<ILabProfile>(
@@ -70,6 +78,11 @@ const schema = new Schema<ILabProfile>(
     orderDone: { type: [String], default: [] },
     expeditionEndsAt: { type: Date, default: null },
     expeditionHours: { type: Number, default: 0 },
+    engrams: { type: [String], default: [] },
+    consumables: { type: Schema.Types.Mixed, default: {} },
+    robotCompound: { type: String, default: "" },
+    robotQty: { type: Number, default: 0 },
+    robotEndsAt: { type: Date, default: null },
   },
   { minimize: false },
 );
