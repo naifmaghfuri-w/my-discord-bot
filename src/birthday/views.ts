@@ -76,7 +76,7 @@ export function buildBirthdayPanel(
     );
 
   if (withButtons && b.year !== undefined) {
-    embed.setFooter({ text: b.hideAge ? "🙈 Your age is hidden from others" : "👀 Your age is visible to others" });
+    embed.setFooter({ text: b.hideAge ? "Your age is hidden from others" : " Your age is visible to others" });
   }
 
   return { embeds: [embed], components: withButtons ? [actionRow()] : [] };
