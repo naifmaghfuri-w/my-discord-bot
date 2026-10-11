@@ -44,6 +44,14 @@ export const ORDER_DELIVER_SELECT = "lab_order_deliver_select";
 export const OPEN_EXPED = "lab_open_exped";
 export const EXPED_START = "lab_exped_start";
 export const EXPED_COLLECT = "lab_exped_collect";
+export const PAGE_CYCLE = "lab_page_cycle";
+export const MARKET_PAGE = "lab_market_page";
+export const ENGRAM_TAB = "lab_engram_tab";
+export const OPEN_ROBOT = "lab_open_robot";
+export const ROBOT_START = "lab_robot_start";
+export const ROBOT_COLLECT = "lab_robot_collect";
+export const USE_ANTIRAD = "lab_use_antirad";
+export const CENTRIFUGE_RUN = "lab_centrifuge_run";
 export const OPEN_TRADE_HELP = "lab_open_trade_help";
 
 export const TRADE_PICK = "lab_trade_pick";

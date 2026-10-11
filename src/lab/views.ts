@@ -8,11 +8,21 @@ import {
 import { CURRENCY, jenny } from "../constants";
 import { nextResetUnix, todayKey } from "../quests/time";
 import { COMPOUND_MAP, COMPOUNDS, RARITY_INFO, type Rarity } from "./compounds";
+import { CATEGORIES, categoryProgress } from "./categories";
 import { ELEMENT_MAP, ELEMENTS } from "./elements";
+import { ENGRAMS, KIND_LABEL, engramName, engramState, type EngramKind } from "./engrams";
 import { COMPOUND_INFO, ELEMENT_INFO, REALISM_LABEL } from "./info";
 import {
+  CONSUMABLES,
+  DEVICES,
   GEAR,
   MAX_LEVEL,
+  ROBOT_MINUTES_PER_UNIT,
+  consumableCount,
+  robotBatch,
+  robotEligible,
+  robotState,
+  isDevice,
   UPGRADE_COST,
   currentRadiation,
   doneOrders,
@@ -26,6 +36,14 @@ import {
 } from "./workshop";
 import {
   BACK,
+  CENTRIFUGE_RUN,
+  ENGRAM_TAB,
+  MARKET_PAGE,
+  OPEN_ROBOT,
+  PAGE_CYCLE,
+  ROBOT_COLLECT,
+  ROBOT_START,
+  USE_ANTIRAD,
   CODEX_PAGE,
   HINT_BUY_SELECT,
   HINT_PAGE,
@@ -95,12 +113,35 @@ function bar(value: number, max: number, size = 12): string {
   return "▰".repeat(filled) + "▱".repeat(size - filled);
 }
 
+const PAGE_SIZE = 25;
+
+function pageSlice<T>(items: T[], page: number): T[] {
+  return items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+}
+
+/** يقسّم أسطراً طويلة لحقول embed (الحد 1024 حرف للحقل) */
+function chunkLines(lines: string[], max = 1000): string[] {
+  const out: string[] = [];
+  let cur = "";
+  for (const l of lines) {
+    if (cur && cur.length + l.length + 1 > max) {
+      out.push(cur);
+      cur = "";
+    }
+    cur += (cur ? "\n" : "") + l;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
 /** حالة الإشعاع والإصابة تظهر بالمعمل لما تكون موجودة */
 function statusLine(profile: ILabProfile): string {
   const sick = sickMinutesLeft(profile);
   if (sick > 0) return `🤒 مصاب بالإشعاع — المختبر معطّل **${sick}** دقيقة`;
   const rad = currentRadiation(profile);
-  return rad > 0 ? `☢️ الإشعاع: **${rad}/100** ${hasGear(profile, "hazmat") ? "(محمي بالبدلة)" : ""}`.trim() : "";
+  if (rad <= 0) return "";
+  if (!hasGear(profile, "geiger")) return "☢️ فيك إشعاع (اشترِ عدّاد جايغر 📟 لقياسه)";
+  return `☢️ الإشعاع: **${rad}/100** ${hasGear(profile, "hazmat") ? "(محمي بالبدلة)" : ""}`.trim();
 }
 
 export async function buildMainPanel(profile: ILabProfile, session: ILabSession, note?: string): Promise<PanelResult> {
@@ -120,7 +161,7 @@ export async function buildMainPanel(profile: ILabProfile, session: ILabSession,
     .setDescription(
       [
         `**المستوى ${profile.labLevel}** \`${bar(profile.labXp, need)}\` ${profile.labXp}/${need}`,
-        `🔬 رموز: **${profile.labTokens}** • ✨ سمعة: **${profile.reputation}**`,
+        `🔬 نقاط الفتح: **${profile.labTokens}** • ✨ سمعة: **${profile.reputation}**`,
         `🌡️ **${session.temp}°** • 💨 **${session.pressure}** • الخطوة: **${mult === 1 ? "عادية" : "سريعة ×" + mult}**`,
         statusLine(profile),
         "",
@@ -131,7 +172,11 @@ export async function buildMainPanel(profile: ILabProfile, session: ILabSession,
 
   const rows: Row[] = [];
 
-  const ownedElements = ELEMENTS.filter((e) => (profile.inventory[e.id] ?? 0) > 0);
+  const allElements = ELEMENTS.filter((e) => (profile.inventory[e.id] ?? 0) > 0);
+  const allCompounds = COMPOUNDS.filter((c) => (profile.compounds[c.id] ?? 0) > 0);
+  const pages = Math.max(1, Math.ceil(allElements.length / PAGE_SIZE), Math.ceil(allCompounds.length / PAGE_SIZE));
+  const page = Math.min(Math.max(0, session.page ?? 0), pages - 1);
+  const ownedElements = pageSlice(allElements, page);
   if (ownedElements.length > 0) {
     rows.push(
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
@@ -139,7 +184,7 @@ export async function buildMainPanel(profile: ILabProfile, session: ILabSession,
           .setCustomId(cid(SELECT_ELEMENT, owner))
           .setPlaceholder("➕ أضف عنصراً للخليط")
           .addOptions(
-            ownedElements.slice(0, 25).map((e) => ({
+            ownedElements.map((e) => ({
               label: `${e.name} (متاح ${(profile.inventory[e.id] ?? 0) - (session.mix[e.id] ?? 0)})`,
               value: e.id,
               emoji: e.icon,
@@ -149,7 +194,7 @@ export async function buildMainPanel(profile: ILabProfile, session: ILabSession,
     );
   }
 
-  const ownedCompounds = COMPOUNDS.filter((c) => (profile.compounds[c.id] ?? 0) > 0);
+  const ownedCompounds = pageSlice(allCompounds, page);
   if (ownedCompounds.length > 0) {
     rows.push(
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
@@ -157,7 +202,7 @@ export async function buildMainPanel(profile: ILabProfile, session: ILabSession,
           .setCustomId(cid(SELECT_COMPOUND, owner))
           .setPlaceholder("🧬 أضف مركباً مصنّعاً للخليط")
           .addOptions(
-            ownedCompounds.slice(0, 25).map((c) => ({
+            ownedCompounds.map((c) => ({
               label: `${c.name} (متاح ${(profile.compounds[c.id] ?? 0) - (session.mix[c.id] ?? 0)})`,
               value: c.id,
               emoji: c.icon,
@@ -179,6 +224,9 @@ export async function buildMainPanel(profile: ILabProfile, session: ILabSession,
       new ButtonBuilder().setCustomId(cid(RESET, owner)).setLabel("تصفير").setEmoji("🔄").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId(cid(STEP_TOGGLE, owner)).setLabel(mult === 1 ? "خطوة سريعة" : "خطوة عادية").setEmoji("⚡").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId(cid(BACK, owner)).setLabel("القائمة الرئيسية").setEmoji("🏠").setStyle(ButtonStyle.Secondary),
+      ...(pages > 1
+        ? [new ButtonBuilder().setCustomId(cid(PAGE_CYCLE, owner)).setLabel(`صفحة ${page + 1}/${pages}`).setEmoji("📑").setStyle(ButtonStyle.Secondary)]
+        : []),
     ),
   );
 
@@ -212,7 +260,7 @@ export function buildHubPanel(profile: ILabProfile, coins: number, name: string,
         "",
         `\`المستوى ${profile.labLevel}\``,
         `\`${profile.labXp} / ${need} XP\` ${bar(profile.labXp, need, 10)}`,
-        `\`${profile.labTokens} 🔬 رمز\``,
+        `\`${profile.labTokens} 🔬 نقطة فتح\``,
         jenny(coins),
         "",
         "**🎓 اللقب العلمي**",
@@ -243,7 +291,7 @@ export function buildExtraPanel(owner: string): PanelResult {
       [
         "📦 **المستودع** — عناصرك ومركباتك",
         "📖 **المكتبة** — وصفات ما اكتشفته",
-        "🎚️ **المستويات** — افتح عناصر جديدة",
+        "🎚️ **المستويات** — شجرة الفتح: عناصر وأجهزة وتقنيات",
         "🎯 **المهام** — مهام اليوم ومكافآتها",
         "🏅 **الإنجازات** — أهداف طويلة المدى",
         "💡 **تلميح** — اكشف جزءاً من وصفة مجهولة",
@@ -290,56 +338,75 @@ export function buildWarehouseView(profile: ILabProfile, coins: number, note?: s
     .setColor(0x64748b)
     .setTitle("📦 المستودع")
     .addFields(
-      { name: "🧱 العناصر", value: elementLines.join("\n") || "فاضي — اشتر من المتجر 🏪" },
-      { name: "🧬 المركبات المصنّعة", value: compoundLines.join("\n") || "ما صنعت شيء بعد — جرّب تفاعلاً!" },
+      ...chunkLines(elementLines).map((v, i) => ({ name: i === 0 ? "🧱 العناصر" : "🧱 العناصر (تابع)", value: v })),
+      ...(elementLines.length === 0 ? [{ name: "🧱 العناصر", value: "فاضي — اشتر من المتجر 🏪" }] : []),
+      ...chunkLines(compoundLines).map((v, i) => ({ name: i === 0 ? "🧬 المركبات المصنّعة" : "🧬 المركبات (تابع)", value: v })),
+      ...(compoundLines.length === 0 ? [{ name: "🧬 المركبات المصنّعة", value: "ما صنعت شيء بعد — جرّب تفاعلاً!" }] : []),
       {
         name: "💼 الرصيد",
-        value: `${jenny(coins)} • 🔬 ${profile.labTokens} رمز • ✨ ${profile.reputation} سمعة`,
+        value: `${jenny(coins)} • 🔬 ${profile.labTokens} نقطة فتح • ✨ ${profile.reputation} سمعة`,
       },
     );
   return sub(embed, [backRow(profile.userId, "extra")], note);
 }
 
+const CODEX_PER_PAGE = 7;
+
+/** صفحات المكتبة: كل ندرة تُقسم لصفحات صغيرة (7 مركبات) عشان ما تتجاوز حد الرسالة */
+function codexPages(): { rarity: Rarity; items: typeof COMPOUNDS }[] {
+  const pages: { rarity: Rarity; items: typeof COMPOUNDS }[] = [];
+  for (const rarity of RARITY_ORDER) {
+    const items = COMPOUNDS.filter((c) => c.rarity === rarity);
+    for (let i = 0; i < items.length; i += CODEX_PER_PAGE) pages.push({ rarity, items: items.slice(i, i + CODEX_PER_PAGE) });
+  }
+  return pages;
+}
+
 export function buildCodexView(profile: ILabProfile, page = 0): PanelResult {
   const owner = profile.userId;
-  const last = RARITY_ORDER.length - 1;
+  const all = codexPages();
+  const last = all.length - 1;
   const p = Math.max(0, Math.min(last, page));
-  const rarity = RARITY_ORDER[p];
-  const items = COMPOUNDS.filter((c) => c.rarity === rarity);
-  const found = items.filter((c) => profile.discovered.includes(c.id)).length;
+  const { rarity, items } = all[p];
+  const total = COMPOUNDS.filter((c) => c.rarity === rarity);
+  const found = total.filter((c) => profile.discovered.includes(c.id)).length;
 
   const lines = items.map((c) => {
+    const tags = `${c.byproduct ? " 🧪ناتج جانبي" : ""}${c.engram ? ` 🔐${engramName(c.engram)}` : ""}`;
     if (!profile.discovered.includes(c.id)) {
       const bought = profile.hinted?.[c.id] ?? 0;
       const clues = hintClues(c).slice(0, bought);
-      return `❔ **???** — ${Object.keys(c.recipe).length} مكونات${clues.length ? `\n┗ 💡 ${clues.join(" • ")}` : ""}`;
+      return `❔ **???** — ${Object.keys(c.recipe).length} مكونات${tags}${clues.length ? `\n┗ 💡 ${clues.join(" • ")}` : ""}`;
     }
     const recipe = Object.entries(c.recipe)
       .map(([id, q]) => `${ELEMENT_MAP[id]?.name ?? COMPOUND_MAP[id]?.name ?? id}×${q}`)
       .join(" + ");
     const info = COMPOUND_INFO[c.id];
     const infoLine = info ? `\n┗ 🧬 ${info.formula !== "—" ? `\`${info.formula}\` • ` : ""}${info.type} • ${REALISM_LABEL[info.real]}` : "";
-    return `${c.icon} **${c.name}**\n┗ ${recipe}\n┗ 🌡️ ${c.tempRange[0]}-${c.tempRange[1]} • 💨 ${c.pressureRange[0]}-${c.pressureRange[1]}${infoLine}`;
+    return `${c.icon} **${c.name}**${tags}\n┗ ${recipe}\n┗ 🌡️ ${c.tempRange[0]}-${c.tempRange[1]} • 💨 ${c.pressureRange[0]}-${c.pressureRange[1]}${infoLine}`;
   });
 
   const embed = new EmbedBuilder()
     .setColor(RARITY_INFO[rarity].color)
-    .setTitle(`📖 المكتبة — ${RARITY_INFO[rarity].name} (${found}/${items.length})`)
+    .setTitle(`📖 المكتبة — ${RARITY_INFO[rarity].name} (${found}/${total.length})`)
     .setDescription(
       `الإجمالي: **${profile.discovered.length}/${COMPOUNDS.length}** \`${bar(profile.discovered.length, COMPOUNDS.length)}\`\n\n${lines.join("\n\n")}`.slice(0, 4000),
     )
-    .setFooter({ text: `صفحة ${p + 1} من ${RARITY_ORDER.length}` });
+    .setFooter({ text: `صفحة ${p + 1} من ${all.length}` });
 
   const nav = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(cid(CODEX_PAGE, owner, p - 1)).setLabel("السابق").setEmoji("◀️").setStyle(ButtonStyle.Primary).setDisabled(p === 0),
-    new ButtonBuilder().setCustomId(cid(NOOP, owner)).setLabel(`${p + 1}/${RARITY_ORDER.length}`).setStyle(ButtonStyle.Secondary).setDisabled(true),
+    new ButtonBuilder().setCustomId(cid(NOOP, owner)).setLabel(`${p + 1}/${all.length}`).setStyle(ButtonStyle.Secondary).setDisabled(true),
     new ButtonBuilder().setCustomId(cid(CODEX_PAGE, owner, p + 1)).setLabel("التالي").setEmoji("▶️").setStyle(ButtonStyle.Primary).setDisabled(p === last),
   );
   return sub(embed, [nav, backRow(owner, "extra")]);
 }
 
-export async function buildMarketView(guildId: string, profile: ILabProfile, note?: string): Promise<PanelResult> {
-  const owned = COMPOUNDS.filter((c) => (profile.compounds[c.id] ?? 0) > 0);
+export async function buildMarketView(guildId: string, profile: ILabProfile, note?: string, page = 0): Promise<PanelResult> {
+  const allOwned = COMPOUNDS.filter((c) => (profile.compounds[c.id] ?? 0) > 0);
+  const pages = Math.max(1, Math.ceil(allOwned.length / PAGE_SIZE));
+  const p = Math.min(Math.max(0, page), pages - 1);
+  const owned = pageSlice(allOwned, p);
   const bonus = reputationBonus(profile.reputation);
 
   const lines: string[] = [];
@@ -357,18 +424,27 @@ export async function buildMarketView(guildId: string, profile: ILabProfile, not
         "",
         `✨ مكافأة سمعتك على البيع: **+${Math.round(bonus * 100)}%**`,
         "📉 كل بيع ينزّل السعر شوي، والسوق يتغير كل ساعتين.",
+        ...(pages > 1 ? [`📑 صفحة ${p + 1}/${pages}`] : []),
       ].join("\n"),
     );
 
   const rows: Row[] = [];
   if (owned.length > 0) {
-    const opts = owned.slice(0, 25).map((c) => ({ label: `${c.name} (معك ${profile.compounds[c.id]})`, value: c.id, emoji: c.icon }));
+    const opts = owned.map((c) => ({ label: `${c.name} (معك ${profile.compounds[c.id]})`, value: c.id, emoji: c.icon }));
     rows.push(
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-        new StringSelectMenuBuilder().setCustomId(cid(MARKET_SELL_SELECT, profile.userId)).setPlaceholder("💰 بيع وحدة واحدة").addOptions(opts),
+        new StringSelectMenuBuilder().setCustomId(cid(MARKET_SELL_SELECT, profile.userId, p)).setPlaceholder("💰 بيع وحدة واحدة").addOptions(opts),
       ),
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-        new StringSelectMenuBuilder().setCustomId(cid(MARKET_SELLALL_SELECT, profile.userId)).setPlaceholder("💸 بيع كل الكمية").addOptions(opts),
+        new StringSelectMenuBuilder().setCustomId(cid(MARKET_SELLALL_SELECT, profile.userId, p)).setPlaceholder("💸 بيع كل الكمية").addOptions(opts),
+      ),
+    );
+  }
+  if (pages > 1) {
+    rows.push(
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(cid(MARKET_PAGE, profile.userId, p - 1)).setLabel("السابق").setEmoji("◀️").setStyle(ButtonStyle.Primary).setDisabled(p === 0),
+        new ButtonBuilder().setCustomId(cid(MARKET_PAGE, profile.userId, p + 1)).setLabel("التالي").setEmoji("▶️").setStyle(ButtonStyle.Primary).setDisabled(p >= pages - 1),
       ),
     );
   }
@@ -387,10 +463,18 @@ export function buildShopView(profile: ILabProfile, coins: number, qty = 1, note
       `${lines.join("\n")}\n\n💼 رصيدك: ${jenny(coins)}\n🛒 الكمية لكل شراء: **${qty}**\n_المتجر يبيع العناصر الأولية فقط، المركبات لازم تكتشفها بنفسك._`,
     );
 
-  const select = new StringSelectMenuBuilder()
-    .setCustomId(cid(SHOP_BUY_SELECT, profile.userId, qty))
-    .setPlaceholder(`🛒 اختر عنصراً تشتريه (×${qty})`)
-    .addOptions(available.map((e) => ({ label: `${e.name} — ${e.price * qty} ${CURRENCY.name}`, value: e.id, emoji: e.icon })));
+  const selects: Row[] = [];
+  for (let i = 0; i < available.length; i += PAGE_SIZE) {
+    const part = available.slice(i, i + PAGE_SIZE);
+    selects.push(
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(cid(SHOP_BUY_SELECT, profile.userId, qty) + (i > 0 ? `|${i}` : ""))
+          .setPlaceholder(`🛒 اختر عنصراً تشتريه (×${qty})${available.length > PAGE_SIZE ? ` — ${i / PAGE_SIZE + 1}` : ""}`)
+          .addOptions(part.map((e) => ({ label: `${e.name} — ${e.price * qty} ${CURRENCY.name}`, value: e.id, emoji: e.icon }))),
+      ),
+    );
+  }
 
   const qtyRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     ...[1, 5, 10, 25].map((n) =>
@@ -401,39 +485,65 @@ export function buildShopView(profile: ILabProfile, coins: number, qty = 1, note
     ),
   );
 
-  return sub(embed, [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select), qtyRow, backRow(profile.userId)], note);
+  return sub(embed, [...selects, qtyRow, backRow(profile.userId)], note);
 }
 
-export function buildLevelsView(profile: ILabProfile, note?: string): PanelResult {
-  const locked = ELEMENTS.filter((e) => e.tier === 2 && !profile.unlockedElements.includes(e.id));
-  const unlocked = ELEMENTS.filter((e) => e.tier === 2 && profile.unlockedElements.includes(e.id));
+const STATE_ICON = { unlocked: "✅", ready: "🔓", need_points: "💰", need_level: "🔒", need_prereq: "⛓️" } as const;
+
+export function buildLevelsView(profile: ILabProfile, note?: string, tab: EngramKind = "element"): PanelResult {
+  const owner = profile.userId;
   const need = xpNeeded(profile.labLevel);
+  const list = ENGRAMS.filter((e) => e.kind === tab);
+  const open = list.filter((e) => engramState(profile, e) === "unlocked").length;
 
-  const lines = [
-    `**المستوى:** ${profile.labLevel}`,
-    `\`${bar(profile.labXp, need)}\` ${profile.labXp}/${need} XP`,
-    `**رموز المختبر 🔬:** ${profile.labTokens} _(تحصل رمز عند كل مستوى جديد)_`,
-    "",
-    unlocked.length ? `**مفتوح:** ${unlocked.map((e) => `${e.icon} ${e.name}`).join("، ")}` : "",
-    locked.length
-      ? `**مقفل:**\n${locked.map((e) => `${e.icon} ${e.name} — يحتاج 🔬 ${e.unlockCost}`).join("\n")}`
-      : "✅ فتحت كل عناصر الدرجة الثانية!",
-  ].filter((l) => l !== "");
+  const lines = list.map((e) => {
+    const st = engramState(profile, e);
+    let tail = "";
+    if (st === "need_level") tail = `يحتاج مستوى ${e.level}`;
+    else if (st === "need_prereq") tail = `يتطلب: ${e.requires.filter((r) => !list.concat(ENGRAMS).some((x) => x.id === r && engramState(profile, x) === "unlocked")).map(engramName).join("، ")}`;
+    else if (st === "need_points") tail = `يحتاج ${e.cost} نقاط`;
+    else if (st === "ready") tail = `جاهز للفتح (${e.cost} 🔬)`;
+    else tail = "مفتوح";
+    return `${STATE_ICON[st]} ${e.icon} **${e.name}** — ${tail}${tab !== "element" ? `\n┗ ${e.desc}` : ""}`;
+  });
 
-  const embed = new EmbedBuilder().setColor(0x8b5cf6).setTitle("🎚️ المستويات والفتح").setDescription(lines.join("\n"));
+  const embed = new EmbedBuilder()
+    .setColor(0x8b5cf6)
+    .setTitle(`🎚️ شجرة الفتح — ${KIND_LABEL[tab].icon} ${KIND_LABEL[tab].name} (${open}/${list.length})`)
+    .setDescription(
+      [
+        `**المستوى ${profile.labLevel}** \`${bar(profile.labXp, need)}\` ${profile.labXp}/${need} XP`,
+        `**🔬 نقاط الفتح:** ${profile.labTokens}`,
+        "_كل مستوى جديد يعطيك نقاط (1 حتى مستوى 9، 2 حتى 19، 3 بعدها) تصرفها على فتح عناصر وأجهزة وتقنيات._",
+        "✅ مفتوح • 🔓 جاهز • 💰 نقاط ناقصة • 🔒 مستوى ناقص • ⛓️ يحتاج متطلبات",
+        "",
+        lines.join("\n"),
+      ].join("\n").slice(0, 4000),
+    );
 
-  const rows: Row[] = [];
-  if (locked.length > 0) {
+  const tabs = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    ...(Object.keys(KIND_LABEL) as EngramKind[]).map((k) =>
+      new ButtonBuilder()
+        .setCustomId(cid(ENGRAM_TAB, owner, k))
+        .setLabel(KIND_LABEL[k].name)
+        .setEmoji(KIND_LABEL[k].icon)
+        .setStyle(k === tab ? ButtonStyle.Primary : ButtonStyle.Secondary),
+    ),
+  );
+
+  const rows: Row[] = [tabs];
+  const ready = list.filter((e) => engramState(profile, e) === "ready");
+  if (ready.length > 0) {
     rows.push(
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
         new StringSelectMenuBuilder()
-          .setCustomId(cid(LEVELS_UNLOCK_SELECT, profile.userId))
-          .setPlaceholder("🔓 اختر عنصراً تفتحه")
-          .addOptions(locked.map((e) => ({ label: `${e.name} (${e.unlockCost} 🔬)`, value: e.id, emoji: e.icon }))),
+          .setCustomId(cid(LEVELS_UNLOCK_SELECT, owner, tab))
+          .setPlaceholder("🔓 اختر ما تفتحه")
+          .addOptions(ready.slice(0, 25).map((e) => ({ label: `${e.name} (${e.cost} 🔬)`, value: e.id, emoji: e.icon }))),
       ),
     );
   }
-  rows.push(backRow(profile.userId, "extra"));
+  rows.push(backRow(owner, "extra"));
   return sub(embed, rows, note);
 }
 
@@ -539,6 +649,7 @@ export function buildAccidentView(owner: string, gif: Buffer | null, compoundId:
 const unixIn = (ms: number) => Math.floor(ms / 1000);
 
 export function buildEquipView(profile: ILabProfile, coins: number, note?: string): PanelResult {
+  const owner = profile.userId;
   const f = equipLevel(profile, "furnace");
   const p = equipLevel(profile, "pump");
   const tol = tolerance(profile);
@@ -548,6 +659,16 @@ export function buildEquipView(profile: ILabProfile, coins: number, note?: strin
     const g = GEAR[k];
     return `${g.icon} **${g.name}** — ${hasGear(profile, k) ? "✅ مملوكة" : jenny(g.price)}\n┗ ${g.desc}`;
   });
+  const deviceKeys = Object.keys(DEVICES).filter((k) => k !== "robot") as (keyof typeof DEVICES)[];
+  const deviceLines = deviceKeys.map((k) => {
+    const d = DEVICES[k];
+    const owned = hasGear(profile, k);
+    const unlocked = ENGRAMS.some((e) => e.id === k && engramState(profile, e) === "unlocked");
+    return `${d.icon} **${d.name}** — ${owned ? "✅ مملوك" : unlocked ? jenny(d.price) : "🔒 افتحه من شجرة الفتح"}\n┗ ${d.desc}`;
+  });
+  const robotLv = profile.equipment?.robot ?? 0;
+  const robotLine = `🤖 **الروبوت الآلي** — ${robotLv > 0 ? `✅ مستوى ${robotLv}/${MAX_LEVEL} (ترقية: ${upCost(robotLv)})` : ENGRAMS.some((e) => e.id === "robot" && engramState(profile, e) === "unlocked") ? jenny(DEVICES.robot.price) : "🔒 افتحه من شجرة الفتح"}\n┗ ${DEVICES.robot.desc}`;
+  const consLines = Object.entries(CONSUMABLES).map(([k, c]) => `${c.icon} **${c.name}** (معك ${consumableCount(profile, k)}) — ${jenny(c.price)}\n┗ ${c.desc}`);
 
   const embed = new EmbedBuilder()
     .setColor(0x64748b)
@@ -560,9 +681,16 @@ export function buildEquipView(profile: ILabProfile, coins: number, note?: strin
         "**🦺 معدات السلامة**",
         ...gearLines,
         "",
+        "**🧰 أجهزة متقدمة** _(تحتاج فتح من شجرة الفتح أول)_",
+        ...deviceLines,
+        robotLine,
+        "",
+        "**🧪 مستهلكات**",
+        ...consLines,
+        "",
         "_التفاعلات الخطرة (مثل وقود الصواريخ والثيرمايت) قد تنفجر. المواد المشعة تتطلب بدلة الحماية._",
         `💼 رصيدك: ${jenny(coins)}`,
-      ].join("\n"),
+      ].join("\n").slice(0, 4000),
     );
 
   const options: { label: string; value: string; emoji: string; description: string }[] = [];
@@ -571,16 +699,93 @@ export function buildEquipView(profile: ILabProfile, coins: number, note?: strin
   for (const k of Object.keys(GEAR) as (keyof typeof GEAR)[]) {
     if (!hasGear(profile, k)) options.push({ label: GEAR[k].name, value: k, emoji: GEAR[k].icon, description: `${GEAR[k].price} ${CURRENCY.name}` });
   }
+  for (const k of deviceKeys) {
+    if (!hasGear(profile, k) && ENGRAMS.some((e) => e.id === k && engramState(profile, e) === "unlocked")) {
+      options.push({ label: DEVICES[k].name, value: k, emoji: DEVICES[k].icon, description: `${DEVICES[k].price} ${CURRENCY.name}` });
+    }
+  }
+  const robotUnlocked = ENGRAMS.some((e) => e.id === "robot" && engramState(profile, e) === "unlocked");
+  if (robotLv === 0 && robotUnlocked) options.push({ label: "الروبوت الآلي", value: "robot", emoji: "🤖", description: `${DEVICES.robot.price} ${CURRENCY.name}` });
+  if (robotLv > 0 && robotLv < MAX_LEVEL) options.push({ label: `ترقية الروبوت → ${robotLv + 1}`, value: "robot", emoji: "🤖", description: `${UPGRADE_COST[robotLv - 1]} ${CURRENCY.name}` });
 
   const rows: Row[] = [];
   if (options.length) {
     rows.push(
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-        new StringSelectMenuBuilder().setCustomId(cid(EQUIP_BUY_SELECT, profile.userId)).setPlaceholder("🛒 اشترِ أو طوّر").addOptions(options),
+        new StringSelectMenuBuilder().setCustomId(cid(EQUIP_BUY_SELECT, owner)).setPlaceholder("🛒 اشترِ أو طوّر").addOptions(options.slice(0, 25)),
       ),
     );
   }
-  rows.push(backRow(profile.userId, "extra"));
+  rows.push(
+    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(cid(EQUIP_BUY_SELECT, owner, "c"))
+        .setPlaceholder("🧪 اشترِ مستهلكاً")
+        .addOptions(Object.entries(CONSUMABLES).map(([k, c]) => ({ label: c.name, value: `c_${k}`, emoji: c.icon, description: `${c.price} ${CURRENCY.name}` }))),
+    ),
+  );
+
+  const actions = new ActionRowBuilder<ButtonBuilder>();
+  if (hasGear(profile, "centrifuge")) {
+    actions.addComponents(
+      new ButtonBuilder()
+        .setCustomId(cid(CENTRIFUGE_RUN, owner))
+        .setLabel(`طرد مركزي (نفايات: ${profile.inventory?.waste ?? 0})`)
+        .setEmoji("🌀")
+        .setStyle(ButtonStyle.Primary),
+    );
+  }
+  if (robotLv > 0) {
+    actions.addComponents(new ButtonBuilder().setCustomId(cid(OPEN_ROBOT, owner)).setLabel("الروبوت").setEmoji("🤖").setStyle(ButtonStyle.Primary));
+  }
+  if (consumableCount(profile, "antirad") > 0) {
+    actions.addComponents(new ButtonBuilder().setCustomId(cid(USE_ANTIRAD, owner)).setLabel("استخدم مضاد إشعاع").setEmoji("💊").setStyle(ButtonStyle.Danger));
+  }
+  if (actions.components.length > 0) rows.push(actions);
+  rows.push(backRow(owner, "extra"));
+  return sub(embed, rows, note);
+}
+
+export function buildRobotView(profile: ILabProfile, note?: string): PanelResult {
+  const owner = profile.userId;
+  const st = robotState(profile);
+  const batch = robotBatch(profile);
+  const lines = [
+    `🤖 الروبوت مستوى **${profile.equipment?.robot ?? 1}** — يصنّع حتى **${batch}** وحدات بالدفعة (${ROBOT_MINUTES_PER_UNIT} دقيقة للوحدة).`,
+    "يصنّع مركبات **اكتشفتها** بنفسك (مو مشعة ولا نادرة جداً)، ويخصم المكونات من مستودعك أول ما تبدأ، وخبرته نص خبرتك.",
+    "",
+  ];
+  const rows: Row[] = [];
+  if (st.status === "running") {
+    const c = COMPOUND_MAP[st.compoundId];
+    lines.push(`⚙️ يصنّع ${c?.icon ?? ""} **${c?.name ?? st.compoundId}** ×${st.qty} — ينتهي <t:${unixIn(st.endsAt)}:R>`);
+    rows.push(
+      new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(cid(OPEN_ROBOT, owner)).setLabel("تحديث").setEmoji("🔄").setStyle(ButtonStyle.Secondary)),
+    );
+  } else if (st.status === "ready") {
+    const c = COMPOUND_MAP[st.compoundId];
+    lines.push(`✅ جهّز ${c?.icon ?? ""} **${c?.name ?? st.compoundId}** ×${st.qty}!`);
+    rows.push(
+      new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(cid(ROBOT_COLLECT, owner)).setLabel("استلام").setEmoji("🎁").setStyle(ButtonStyle.Success)),
+    );
+  } else {
+    const eligible = robotEligible(profile);
+    lines.push(eligible.length ? "اختر مركباً يصنّعه لك:" : "ما اكتشفت مركبات مناسبة بعد. اصنع بنفسك أول مرة!");
+    if (eligible.length) {
+      rows.push(
+        new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+          new StringSelectMenuBuilder()
+            .setCustomId(cid(ROBOT_START, owner))
+            .setPlaceholder("🤖 اختر المركب")
+            .addOptions(eligible.slice(0, 25).map((c) => ({ label: c.name, value: c.id, emoji: c.icon, description: RARITY_INFO[c.rarity].name }))),
+        ),
+      );
+    }
+  }
+  const embed = new EmbedBuilder().setColor(0x0ea5e9).setTitle("🤖 الروبوت الآلي").setDescription(lines.join("\n"));
+  rows.push(
+    new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(cid(OPEN_EQUIP, owner)).setLabel("الأجهزة").setEmoji("🛠️").setStyle(ButtonStyle.Secondary)),
+  );
   return sub(embed, rows, note);
 }
 
@@ -636,7 +841,7 @@ export function buildExpeditionView(profile: ILabProfile, note?: string): PanelR
     "أرسل مساعداً يجمع لك عناصر أولية. ما تحتاج تبقى متصل، تعال واستلمها لما ينتهي الوقت.",
     "",
     "• **ساعة**: عنصران عشوائيان + 50 Jenny",
-    "• **ساعتان**: 4 عناصر + 100 Jenny، وفرصة نادرة لإيجاد **يورانيوم ☢️** من مستوى 8",
+    "• **ساعتان**: 4 عناصر + 100 Jenny، وفرصة نادرة لإيجاد **يورانيوم ☢️** من مستوى 8، و**راديوم/بلوتونيوم** لو فتحت الكيمياء النووية (مستوى 12 و16)",
   ];
   const row = new ActionRowBuilder<ButtonBuilder>();
 
@@ -693,7 +898,11 @@ export function buildAchievementsView(profile: ILabProfile): PanelResult {
   const embed = new EmbedBuilder()
     .setColor(0xf59e0b)
     .setTitle(`🏅 الإنجازات (${have.length}/${ACHIEVEMENTS.length})`)
-    .setDescription(lines.join("\n").slice(0, 4000));
+    .setDescription(lines.join("\n").slice(0, 4000))
+    .addFields({
+      name: "🗂️ تصنيفات المركبات (أكملها لمكافأة)",
+      value: CATEGORIES.map((c) => `${c.icon} ${c.name}: **${categoryProgress(c, profile.discovered)}/${c.members.length}**`).join("\n"),
+    });
   return sub(embed, [backRow(profile.userId, "extra")]);
 }
 
@@ -702,7 +911,7 @@ export function buildHintsView(profile: ILabProfile, coins: number, page = 0, no
   const last = RARITY_ORDER.length - 1;
   const p = Math.max(0, Math.min(last, page));
   const rarity = RARITY_ORDER[p];
-  const price = HINT_PRICE[rarity];
+  const price = Math.round(HINT_PRICE[rarity] * (hasGear(profile, "analyzer") ? 0.5 : 1));
 
   const items = COMPOUNDS.filter((c) => c.rarity === rarity);
   const open = items
@@ -720,7 +929,7 @@ export function buildHintsView(profile: ILabProfile, coins: number, page = 0, no
     .setTitle(`💡 التلميحات — ${RARITY_INFO[rarity].name}`)
     .setDescription(
       [
-        `سعر التلميح: ${jenny(price)} • رصيدك: ${jenny(coins)}`,
+        `سعر التلميح: ${jenny(price)}${hasGear(profile, "analyzer") ? " (خصم المحلّل 50%)" : ""} • رصيدك: ${jenny(coins)}`,
         "كل تلميح يكشف مكوّناً من الوصفة، ثم الحرارة، ثم الضغط. التلميحات تظهر لك في المكتبة.",
         "",
         lines.length ? lines.join("\n") : "✅ اكتشفت كل مركبات هذي الفئة!",

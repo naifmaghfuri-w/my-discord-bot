@@ -1,11 +1,20 @@
 import { MessageFlags, type ButtonInteraction, type StringSelectMenuInteraction } from "discord.js";
 import { jenny } from "../constants";
+import { LabSession } from "../database/models/LabSession";
 import { getProfile } from "../services/economy";
 import { logger } from "../utils/logger";
 import { PRESSURE, TEMP } from "./compounds";
 import { ELEMENT_MAP } from "./elements";
 import {
   BACK,
+  CENTRIFUGE_RUN,
+  ENGRAM_TAB,
+  MARKET_PAGE,
+  OPEN_ROBOT,
+  PAGE_CYCLE,
+  ROBOT_COLLECT,
+  ROBOT_START,
+  USE_ANTIRAD,
   CODEX_PAGE,
   HINT_BUY_SELECT,
   HINT_PAGE,
@@ -53,7 +62,8 @@ import { sellAllCompound, sellCompound } from "./market";
 import { recordEvent } from "./progress";
 import { renderReactionGif } from "./render";
 import { OFFER_TTL_MS, buildOffer, executeTrade } from "./trade";
-import { buyEquipment, collectExpedition, deliverOrder, lootLines, startExpedition } from "./workshop";
+import { ENGRAM_MAP, KIND_LABEL, type EngramKind } from "./engrams";
+import { buyConsumable, buyEquipment, collectExpedition, collectRobot, deliverOrder, lootLines, runCentrifuge, startExpedition, startRobot, useAntirad } from "./workshop";
 import { COMPOUND_MAP } from "./compounds";
 import { RARITY_INFO } from "./compounds";
 import {
@@ -68,7 +78,7 @@ import {
   publishArticle,
   resetSession,
   toggleStep,
-  unlockElement,
+  unlockEngram,
 } from "./service";
 import {
   buildAccidentView,
@@ -88,11 +98,14 @@ import {
   buildMainPanel,
   buildMarketView,
   buildReactSuccessView,
+  buildRobotView,
   buildShopView,
   buildWarehouseView,
   backRow,
   type PanelResult,
 } from "./views";
+
+const tabOf = (v?: string): EngramKind => (v && v in KIND_LABEL ? (v as EngramKind) : "element");
 
 const NOT_YOUR_OFFER = "🔒 هذا العرض مو لك.";
 const NOT_OWNER = "🔒 هذا مختبر غيرك. اكتب `lab` عشان تفتح مختبرك.";
@@ -174,6 +187,59 @@ export async function handleLabButton(interaction: ButtonInteraction): Promise<b
       case NOOP:
         await interaction.deferUpdate();
         return true;
+
+      case PAGE_CYCLE: {
+        const [profile, session] = await Promise.all([getLabProfile(userId, guildId), getSession(userId, guildId)]);
+        const n = Math.max(
+          1,
+          Math.ceil(Object.values(profile.inventory ?? {}).filter((q) => q > 0).length / 25),
+          Math.ceil(Object.values(profile.compounds ?? {}).filter((q) => q > 0).length / 25),
+        );
+        await LabSession.updateOne({ userId, guildId }, { $set: { page: ((session.page ?? 0) + 1) % n } });
+        await interaction.update(asUpdate(await renderMain(userId, guildId)));
+        return true;
+      }
+
+      case MARKET_PAGE:
+        await interaction.update(asUpdate(await buildMarketView(guildId, await getLabProfile(userId, guildId), undefined, Number(extra) || 0)));
+        return true;
+
+      case ENGRAM_TAB:
+        await interaction.update(asUpdate(buildLevelsView(await getLabProfile(userId, guildId), undefined, tabOf(extra))));
+        return true;
+
+      case OPEN_ROBOT:
+        await interaction.update(asUpdate(buildRobotView(await getLabProfile(userId, guildId))));
+        return true;
+
+      case ROBOT_COLLECT: {
+        const res = await collectRobot(userId, guildId);
+        const c = res ? COMPOUND_MAP[res.compoundId] : null;
+        const note = res
+          ? `🎁 استلمت ${c?.icon ?? ""} ${c?.name ?? ""} ×${res.qty} • +${res.xp} XP${res.levelUp ? ` • 🆙 المستوى **${res.level}**` : ""}`
+          : "⏳ الروبوت لسه ما خلص.";
+        await interaction.update(asUpdate(buildRobotView(await getLabProfile(userId, guildId), note)));
+        return true;
+      }
+
+      case CENTRIFUGE_RUN: {
+        const res = await runCentrifuge(userId, guildId);
+        const [profile, coins] = await Promise.all([getLabProfile(userId, guildId), coinsOf(userId, guildId)]);
+        const note = res.ok
+          ? `🌀 دفعات: ${res.batches}\n${Object.entries(res.items).map(([id, n]) => `${ELEMENT_MAP[id]?.icon ?? ""} ${ELEMENT_MAP[id]?.name ?? id} ×**${n}**`).join(" • ")}`
+          : res.reason === "no_device"
+            ? "❌ ما تملك الطرد المركزي."
+            : "❌ تحتاج 3 نفايات كيميائية على الأقل.";
+        await interaction.update(asUpdate(buildEquipView(profile, coins, note)));
+        return true;
+      }
+
+      case USE_ANTIRAD: {
+        const ok = await useAntirad(userId, guildId);
+        const [profile, coins] = await Promise.all([getLabProfile(userId, guildId), coinsOf(userId, guildId)]);
+        await interaction.update(asUpdate(buildEquipView(profile, coins, ok ? "💊 تم تصفير إشعاعك وشُفيت من الإصابة." : "❌ ما عندك مضاد إشعاع.")));
+        return true;
+      }
 
       case OPEN_WAREHOUSE: {
         const [profile, coins] = await Promise.all([getLabProfile(userId, guildId), coinsOf(userId, guildId)]);
@@ -262,6 +328,8 @@ export async function handleLabButton(interaction: ButtonInteraction): Promise<b
         if (!result.ok) {
           if (result.reason === "sick") {
             await interaction.editReply(asUpdate(await renderMain(userId, guildId, `🤒 أنت مصاب بالإشعاع، المختبر معطّل **${result.minutes}** دقيقة. بدلة الحماية تمنع هذا مستقبلاً.`)));
+          } else if (result.reason === "locked_recipe") {
+            await interaction.editReply(asUpdate(await renderMain(userId, guildId, `🔐 خليطك يطابق وصفة لكنها مقفلة. افتح إنجرام **${result.engram}** من 🎚️ المستويات (ما انصرف شيء من مكوناتك).`)));
           } else if (result.reason === "missing") {
             await interaction.editReply(asUpdate(await renderMain(userId, guildId, "❌ مكونات الخليط ما تكفي، جرب تصفير الخليط.")));
           } else {
@@ -450,7 +518,7 @@ export async function handleLabSelect(interaction: StringSelectMenuInteraction):
           const lines = await recordEvent(userId, guildId, { type: "sell", coins: result.earned });
           if (lines.length) note += `\n${lines.join("\n")}`;
         }
-        await interaction.update(asUpdate(await buildMarketView(guildId, profile, note)));
+        await interaction.update(asUpdate(await buildMarketView(guildId, profile, note, Number(extra) || 0)));
         return true;
       }
 
@@ -472,12 +540,20 @@ export async function handleLabSelect(interaction: StringSelectMenuInteraction):
       }
 
       case EQUIP_BUY_SELECT: {
+        if (value.startsWith("c_")) {
+          const cres = await buyConsumable(userId, guildId, value.slice(2));
+          const [cp, cc] = await Promise.all([getLabProfile(userId, guildId), coinsOf(userId, guildId)]);
+          const cnote = cres.ok ? `✅ ${cres.label} (−${jenny(cres.spent)})` : "❌ رصيدك ما يكفي.";
+          await interaction.update(asUpdate(buildEquipView(cp, cc, cnote)));
+          return true;
+        }
         const res = await buyEquipment(userId, guildId, value);
         const messages: Record<string, string> = {
           max: "❌ وصلت أعلى مستوى.",
           owned: "❌ تملكها بالفعل.",
           coins: "❌ رصيدك ما يكفي.",
           unknown: "❌ عنصر غير معروف.",
+          engram: "❌ لازم تفتحه أول من 🎚️ المستويات.",
         };
         const note = res.ok ? `✅ ${res.label} (−${jenny(res.spent)})` : messages[res.reason];
         const [profile, coins] = await Promise.all([getLabProfile(userId, guildId), coinsOf(userId, guildId)]);
@@ -499,6 +575,20 @@ export async function handleLabSelect(interaction: StringSelectMenuInteraction):
         return true;
       }
 
+      case ROBOT_START: {
+        const res = await startRobot(userId, guildId, value);
+        const messages: Record<string, string> = {
+          no_robot: "❌ ما تملك الروبوت.",
+          busy: "❌ الروبوت مشغول.",
+          ingredients: "❌ المكونات ما تكفي لوحدة وحدة على الأقل.",
+          invalid: "❌ هذا المركب ما يقدر الروبوت يصنعه.",
+        };
+        const c = COMPOUND_MAP[value];
+        const note = res.ok ? `🤖 بدأ يصنّع ${c?.icon ?? ""} ${c?.name ?? ""} ×${res.qty}` : messages[res.reason];
+        await interaction.update(asUpdate(buildRobotView(await getLabProfile(userId, guildId), note)));
+        return true;
+      }
+
       case TRADE_PICK: {
         const [targetId = "", priceStr = "0", qtyStr = "1"] = (extra ?? "").split(":");
         const price = Number(priceStr);
@@ -513,15 +603,18 @@ export async function handleLabSelect(interaction: StringSelectMenuInteraction):
       }
 
       case LEVELS_UNLOCK_SELECT: {
-        const result = await unlockElement(userId, guildId, value);
+        const result = await unlockEngram(userId, guildId, value);
         const profile = await getLabProfile(userId, guildId);
         const messages: Record<string, string> = {
-          already: "❌ فاتح هذا العنصر بالفعل.",
-          tokens: "❌ رموز المختبر ما تكفي.",
-          unknown: "❌ عنصر غير معروف.",
+          already: "❌ فاتحه بالفعل.",
+          points: "❌ نقاط الفتح ما تكفي.",
+          level: "❌ مستواك ما يكفي.",
+          prereq: "❌ ناقصك متطلبات سابقة.",
+          unknown: "❌ غير معروف.",
         };
-        const note = result.ok ? `🔓 فتحت ${ELEMENT_MAP[value]?.icon} ${ELEMENT_MAP[value]?.name}!` : messages[result.reason];
-        await interaction.update(asUpdate(buildLevelsView(profile, note)));
+        const def = ENGRAM_MAP[value];
+        const note = result.ok ? `🔓 فتحت ${def?.icon ?? ""} **${result.name}**!` : `${messages[result.reason]}${result.need ? ` (${result.need})` : ""}`;
+        await interaction.update(asUpdate(buildLevelsView(profile, note, def?.kind ?? tabOf(extra))));
         return true;
       }
     }

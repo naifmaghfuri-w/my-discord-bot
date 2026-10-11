@@ -2,6 +2,7 @@ import { jenny } from "../constants";
 import { LabProfile, type ILabProfile } from "../database/models/LabProfile";
 import { UserProfile } from "../database/models/UserProfile";
 import { todayKey } from "../quests/time";
+import { CATEGORIES } from "./categories";
 import { COMPOUNDS, type Rarity } from "./compounds";
 import { getLabProfile, grantLabXp } from "./service";
 
@@ -107,6 +108,17 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "scholar", title: "مرجع علمي", desc: "اوصل 100 سمعة", icon: "🎓", check: (p) => p.reputation >= 100, reward: { coins: 1000, tokens: 2 } },
   { id: "level_10", title: "باحث متمرس", desc: "اوصل مستوى 10", icon: "🔝", check: (p) => p.labLevel >= 10, reward: { coins: 600, reputation: 5 } },
 ];
+
+for (const cat of CATEGORIES) {
+  ACHIEVEMENTS.push({
+    id: `cat_${cat.id}`,
+    title: `خبير ${cat.name}`,
+    desc: `اكتشف كل مركبات تصنيف «${cat.name}»`,
+    icon: cat.icon,
+    check: (p) => cat.members.every((m) => p.discovered.includes(m)),
+    reward: cat.reward,
+  });
+}
 
 /* ───────────── تسجيل الأحداث ───────────── */
 
@@ -221,7 +233,7 @@ export async function recordEvent(userId: string, guildId: string, ev: LabEvent)
   }
   if (rewardXp > 0) {
     const xpRes = await grantLabXp(userId, guildId, rewardXp);
-    if (xpRes.leveledUp) lines.push(`🆙 وصلت المستوى **${xpRes.level}** (+${xpRes.tokensGained} 🔬)`);
+    if (xpRes.leveledUp) lines.push(`🆙 وصلت المستوى **${xpRes.level}** (+${xpRes.tokensGained} 🔬 نقاط فتح)`);
   }
 
   return lines;

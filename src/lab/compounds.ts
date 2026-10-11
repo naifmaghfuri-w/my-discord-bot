@@ -22,6 +22,10 @@ export interface CompoundDef {
   hazard?: 1 | 2 | 3;
   /** مركب مشع: يحتاج بدلة حماية وإلا يتراكم الإشعاع */
   radioactive?: boolean;
+  /** إنجرام لازم يكون مفتوحاً قبل تصنيعه (نظام الفتح) */
+  engram?: string;
+  /** ناتج جانبي: يطلع من تجربة "خاطئة" معروفة بدل النفايات (يصنع بأي حرارة وضغط) */
+  byproduct?: boolean;
 }
 
 export const COMPOUNDS: CompoundDef[] = [
@@ -35,6 +39,12 @@ export const COMPOUNDS: CompoundDef[] = [
   { id: "graphite", name: "جرافيت", icon: "✏️", rarity: "common", recipe: { carbon: 2 }, tempRange: [200, 300], pressureRange: [1, 2], xp: 10, basePrice: 28 },
   { id: "steel", name: "فولاذ", icon: "🔧", rarity: "common", recipe: { iron: 2, carbon: 1 }, tempRange: [150, 250], pressureRange: [1, 3], xp: 12, basePrice: 38 },
   { id: "soda_water", name: "ماء غازي", icon: "🥤", rarity: "common", recipe: { water: 1, co2: 1 }, tempRange: [0, 10], pressureRange: [3, 6], xp: 12, basePrice: 36 },
+  { id: "silica", name: "سيليكا (رمل)", icon: "🏖️", rarity: "common", recipe: { silicon: 1, oxygen: 2 }, tempRange: [20, 60], pressureRange: [1, 2], xp: 10, basePrice: 40 },
+  { id: "alumina", name: "أكسيد الألمنيوم", icon: "⚪", rarity: "common", recipe: { aluminum: 2, oxygen: 3 }, tempRange: [300, 400], pressureRange: [1, 2], xp: 12, basePrice: 45 },
+  { id: "galvanized", name: "حديد مجلفن", icon: "🔗", rarity: "common", recipe: { iron: 1, zinc: 1 }, tempRange: [100, 150], pressureRange: [1, 2], xp: 12, basePrice: 42 },
+  { id: "magnesia", name: "حليب المغنيسيا", icon: "🥛", rarity: "common", recipe: { magnesium: 1, water: 2 }, tempRange: [10, 30], pressureRange: [1, 2], xp: 12, basePrice: 40 },
+  { id: "soot", name: "سخام", icon: "🌫️", rarity: "common", recipe: { carbon: 2, oxygen: 1 }, tempRange: [100, 200], pressureRange: [1, 3], xp: 8, basePrice: 25, byproduct: true },
+  { id: "tar", name: "قطران", icon: "🛢️", rarity: "common", recipe: { carbon: 1, hydrogen: 1 }, tempRange: [0, 500], pressureRange: [1, 15], xp: 8, basePrice: 28, byproduct: true },
 
   { id: "sulfuric_acid", name: "حمض الكبريتيك", icon: "⚗️", rarity: "uncommon", recipe: { hydrogen: 2, sulfur: 1, oxygen: 4 }, tempRange: [50, 90], pressureRange: [3, 6], xp: 20, basePrice: 60, hazard: 1 },
   { id: "ammonia", name: "الأمونيا", icon: "💨", rarity: "uncommon", recipe: { nitrogen: 1, hydrogen: 3 }, tempRange: [400, 500], pressureRange: [10, 15], xp: 20, basePrice: 55, hazard: 1 },
@@ -50,6 +60,16 @@ export const COMPOUNDS: CompoundDef[] = [
   { id: "limestone", name: "حجر الجير", icon: "🪨", rarity: "uncommon", recipe: { calcium: 1, carbon: 1, oxygen: 3 }, tempRange: [100, 150], pressureRange: [2, 3], xp: 24, basePrice: 70 },
   { id: "silver_nitrate", name: "نترات الفضة", icon: "⚗️", rarity: "uncommon", recipe: { silver: 1, nitrogen: 1, oxygen: 3 }, tempRange: [30, 60], pressureRange: [2, 4], xp: 26, basePrice: 85 },
   { id: "slag_glass", name: "زجاج الخبث", icon: "🔷", rarity: "uncommon", recipe: { waste: 2, salt: 1 }, tempRange: [200, 300], pressureRange: [1, 2], xp: 22, basePrice: 55 },
+  { id: "brass", name: "نحاس أصفر", icon: "🎺", rarity: "uncommon", recipe: { copper: 2, zinc: 1 }, tempRange: [200, 260], pressureRange: [1, 2], xp: 25, basePrice: 80, engram: "metallurgy" },
+  { id: "cinnabar", name: "زنجفر", icon: "🟥", rarity: "uncommon", recipe: { mercury: 1, sulfur: 1 }, tempRange: [100, 140], pressureRange: [1, 3], xp: 26, basePrice: 90, hazard: 1 },
+  { id: "saltpeter", name: "نترات البوتاسيوم", icon: "🧂", rarity: "uncommon", recipe: { potassium: 1, nitrogen: 1, oxygen: 3 }, tempRange: [20, 60], pressureRange: [2, 4], xp: 24, basePrice: 72 },
+  { id: "solder", name: "لحام", icon: "🔌", rarity: "uncommon", recipe: { tin: 2, lead: 1 }, tempRange: [180, 230], pressureRange: [1, 3], xp: 25, basePrice: 80, engram: "metallurgy" },
+  { id: "iodine_solution", name: "محلول يود مطهّر", icon: "🧴", rarity: "uncommon", recipe: { iodine: 1, ethanol: 1 }, tempRange: [20, 40], pressureRange: [1, 2], xp: 26, basePrice: 88, engram: "chem_advanced" },
+  { id: "hf", name: "حمض الهيدروفلوريك", icon: "☠️", rarity: "uncommon", recipe: { fluorine: 1, hydrogen: 1 }, tempRange: [10, 30], pressureRange: [1, 3], xp: 26, basePrice: 85, hazard: 2, engram: "chem_advanced" },
+  { id: "mg_flash", name: "فلاش مغنيسيوم", icon: "📸", rarity: "uncommon", recipe: { magnesium: 1, oxygen: 1 }, tempRange: [60, 100], pressureRange: [1, 2], xp: 24, basePrice: 75, hazard: 1 },
+  { id: "caustic", name: "صودا كاوية", icon: "🧼", rarity: "uncommon", recipe: { sodium: 1, water: 1 }, tempRange: [0, 500], pressureRange: [1, 15], xp: 20, basePrice: 60, hazard: 1, byproduct: true },
+  { id: "iron_chloride", name: "كلوريد الحديد", icon: "🟫", rarity: "uncommon", recipe: { iron: 1, chlorine: 2 }, tempRange: [0, 500], pressureRange: [1, 15], xp: 20, basePrice: 58, byproduct: true },
+  { id: "h2s", name: "كبريتيد الهيدروجين", icon: "🥚", rarity: "uncommon", recipe: { hydrogen: 2, sulfur: 1 }, tempRange: [0, 500], pressureRange: [1, 15], xp: 20, basePrice: 56, hazard: 1, byproduct: true },
 
   { id: "gunpowder", name: "البارود", icon: "💥", rarity: "rare", recipe: { sulfur: 1, carbon: 2, sodium: 1 }, tempRange: [80, 100], pressureRange: [8, 12], xp: 40, basePrice: 120, hazard: 2 },
   { id: "dye", name: "كبريتات النحاس (صبغة زرقاء)", icon: "🎨", rarity: "rare", recipe: { copper: 1, sulfur: 1, oxygen: 4 }, tempRange: [100, 130], pressureRange: [2, 4], xp: 40, basePrice: 110 },
@@ -63,6 +83,12 @@ export const COMPOUNDS: CompoundDef[] = [
   { id: "heliox", name: "هيليوكس", icon: "🤿", rarity: "rare", recipe: { helium: 2, oxygen: 1 }, tempRange: [0, 20], pressureRange: [8, 12], xp: 46, basePrice: 160 },
   { id: "cement", name: "إسمنت", icon: "🏗️", rarity: "rare", recipe: { limestone: 2, iron: 1 }, tempRange: [400, 500], pressureRange: [1, 2], xp: 46, basePrice: 150 },
   { id: "recycled_fuel", name: "وقود معاد تدويره", icon: "♻️", rarity: "rare", recipe: { waste: 3, hydrogen: 1 }, tempRange: [100, 150], pressureRange: [3, 5], xp: 44, basePrice: 140 },
+  { id: "optical_glass", name: "زجاج بصري", icon: "🔍", rarity: "rare", recipe: { silicon: 2, oxygen: 4, sodium: 1 }, tempRange: [450, 500], pressureRange: [1, 3], xp: 44, basePrice: 170, engram: "optics" },
+  { id: "neon_lamp", name: "مصباح نيون", icon: "🏮", rarity: "rare", recipe: { neon: 2, optical_glass: 1 }, tempRange: [20, 40], pressureRange: [1, 2], xp: 48, basePrice: 210, engram: "optics" },
+  { id: "gold_amalgam", name: "ملغم الذهب", icon: "🥇", rarity: "rare", recipe: { mercury: 1, gold: 1 }, tempRange: [20, 60], pressureRange: [1, 2], xp: 46, basePrice: 200, hazard: 2 },
+  { id: "fluorite", name: "فلوريت", icon: "💜", rarity: "rare", recipe: { fluorine: 2, calcium: 1 }, tempRange: [100, 200], pressureRange: [1, 3], xp: 44, basePrice: 150, hazard: 1 },
+  { id: "aircraft_alloy", name: "سبيكة طيران", icon: "✈️", rarity: "rare", recipe: { titanium: 1, aluminum: 2 }, tempRange: [400, 480], pressureRange: [8, 12], xp: 50, basePrice: 230, engram: "adv_metal" },
+  { id: "lead_battery", name: "بطارية رصاصية", icon: "🚗", rarity: "rare", recipe: { lead: 2, sulfuric_acid: 1 }, tempRange: [20, 40], pressureRange: [1, 3], xp: 44, basePrice: 150 },
 
   { id: "superalloy", name: "سبيكة فائقة", icon: "⚙️", rarity: "epic", recipe: { bronze: 1, iron: 2, carbon: 1 }, tempRange: [450, 500], pressureRange: [12, 15], xp: 70, basePrice: 220 },
   { id: "explosive_core", name: "نواة متفجرة", icon: "🧨", rarity: "epic", recipe: { gunpowder: 2, sulfur: 1 }, tempRange: [90, 100], pressureRange: [14, 15], xp: 75, basePrice: 240, hazard: 3 },
@@ -75,6 +101,10 @@ export const COMPOUNDS: CompoundDef[] = [
   { id: "royal_alloy", name: "سبيكة ملكية", icon: "🛡️", rarity: "epic", recipe: { gold_alloy: 1, silver_mirror: 1 }, tempRange: [300, 350], pressureRange: [8, 10], xp: 90, basePrice: 330 },
   { id: "uo2", name: "أكسيد اليورانيوم", icon: "☢️", rarity: "epic", recipe: { uranium: 1, oxygen: 2 }, tempRange: [400, 500], pressureRange: [1, 3], xp: 95, basePrice: 360, hazard: 2, radioactive: true },
   { id: "gold_from_waste", name: "ذهب من النفايات", icon: "🪙", rarity: "epic", recipe: { waste: 4, gold: 1 }, tempRange: [300, 400], pressureRange: [6, 8], xp: 80, basePrice: 270 },
+  { id: "microprocessor", name: "معالج دقيق", icon: "💾", rarity: "epic", recipe: { silicon: 3, copper: 2, gold: 1 }, tempRange: [400, 480], pressureRange: [1, 2], xp: 95, basePrice: 380, engram: "electronics" },
+  { id: "platinum_catalyst", name: "محفّز بلاتيني", icon: "🧿", rarity: "epic", recipe: { platinum: 1, alumina: 1 }, tempRange: [300, 400], pressureRange: [2, 4], xp: 90, basePrice: 400, engram: "electronics" },
+  { id: "tungsten_filament", name: "فتيلة تنغستن", icon: "🧵", rarity: "epic", recipe: { tungsten: 2, optical_glass: 1 }, tempRange: [450, 500], pressureRange: [1, 1], xp: 88, basePrice: 360, engram: "adv_metal" },
+  { id: "glow_clock", name: "ساعة متوهجة", icon: "⌚", rarity: "epic", recipe: { radium: 1, zinc: 1, sulfur: 1 }, tempRange: [20, 60], pressureRange: [1, 2], xp: 100, basePrice: 450, hazard: 2, radioactive: true, engram: "nuclear" },
 
   { id: "philosophers_stone", name: "حجر الفلاسفة", icon: "🪄", rarity: "legendary", recipe: { superalloy: 1, synthetic_ruby: 1, gunpowder: 1 }, tempRange: [500, 500], pressureRange: [15, 15], xp: 150, basePrice: 600 },
   { id: "elixir_of_life", name: "إكسير الحياة", icon: "✨", rarity: "legendary", recipe: { bio_serum: 2, ethanol: 1 }, tempRange: [40, 40], pressureRange: [1, 1], xp: 150, basePrice: 600 },
@@ -83,6 +113,8 @@ export const COMPOUNDS: CompoundDef[] = [
   { id: "eternal_flame", name: "اللهب الأبدي", icon: "☄️", rarity: "legendary", recipe: { thermite: 1, plasma_cell: 1 }, tempRange: [500, 500], pressureRange: [1, 1], xp: 180, basePrice: 780, hazard: 2 },
   { id: "reactor_core", name: "نواة مفاعل", icon: "⚛️", rarity: "legendary", recipe: { uo2: 2, steel: 1, water: 2 }, tempRange: [300, 350], pressureRange: [8, 12], xp: 190, basePrice: 850, hazard: 3, radioactive: true },
   { id: "genesis_cell", name: "خلية التكوين", icon: "🧫", rarity: "legendary", recipe: { silver_serum: 1, elixir_of_life: 1 }, tempRange: [40, 40], pressureRange: [1, 1], xp: 180, basePrice: 820 },
+  { id: "nuclear_fuel", name: "وقود نووي", icon: "🔋", rarity: "legendary", recipe: { plutonium: 1, steel: 1, water: 1 }, tempRange: [300, 400], pressureRange: [10, 14], xp: 200, basePrice: 900, hazard: 3, radioactive: true, engram: "nuclear" },
+  { id: "atomic_battery", name: "بطارية ذرية", icon: "⚡", rarity: "legendary", recipe: { plutonium: 1, li_battery: 1 }, tempRange: [100, 200], pressureRange: [1, 2], xp: 200, basePrice: 950, hazard: 2, radioactive: true, engram: "nuclear" },
 ];
 
 export const COMPOUND_MAP = Object.fromEntries(COMPOUNDS.map((c) => [c.id, c]));

@@ -4,7 +4,8 @@ import { LabProfile, type ILabProfile } from "../database/models/LabProfile";
 import { LabSession, type ILabSession } from "../database/models/LabSession";
 import { UserProfile } from "../database/models/UserProfile";
 import { logTransaction } from "../services/transactions";
-import { accidentChance, applyRadiation, sickMinutesLeft, tolerance } from "./workshop";
+import { ENGRAM_MAP, engramName, engramState, hasEngram, pointsForLevel } from "./engrams";
+import { accidentChance, applyRadiation, consumableCount, consumeOne, hasGear, sickMinutesLeft, tolerance } from "./workshop";
 
 export async function getLabProfile(userId: string, guildId: string): Promise<ILabProfile> {
   const doc = await LabProfile.findOneAndUpdate(
@@ -89,7 +90,7 @@ export async function buyElement(userId: string, guildId: string, elementId: str
   if (!el) return { ok: false, reason: "locked" };
 
   const profile = await getLabProfile(userId, guildId);
-  if (el.tier === 2 && !profile.unlockedElements.includes(elementId)) return { ok: false, reason: "locked" };
+  if (el.tier === 3 || (el.tier === 2 && !profile.unlockedElements.includes(elementId))) return { ok: false, reason: "locked" };
 
   const cost = el.price * qty;
   const updated = await UserProfile.findOneAndUpdate(
@@ -104,22 +105,33 @@ export async function buyElement(userId: string, guildId: string, elementId: str
   return { ok: true, spent: cost };
 }
 
-export type UnlockResult = { ok: true } | { ok: false; reason: "already" | "tokens" | "unknown" };
+export type UnlockResult =
+  | { ok: true; name: string }
+  | { ok: false; reason: "already" | "points" | "level" | "prereq" | "unknown"; need?: string };
 
-export async function unlockElement(userId: string, guildId: string, elementId: string): Promise<UnlockResult> {
-  const el = ELEMENT_MAP[elementId];
-  if (!el || el.tier !== 2 || !el.unlockCost) return { ok: false, reason: "unknown" };
+/** فتح إنجرام (عنصر/جهاز/تقنية): يتحقق من المستوى والمتطلبات والنقاط، وخصم النقاط ذرّي */
+export async function unlockEngram(userId: string, guildId: string, engramId: string): Promise<UnlockResult> {
+  const def = ENGRAM_MAP[engramId];
+  if (!def) return { ok: false, reason: "unknown" };
 
   const profile = await getLabProfile(userId, guildId);
-  if (profile.unlockedElements.includes(elementId)) return { ok: false, reason: "already" };
+  const state = engramState(profile, def);
+  if (state === "unlocked") return { ok: false, reason: "already" };
+  if (state === "need_level") return { ok: false, reason: "level", need: String(def.level) };
+  if (state === "need_prereq") {
+    const missing = def.requires.filter((r) => !hasEngram(profile, r)).map(engramName);
+    return { ok: false, reason: "prereq", need: missing.join("، ") };
+  }
+  if (state === "need_points") return { ok: false, reason: "points", need: String(def.cost) };
 
+  const field = def.kind === "element" ? "unlockedElements" : "engrams";
   const updated = await LabProfile.findOneAndUpdate(
-    { userId, guildId, labTokens: { $gte: el.unlockCost } },
-    { $inc: { labTokens: -el.unlockCost }, $addToSet: { unlockedElements: elementId } },
+    { userId, guildId, labTokens: { $gte: def.cost }, labLevel: { $gte: def.level }, [field]: { $ne: engramId } },
+    { $inc: { labTokens: -def.cost }, $addToSet: { [field]: engramId } },
     { new: true },
   );
-  if (!updated) return { ok: false, reason: "tokens" };
-  return { ok: true };
+  if (!updated) return { ok: false, reason: "points", need: String(def.cost) };
+  return { ok: true, name: def.name };
 }
 
 export function xpNeeded(level: number): number {
@@ -147,10 +159,11 @@ export async function grantLabXp(userId: string, guildId: string, xp: number): P
   while (xpLeft >= xpNeeded(level)) {
     xpLeft -= xpNeeded(level);
     level++;
-    tokensGained++;
+    tokensGained += pointsForLevel(level);
   }
 
   if (tokensGained > 0) {
+    // نظام الإنجرام: نقاط الفتح تزيد مع المستويات العالية
     await LabProfile.updateOne(
       { userId, guildId },
       { $set: { labLevel: level, labXp: xpLeft }, $inc: { labTokens: tokensGained } },
@@ -170,11 +183,38 @@ export interface ReactionSnapshot {
 }
 
 export type ReactResult =
-  | { ok: true; success: true; compound: CompoundDef; discoveredNow: boolean; xpResult: GrantXpResult; snapshot: ReactionSnapshot; notes: string[] }
+  | { ok: true; success: true; compound: CompoundDef; discoveredNow: boolean; xpResult: GrantXpResult; snapshot: ReactionSnapshot; notes: string[]; qty: number }
   | { ok: true; success: false; kind: "near"; compound: CompoundDef; hints: string[] }
   | { ok: true; success: false; kind: "fail"; xp: number; waste: number; snapshot: ReactionSnapshot; notes: string[] }
   | { ok: true; success: false; kind: "accident"; compound: CompoundDef; xp: number; waste: number; snapshot: ReactionSnapshot; notes: string[] }
-  | { ok: false; reason: "empty_mix" | "missing" | "sick"; minutes?: number };
+  | { ok: false; reason: "empty_mix" | "missing" | "sick" | "locked_recipe"; minutes?: number; engram?: string };
+
+const CATALYST_TEMP = 20;
+const CATALYST_PRESSURE = 3;
+const DISTILLER_CHANCE = 0.25;
+const ENERGY_XP_MULT = 1.5;
+
+/** أسباب خروج الظروف عن النطاق (فاضي = ضمن النطاق) */
+function conditionHints(c: CompoundDef, temp: number, pressure: number, tol: { temp: number; pressure: number }): string[] {
+  const hints: string[] = [];
+  if (temp < c.tempRange[0] - tol.temp) hints.push("🌡️ الحرارة منخفضة، ارفعها");
+  if (temp > c.tempRange[1] + tol.temp) hints.push("🌡️ الحرارة عالية، خفّضها");
+  if (pressure < c.pressureRange[0] - tol.pressure) hints.push("💨 الضغط منخفض، ارفعه");
+  if (pressure > c.pressureRange[1] + tol.pressure) hints.push("💨 الضغط عالٍ، خفّضه");
+  return hints;
+}
+
+/** المحلّل: لو الخليط جزء من وصفة مجهولة نلمّح (بدون كشف التفاصيل) */
+function analyzerNote(mix: Record<string, number>, discovered: string[]): string | null {
+  const entries = Object.entries(mix);
+  const partial = COMPOUNDS.find(
+    (c) =>
+      !discovered.includes(c.id) &&
+      Object.keys(c.recipe).length > entries.length &&
+      entries.every(([id, q]) => (c.recipe[id] ?? 0) === q),
+  );
+  return partial ? "🔬 المحلّل: خليطك يطابق جزءاً من وصفة مجهولة، ينقصه مكوّن أو أكثر." : null;
+}
 
 export async function attemptReaction(userId: string, guildId: string): Promise<ReactResult> {
   const session = await getSession(userId, guildId);
@@ -195,20 +235,25 @@ export async function attemptReaction(userId: string, guildId: string): Promise<
   };
 
   const candidate = COMPOUNDS.find(sameIngredients);
+  const notes: string[] = [];
 
-  // المكونات صح لكن الحرارة/الضغط غلط: نعطي تلميحاً ولا نستهلك شيئاً
-  if (candidate) {
-    // الفرن والمضخة المطوّرة توسّع هامش الحرارة والضغط المسموح
-    const tMin = candidate.tempRange[0] - tol.temp;
-    const tMax = candidate.tempRange[1] + tol.temp;
-    const pMin = candidate.pressureRange[0] - tol.pressure;
-    const pMax = candidate.pressureRange[1] + tol.pressure;
-    const hints: string[] = [];
-    if (session.temp < tMin) hints.push("🌡️ الحرارة منخفضة، ارفعها");
-    if (session.temp > tMax) hints.push("🌡️ الحرارة عالية، خفّضها");
-    if (session.pressure < pMin) hints.push("💨 الضغط منخفض، ارفعه");
-    if (session.pressure > pMax) hints.push("💨 الضغط عالٍ، خفّضه");
-    if (hints.length > 0) return { ok: true, success: false, kind: "near", compound: candidate, hints };
+  // وصفة مقفلة بإنجرام: ما ننفّذ التفاعل ولا نستهلك شيئاً
+  if (candidate?.engram && !hasEngram(gear, candidate.engram)) {
+    return { ok: false, reason: "locked_recipe", engram: engramName(candidate.engram) };
+  }
+
+  // المكونات صح لكن الحرارة/الضغط غلط: نعطي تلميحاً ولا نستهلك شيئاً (إلا لو المحفّز ينقذ التفاعل)
+  if (candidate && !candidate.byproduct) {
+    const hints = conditionHints(candidate, session.temp, session.pressure, tol);
+    if (hints.length > 0) {
+      const widened = { temp: tol.temp + CATALYST_TEMP, pressure: tol.pressure + CATALYST_PRESSURE };
+      const rescued =
+        consumableCount(gear, "catalyst") > 0 &&
+        conditionHints(candidate, session.temp, session.pressure, widened).length === 0 &&
+        (await consumeOne(userId, guildId, "catalyst"));
+      if (!rescued) return { ok: true, success: false, kind: "near", compound: candidate, hints };
+      notes.push("🧫 المحفّز أنقذ التفاعل رغم أن الظروف كانت خارج النطاق!");
+    }
   }
 
   // خصم المكونات بشرط أنها موجودة فعلاً (حماية من التزامن)
@@ -228,7 +273,7 @@ export async function attemptReaction(userId: string, guildId: string): Promise<
 
   // تعرّض للإشعاع لو الخليط فيه مادة مشعة (يحميك منه البدلة)
   const radiationNote = await applyRadiation(userId, guildId, mixEntries.map(([id]) => id));
-  const notes = radiationNote ? [radiationNote] : [];
+  if (radiationNote) notes.push(radiationNote);
 
   if (!candidate) {
     // التجربة الفاشلة ما تروح بدون فايدة: خبرة صغيرة + نفايات كيميائية قابلة لإعادة التدوير
@@ -236,34 +281,56 @@ export async function attemptReaction(userId: string, guildId: string): Promise<
     await LabProfile.updateOne({ userId, guildId }, { $inc: { "inventory.waste": waste } });
     const xp = 4;
     await grantLabXp(userId, guildId, xp);
+    if (hasGear(gear, "analyzer")) {
+      const hint = analyzerNote(snapshot.mix, gear.discovered);
+      if (hint) notes.push(hint);
+    }
     return { ok: true, success: false, kind: "fail", xp, waste, snapshot, notes };
   }
 
-  // حادث مختبر: التفاعلات الخطرة قد تنفجر، ومعدات السلامة تقلل الاحتمال
+  // حادث مختبر: التفاعلات الخطرة قد تنفجر، ومعدات السلامة تقلل الاحتمال، والمثبّت يمنعه
   if (Math.random() < accidentChance(candidate, gear)) {
-    const waste = 1 + Math.floor(Math.random() * 2);
-    const xp = 4;
-    await LabProfile.updateOne({ userId, guildId }, { $inc: { "inventory.waste": waste } });
-    await grantLabXp(userId, guildId, xp);
-    return { ok: true, success: false, kind: "accident", compound: candidate, xp, waste, snapshot, notes };
+    if (consumableCount(gear, "stabilizer") > 0 && (await consumeOne(userId, guildId, "stabilizer"))) {
+      notes.push("🛡️ المثبّت منع انفجاراً في اللحظة الأخيرة!");
+    } else {
+      const waste = 1 + Math.floor(Math.random() * 2);
+      const xp = 4;
+      await LabProfile.updateOne({ userId, guildId }, { $inc: { "inventory.waste": waste } });
+      await grantLabXp(userId, guildId, xp);
+      return { ok: true, success: false, kind: "accident", compound: candidate, xp, waste, snapshot, notes };
+    }
   }
 
   const profile = await getLabProfile(userId, guildId);
   const discoveredNow = !profile.discovered.includes(candidate.id);
 
+  // وحدة التقطير: فرصة لمضاعفة الناتج
+  let qty = 1;
+  if (hasGear(profile, "distiller") && Math.random() < DISTILLER_CHANCE) {
+    qty = 2;
+    notes.push("⚗️ وحدة التقطير ضاعفت الناتج ×2!");
+  }
+
   await LabProfile.updateOne(
     { userId, guildId },
     {
-      $inc: { [`compounds.${candidate.id}`]: 1 },
+      $inc: { [`compounds.${candidate.id}`]: qty },
       ...(discoveredNow ? { $addToSet: { discovered: candidate.id } } : {}),
     },
   );
 
-  const xpResult = await grantLabXp(userId, guildId, candidate.xp);
+  // مشروب الطاقة: ×1.5 خبرة لهذا التفاعل
+  let xp = candidate.xp;
+  if (consumableCount(profile, "energy") > 0 && (await consumeOne(userId, guildId, "energy"))) {
+    xp = Math.round(xp * ENERGY_XP_MULT);
+    notes.push("🥤 مشروب الطاقة رفع خبرتك ×1.5!");
+  }
+
+  const xpResult = await grantLabXp(userId, guildId, xp);
   if (discoveredNow && DISCOVERY_REPUTATION[candidate.rarity]) {
     await LabProfile.updateOne({ userId, guildId }, { $inc: { reputation: DISCOVERY_REPUTATION[candidate.rarity] } });
   }
-  return { ok: true, success: true, compound: candidate, discoveredNow, xpResult, snapshot, notes };
+  return { ok: true, success: true, compound: candidate, discoveredNow, xpResult, snapshot, notes, qty };
 }
 
 export const ARTICLE_REPUTATION = 50;
@@ -315,7 +382,7 @@ export async function buyHint(userId: string, guildId: string, compoundId: strin
   const bought = profile.hinted?.[compoundId] ?? 0;
   if (bought >= clues.length) return { ok: false, reason: "no_more" };
 
-  const price = HINT_PRICE[def.rarity];
+  const price = Math.round(HINT_PRICE[def.rarity] * (hasGear(profile, "analyzer") ? 0.5 : 1));
   const paid = await UserProfile.findOneAndUpdate(
     { userId, guildId, coins: { $gte: price } },
     { $inc: { coins: -price } },
