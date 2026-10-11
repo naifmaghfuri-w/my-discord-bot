@@ -16,11 +16,18 @@ import { getLabProfile } from "./service";
 /** عرض @شخص السعر [الكمية]  — بدون سلاش */
 export const TRADE_TRIGGER = /^عرض\s+<@!?(\d+)>\s+(\d{1,7})(?:\s+(\d{1,2}))?$/;
 
+/** قنوات التبادل المسموحة فقط */
+export const TRADE_CHANNELS = ["1522782977472462898", "1551169206400188538"];
+
 export const MAX_PRICE = 1_000_000;
 export const OFFER_TTL_MS = 10 * 60 * 1000;
 
 /** يبدأ عرض تبادل: يرسل قائمة لاختيار المركب (للبائع فقط) */
 export async function startTradeFromMessage(message: Message<true>, targetId: string, price: number, qty: number): Promise<void> {
+  if (!TRADE_CHANNELS.includes(message.channelId)) {
+    await message.reply({ content: `🤝 التبادل يشتغل فقط في: ${TRADE_CHANNELS.map((c) => `<#${c}>`).join(" • ")}`, allowedMentions: { parse: [] } }).catch(() => undefined);
+    return;
+  }
   const sellerId = message.author.id;
   const target = await message.client.users.fetch(targetId).catch(() => null);
 

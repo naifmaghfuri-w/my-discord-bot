@@ -295,7 +295,6 @@ export function buildExtraPanel(owner: string): PanelResult {
         "🎯 **المهام** — مهام اليوم ومكافآتها",
         "🏅 **الإنجازات** — أهداف طويلة المدى",
         "💡 **تلميح** — اكشف جزءاً من وصفة مجهولة",
-        "🤝 **تبادل** — بع مركباً للاعب آخر",
         "🛠️ **الأجهزة** — طوّر الفرن والمضخة واشترِ معدات السلامة",
         "📋 **الطلبات** — طلبات العملاء اليومية بمكافآت أعلى",
         "🧭 **الاستكشاف** — أرسل مساعداً يجيب لك عناصر",
@@ -310,7 +309,6 @@ export function buildExtraPanel(owner: string): PanelResult {
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(cid(OPEN_ACH, owner)).setLabel("الإنجازات").setEmoji("🏅").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId(cid(OPEN_HINTS, owner, 0)).setLabel("تلميح").setEmoji("💡").setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(cid(OPEN_TRADE_HELP, owner)).setLabel("تبادل").setEmoji("🤝").setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId(cid(BACK, owner)).setLabel("الرئيسية").setEmoji("🏠").setStyle(ButtonStyle.Secondary),
   );
   const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
