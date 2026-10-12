@@ -94,16 +94,17 @@ export async function readInbox(guildId: string, userId: string): Promise<IAfkIn
   return AfkInbox.findOneAndDelete({ guildId, userId });
 }
 
-/** يحوّل مدة بالمللي ثانية لنص عربي مختصر (مثل: 45 دقيقة، ساعتين و10 دقائق) */
+/** Turns a duration in ms into short English text (e.g. "45 minutes", "2 hours and 10 minutes") */
 export function formatDuration(ms: number): string {
   const totalMinutes = Math.max(1, Math.round(ms / 60_000));
   const days = Math.floor(totalMinutes / 1440);
   const hours = Math.floor((totalMinutes % 1440) / 60);
   const minutes = totalMinutes % 60;
 
+  const unit = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
   const parts: string[] = [];
-  if (days) parts.push(`${days} يوم`);
-  if (hours) parts.push(`${hours} ساعة`);
-  if (minutes) parts.push(`${minutes} دقيقة`);
-  return parts.slice(0, 2).join(" و") || "أقل من دقيقة";
+  if (days) parts.push(unit(days, "day"));
+  if (hours) parts.push(unit(hours, "hour"));
+  if (minutes) parts.push(unit(minutes, "minute"));
+  return parts.slice(0, 2).join(" and ");
 }
