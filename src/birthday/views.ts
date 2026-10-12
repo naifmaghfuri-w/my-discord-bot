@@ -10,7 +10,6 @@ import {
 import {
   BIRTHDAY_DETAILS_BUTTON,
   BIRTHDAY_EDIT_BUTTON,
-  BIRTHDAY_PRIVACY_BUTTON,
   BIRTHDAY_UPCOMING_BUTTON,
 } from "./ids";
 
@@ -33,10 +32,9 @@ function progressBar(pct: number, length = 10): string {
 
 function actionRow(): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(BIRTHDAY_UPCOMING_BUTTON).setLabel("Upcoming").setEmoji("🕐").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(BIRTHDAY_EDIT_BUTTON).setLabel("Edit").setEmoji("✏️").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(BIRTHDAY_DETAILS_BUTTON).setLabel("Details").setEmoji("ℹ️").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(BIRTHDAY_PRIVACY_BUTTON).setLabel("Show/Hide age").setEmoji("🙈").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(BIRTHDAY_UPCOMING_BUTTON).setLabel("Upcoming").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(BIRTHDAY_EDIT_BUTTON).setLabel("Edit").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(BIRTHDAY_DETAILS_BUTTON).setLabel("Details").setStyle(ButtonStyle.Secondary),
   );
 }
 
@@ -58,7 +56,7 @@ export function buildBirthdayPanel(
 
   const nextLine =
     age.daysUntilNext === 0
-      ? "🎉 **It's today!**"
+      ? "**It's today!**"
       : `<t:${age.nextBirthdayUTC}:R> · <t:${age.nextBirthdayUTC}:D>`;
 
   const embed = new EmbedBuilder()
@@ -67,17 +65,12 @@ export function buildBirthdayPanel(
     .setTitle(`${BIRTHDAY_EMOJI} ${displayName}'s Birthday`)
     .setDescription(`**${dateText}**`)
     .addFields(
-      { name: "⏳ Next birthday", value: nextLine },
-      ...(showAge && age.turningAge ? [{ name: "🎈 Turning", value: `**${age.turningAge}**`, inline: true }] : []),
+      { name: "Next birthday", value: nextLine },
       {
-        name: "📊 Progress to next birthday",
+        name: "Progress to next birthday",
         value: `${progressBar(age.progress)} **${Math.round(age.progress * 100)}%**`,
       },
     );
-
-  if (withButtons && b.year !== undefined) {
-    embed.setFooter({ text: b.hideAge ? "Your age is hidden from others" : " Your age is visible to others" });
-  }
 
   return { embeds: [embed], components: withButtons ? [actionRow()] : [] };
 }
@@ -93,12 +86,11 @@ export function buildSetupMessage(): SetupMessage {
     new ButtonBuilder()
       .setCustomId(BIRTHDAY_EDIT_BUTTON)
       .setLabel("Set your birthday")
-      .setEmoji({ id: "1553179328840474695" })
       .setStyle(ButtonStyle.Success),
   );
 
   return {
-    content: "🎂 You haven't set your birthday yet. Press the button below to set it.",
+    content: "You haven't set your birthday yet. Press the button below to set it.",
     components: [row],
   };
 }
@@ -107,21 +99,20 @@ export function buildSetupMessage(): SetupMessage {
 export async function buildUpcomingEmbed(guildId: string): Promise<EmbedBuilder> {
   const [list, total] = await Promise.all([getUpcomingBirthdays(guildId, 10), countRegisteredBirthdays(guildId)]);
 
-  const turning = (n: number) => (n ? ` · turning \`${n}\`` : "");
   const today = list.filter((b) => b.daysUntil === 0);
   const rest = list.filter((b) => b.daysUntil > 0);
 
   const lines: string[] = [];
   if (today.length) {
-    lines.push("🎉 **Today**");
-    lines.push(...today.map((b) => `<@${b.userId}>${turning(b.turningAge)}`));
+    lines.push("**Today**");
+    lines.push(...today.map((b) => `<@${b.userId}>`));
     lines.push("");
   }
   if (rest.length) {
-    lines.push("📅 **Coming up**");
+    lines.push("**Coming up**");
     lines.push(
       ...rest.map(
-        (b) => `<@${b.userId}> — ${b.day} ${MONTHS[b.month - 1]} · in ${plural(b.daysUntil, "day")}${turning(b.turningAge)}`,
+        (b) => `<@${b.userId}> — ${b.day} ${MONTHS[b.month - 1]} · in ${plural(b.daysUntil, "day")}`,
       ),
     );
   }
@@ -143,26 +134,21 @@ export function buildDetailsEmbed(b: Birthday, displayName: string): EmbedBuilde
     .setColor(BIRTHDAY_COLOR)
     .setTitle(`${BIRTHDAY_EMOJI} ${displayName}'s birthday details`)
     .addFields({
-      name: "🎂 Date of Birth",
+      name: "Date of Birth",
       value: `${MONTHS[b.month - 1]} ${b.day}${b.year !== undefined ? `, ${b.year}` : " (no year set)"}`,
     });
 
   if (age.age) {
     embed.addFields({
-      name: "🕰️ Current Age",
+      name: "Current Age",
       value: `${plural(age.age.years, "year")}, ${plural(age.age.months, "month")}, ${plural(age.age.days, "day")}`,
     });
   }
 
   embed.addFields({
-    name: "📅 Next Birthday",
+    name: "Next Birthday",
     value: `${nextWeekday}, <t:${age.nextBirthdayUTC}:D> (in ${plural(age.daysUntilNext, "day")})`,
   });
 
-  if (age.turningAge) embed.addFields({ name: "🎈 Turning", value: `${age.turningAge}` });
-
-  if (b.year !== undefined) {
-    embed.addFields({ name: "🔒 Privacy", value: b.hideAge ? "Your age is hidden from others" : "Your age is visible to others" });
-  }
   return embed;
 }
