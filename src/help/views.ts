@@ -64,14 +64,6 @@ export const SECTIONS: HelpSection[] = [
     ],
   },
   {
-    id: "games",
-    emoji: "🎮",
-    label: "الألعاب",
-    style: ButtonStyle.Success,
-    title: "🎮 الألعاب",
-    lines: ["`coinflip` ← صورة أو كتابة", "`rps` ← حجرة ورقة مقص", "`xo` ← إكس أو ضد عضو"],
-  },
-  {
     id: "other",
     emoji: "🧰",
     label: "أخرى",
@@ -79,6 +71,7 @@ export const SECTIONS: HelpSection[] = [
     title: "🧰 أوامر أخرى",
     lines: [
       "`afk` أو `afk السبب` ← وضع الغياب (ينبّه من يمنشنك)",
+      "`$Games` ← قائمة الألعاب (فردية، ثنائية، جماعية)",
       "`$Marriage` ← دليل أوامر العائلة (زواج، طلاق، تبني، شجرة...)",
       "`ميلاد` ← سجّل ميلادك أو شوف ميلاد غيرك بـ `ميلاد @شخص` (يوم الميلاد: رتبة وهدية وتهنئة)",
     ],
