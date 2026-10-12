@@ -53,7 +53,7 @@ const DISOWN_TRIGGER = /^تبرؤ\s+<@!?(\d+)>$/i;
 /** هروب: الابن يتخلى عن عائلته بالكامل */
 const RUNAWAY_TRIGGER = /^(?:هروب|هرب)$/i;
 /** شجرة العائلة: "شجرة" لشجرتك، أو "شجرة @شخص" لشجرة غيرك */
-const TREE_TRIGGER = /^شجرة(?:\s+<@!?(\d+)>)?$/;
+const TREE_TRIGGER = /^!\s*شجرة(?:\s+<@!?(\d+)>)?$/;
 const RELATION_TRIGGER = /^قرابة\s+<@!?(\d+)>$/i;
 
 const lastCounted = new Map<string, number>();
