@@ -1,13 +1,12 @@
 import type { Message } from "discord.js";
 import { logger } from "../utils/logger";
 import { getGender, type Gender } from "./gender";
-import { computeRelationship } from "./graph";
 import { cleanName, inLawLabel, renderFamilyTree, roleLabel, toFamilyMember, type FamilyMember, type Role } from "./render";
 import { getFamilyView } from "./service";
 
 /**
  * يرسم شجرة عائلة targetId.
- * تحت كل دائرة: الاسم + علاقته بمن كتب الأمر (الأب، الأخت، غريب...).
+ * تحت كل دائرة: الاسم + علاقته بصاحب الشجرة (الأب، الابنة، الصهر...).
  */
 export async function sendFamilyTree(message: Message<true>, targetId: string): Promise<void> {
   const guild = message.guild;
@@ -27,13 +26,12 @@ export async function sendFamilyTree(message: Message<true>, targetId: string): 
     return;
   }
 
-  /** علاقة الشخص بمن يشاهد الشجرة */
-  const relationToViewer = async (id: string, gender: Gender, role: Role | null): Promise<string> => {
+  /** علاقة الشخص بصاحب الشجرة (الأب، الابنة، الصهر...) وليس بمن يشاهدها */
+  const relationLabel = (id: string, gender: Gender, role: Role | null): string => {
     if (id === viewerId) return "أنت";
-    if (ownTree && role) return roleLabel(role, gender);
-    const res = await computeRelationship(viewerId, id, guildId, gender).catch(() => null);
-    if (!res || res.pathLength === null) return gender === "female" ? "غريبة" : "غريب";
-    return res.label;
+    if (role) return roleLabel(role, gender);
+    // صاحب الشجرة نفسه (في شجرة شخص ثاني)
+    return view.children.length > 0 ? roleLabel("parent", gender) : "صاحب الشجرة";
   };
 
   const build = async (id: string, role: Role | null): Promise<FamilyMember | null> => {
@@ -46,11 +44,10 @@ export async function sendFamilyTree(message: Message<true>, targetId: string): 
       cleanName(member?.displayName ?? user.username, user.username),
       user.displayAvatarURL({ extension: "png", size: 128 }),
       gender,
-      await relationToViewer(id, gender, role),
+      relationLabel(id, gender, role),
     );
   };
 
-  const childDoc = new Map(view.children.map((c) => [c.userId, c]));
   const childGender = new Map<string, Gender>();
 
   const [ego, parents, siblings, spouses, children, grandparents, grandchildren, childSpouses] = await Promise.all([
@@ -74,9 +71,8 @@ export async function sendFamilyTree(message: Message<true>, targetId: string): 
       view.childSpouses.map(async (cs) => {
         const member = await build(cs.profile.userId, "spouse");
         if (!member) return { member: null, viaId: cs.viaId };
-        // صهر/كنة: عند الأب أو الأم نفسه (أو عند من هو والد الابن) نكتب التسمية الدقيقة
-        const parentOfChild = (childDoc.get(cs.viaId)?.parentIds ?? []).includes(viewerId);
-        if (ownTree || parentOfChild) member.relation = inLawLabel(member.gender, childGender.get(cs.viaId) ?? null);
+        // صهر/كنة بالنسبة لصاحب الشجرة
+        if (member.userId !== viewerId) member.relation = inLawLabel(member.gender, childGender.get(cs.viaId) ?? null);
         return { member, viaId: cs.viaId };
       }),
     ),
