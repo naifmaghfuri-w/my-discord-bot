@@ -47,14 +47,14 @@ const AFK_TRIGGER = /^afk(?:\s+([\s\S]+))?$/i;
 const BIRTHDAY_TRIGGER = /^(ميلاد|birthday|dob)(?:\s+([\s\S]+))?$/i;
 /** نظام العائلة: زواج/طلاق/خلع/تبني/تبرؤ/شجرة/قرابة (بدون سلاش) */
 const MARRY_TRIGGER = /^!\s*زواج\s+<@!?(\d+)>\s+(\d+)$/;
-const TALAQ_TRIGGER = /^!?\s*طلاق(?:\s+<@!?(\d+)>)?$/i;
-const ADOPT_TRIGGER = /^!?\s*تبن[ىي]\s+<@!?(\d+)>$/i;
-const DISOWN_TRIGGER = /^!?\s*تبرؤ\s+<@!?(\d+)>$/i;
+const TALAQ_TRIGGER = /^!\s*طلاق(?:\s+<@!?(\d+)>)?$/i;
+const ADOPT_TRIGGER = /^!\s*تبن[ىي]\s+<@!?(\d+)>$/i;
+const DISOWN_TRIGGER = /^!\s*تبرؤ\s+<@!?(\d+)>$/i;
 /** هروب: الابن يتخلى عن عائلته بالكامل */
-const RUNAWAY_TRIGGER = /^!?\s*(?:هروب|هرب)$/i;
+const RUNAWAY_TRIGGER = /^!\s*(?:هروب|هرب)$/i;
 /** شجرة العائلة: "شجرة" لشجرتك، أو "شجرة @شخص" لشجرة غيرك */
 const TREE_TRIGGER = /^!\s*شجرة(?:\s+<@!?(\d+)>)?$/;
-const RELATION_TRIGGER = /^!?\s*قرابة\s+<@!?(\d+)>$/i;
+const RELATION_TRIGGER = /^!\s*قرابة\s+<@!?(\d+)>$/i;
 
 const lastCounted = new Map<string, number>();
 
@@ -407,7 +407,7 @@ const event: BotEvent = {
       return;
     }
 
-    if (/^!?\s*خلع$/.test(trimmed)) {
+    if (/^!\s*خلع$/.test(trimmed)) {
       const member = message.member ?? (await guild.members.fetch(userId).catch(() => null));
       const gender = member ? getGender(member) : null;
 
