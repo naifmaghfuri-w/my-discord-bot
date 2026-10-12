@@ -23,6 +23,7 @@ import { LabProfile } from "../database/models/LabProfile";
 import { computeRelationship } from "../family/graph";
 import { ADOPT_ACCEPT_PREFIX, ADOPT_DECLINE_PREFIX, MARRY_ACCEPT_PREFIX, MARRY_DECLINE_PREFIX } from "../family/ids";
 import { sendFamilyTree } from "../family/treeView";
+import { MARRIAGE_TRIGGER, buildMarriageGuide } from "../family/guide";
 import { canAdopt, canPropose, disown, getParents, khulaDivorce, runAway, talaqDivorce } from "../family/service";
 import { buildMenuMessage } from "../menu/interactions";
 import { QUEST_SETTINGS, type QuestId } from "../quests/definitions";
@@ -145,6 +146,12 @@ const event: BotEvent = {
     // --- لعبة هنتر ---
     if (HUNTER_TRIGGER.test(rawContent.trim())) {
       await handleHunterMessage(message);
+      return;
+    }
+
+    // --- دليل أوامر العائلة: "$Marriage" ---
+    if (MARRIAGE_TRIGGER.test(rawContent.trim())) {
+      await message.channel.send({ embeds: [buildMarriageGuide()] }).catch(() => undefined);
       return;
     }
 
