@@ -31,24 +31,22 @@ export async function sendAfkNotices(message: Message<true>, mentionedIds: Itera
 
     const embed = new EmbedBuilder()
       .setColor(0x818cf8)
-      .setAuthor({ name: `😪 [AFK] ${user.username}`, iconURL: user.displayAvatarURL() })
+      .setAuthor({ name: `[AFK] ${user.username}`, iconURL: user.displayAvatarURL() })
       .setThumbnail(user.displayAvatarURL())
-      .setDescription("✶ في وضع الغياب المؤقت (AFK)")
+      .setDescription("Currently away. They'll see your mention when they return.")
       .addFields(
-        { name: "السبب", value: `📝 ${status.reason}`, inline: true },
-        { name: "منذ", value: `⏳ ${minutesAgo} دقيقة`, inline: true },
+        { name: "Reason", value: status.reason, inline: true },
+        { name: "Away for", value: `${minutesAgo} ${minutesAgo === 1 ? "minute" : "minutes"}`, inline: true },
       );
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`${NOTIFY_PREFIX}${targetId}`)
-        .setLabel("نبهني عند عودته")
-        .setEmoji("🔔")
+        .setLabel("Notify me")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(`${MESSAGE_PREFIX}${targetId}`)
-        .setLabel("اترك رسالة")
-        .setEmoji("📧")
+        .setLabel("Leave a message")
         .setStyle(ButtonStyle.Primary),
     );
 

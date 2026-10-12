@@ -21,19 +21,19 @@ export async function handleAfkButton(interaction: ButtonInteraction): Promise<b
     const targetId = customId.slice(NOTIFY_PREFIX.length);
 
     if (targetId === interaction.user.id) {
-      await interaction.reply({ content: "😅 ما تقدر تنبه نفسك.", flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: "You can't set a reminder for yourself.", flags: MessageFlags.Ephemeral });
       return true;
     }
 
     const still = await getAfk(guildId, targetId);
     if (!still) {
-      await interaction.reply({ content: "✅ هذا العضو رجع بالفعل من وضع الغياب.", flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: "This member is already back.", flags: MessageFlags.Ephemeral });
       return true;
     }
 
     await addNotify(guildId, targetId, interaction.user.id);
     await interaction.reply({
-      content: "تم! 🔔 سأقوم بمنشنتك فور عودة العضو.",
+      content: "Done. I'll mention you as soon as they're back.",
       flags: MessageFlags.Ephemeral,
     });
     return true;
@@ -44,14 +44,14 @@ export async function handleAfkButton(interaction: ButtonInteraction): Promise<b
 
     const still = await getAfk(guildId, targetId);
     if (!still) {
-      await interaction.reply({ content: "✅ هذا العضو رجع بالفعل من وضع الغياب.", flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: "This member is already back.", flags: MessageFlags.Ephemeral });
       return true;
     }
 
-    const modal = new ModalBuilder().setCustomId(`${MODAL_PREFIX}${targetId}`).setTitle("ترك رسالة للمستخدم");
+    const modal = new ModalBuilder().setCustomId(`${MODAL_PREFIX}${targetId}`).setTitle("Leave a message");
     const input = new TextInputBuilder()
       .setCustomId("content")
-      .setLabel("ما هي رسالتك؟")
+      .setLabel("Your message")
       .setStyle(TextInputStyle.Paragraph)
       .setMaxLength(200)
       .setRequired(true);
@@ -65,7 +65,7 @@ export async function handleAfkButton(interaction: ButtonInteraction): Promise<b
     const ownerId = customId.slice(INBOX_PREFIX.length);
 
     if (interaction.user.id !== ownerId) {
-      await interaction.reply({ content: "🔒 هذا الصندوق خاص، ما تقدر تفتحه.", flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: "This inbox is private.", flags: MessageFlags.Ephemeral });
       return true;
     }
 
@@ -75,14 +75,14 @@ export async function handleAfkButton(interaction: ButtonInteraction): Promise<b
     });
 
     if (!inbox || inbox.messages.length === 0) {
-      await interaction.reply({ content: "📭 الصندوق فاضي.", flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: "Your inbox is empty.", flags: MessageFlags.Ephemeral });
       return true;
     }
 
     const embed = new EmbedBuilder()
       .setColor(0xfbbf24)
-      .setTitle("📬 رسائلك")
-      .setDescription(inbox.messages.map((m) => `**من <@${m.fromUserId}>:**\n${m.content}`).join("\n\n"));
+      .setTitle("Your Messages")
+      .setDescription(inbox.messages.map((m) => `**From <@${m.fromUserId}>:**\n${m.content}`).join("\n\n"));
 
     await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     return true;
@@ -99,7 +99,7 @@ export async function handleAfkModal(interaction: ModalSubmitInteraction): Promi
   const content = interaction.fields.getTextInputValue("content").trim();
 
   if (!content) {
-    await interaction.reply({ content: "❌ ما تقدر ترسل رسالة فاضية.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: "Your message can't be empty.", flags: MessageFlags.Ephemeral });
     return true;
   }
 
@@ -109,7 +109,7 @@ export async function handleAfkModal(interaction: ModalSubmitInteraction): Promi
   });
 
   await interaction.reply({
-    content: ok ? "✅ تم إرسال رسالتك، بتوصله فور عودته." : "❌ حصل خطأ، أو العضو رجع قبل ما ترسل.",
+    content: ok ? "Your message was delivered. They'll see it as soon as they're back." : "Something went wrong, or the member came back before you sent it.",
     flags: MessageFlags.Ephemeral,
   });
   return true;
