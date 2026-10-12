@@ -294,8 +294,6 @@ export function buildExtraPanel(owner: string): PanelResult {
         "🧭 **الاستكشاف** — أرسل مساعداً يجيب لك عناصر",
       ].join("\n"),
     );
-  const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-  );
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(cid(OPEN_ACH, owner)).setLabel("الإنجازات").setEmoji("🏅").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId(cid(OPEN_HINTS, owner, 0)).setLabel("تلميح").setEmoji("💡").setStyle(ButtonStyle.Success),
@@ -306,7 +304,7 @@ export function buildExtraPanel(owner: string): PanelResult {
     new ButtonBuilder().setCustomId(cid(OPEN_ORDERS, owner)).setLabel("الطلبات").setEmoji("📋").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId(cid(OPEN_EXPED, owner)).setLabel("الاستكشاف").setEmoji("🧭").setStyle(ButtonStyle.Primary),
   );
-  return sub(embed, [row1, row2, row3]);
+  return sub(embed, [row2, row3]);
 }
 
 /** كل العروض الفرعية تمسح صورة القارورة وتحدّث الرسالة بدون ملفات */
