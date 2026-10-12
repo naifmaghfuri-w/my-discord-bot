@@ -260,7 +260,7 @@ function switchTurn(g: Game): void {
 }
 
 async function refreshStatus(g: Game, view: ReturnType<typeof statusView>): Promise<void> {
-  await g.statusMsg?.edit(view).catch((err) => logger.error("Code Names: فشل تحديث الحالة", err));
+  await g.statusMsg?.edit(view).catch((err: unknown) => logger.error("Code Names: فشل تحديث الحالة", err));
 }
 
 async function deny(i: ButtonInteraction | ModalSubmitInteraction, content: string): Promise<true> {
@@ -312,12 +312,13 @@ export async function handleCodenamesButton(interaction: ButtonInteraction): Pro
       g.phase = "play";
       g.statusMsg = interaction.message;
       await interaction.update(statusView(g));
-      g.boardMsg = await interaction.channel
-        ?.send(boardView(g))
-        .catch((err) => {
+      const ch = interaction.channel;
+      if (ch && "send" in ch) {
+        g.boardMsg = await ch.send(boardView(g)).catch((err: unknown) => {
           logger.error("Code Names: فشل إرسال اللوحة", err);
           return undefined;
         });
+      }
       return true;
     }
 

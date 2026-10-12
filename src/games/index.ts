@@ -12,7 +12,7 @@ import {
 
 /** رسالة "$Games": تفتح قائمة الألعاب. ترجع true لو كانت الرسالة هذا الأمر. */
 export async function handleGamesMessage(message: Message): Promise<boolean> {
-  if (!GAMES_TRIGGER.test((message.content ?? "").trim())) return false;
+  if (!message.inGuild() || !GAMES_TRIGGER.test((message.content ?? "").trim())) return false;
   await message.channel.send(buildGamesMenu(message.author.id)).catch(() => undefined);
   return true;
 }
