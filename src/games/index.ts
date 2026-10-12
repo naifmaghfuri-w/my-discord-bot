@@ -10,7 +10,7 @@ import {
   type Category,
 } from "./menu";
 
-/** رسالة "$Games": تفتح قائمة الألعاب. ترجع true لو كانت الرسالة هذا الأمر. */
+/** رسالة "!العاب": تفتح قائمة الألعاب. ترجع true لو كانت الرسالة هذا الأمر. */
 export async function handleGamesMessage(message: Message): Promise<boolean> {
   if (!message.inGuild() || !GAMES_TRIGGER.test((message.content ?? "").trim())) return false;
   await message.channel.send(buildGamesMenu(message.author.id)).catch(() => undefined);
@@ -22,7 +22,7 @@ export async function handleGamesInteraction(interaction: Interaction): Promise<
   if (interaction.isStringSelectMenu() && interaction.customId.startsWith(`${MENU_SELECT}|`)) {
     const owner = interaction.customId.split("|")[1];
     if (owner !== interaction.user.id) {
-      await interaction.reply({ content: "اكتب `$Games` وتفتح قائمتك الخاصة.", flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: "اكتب `!العاب` وتفتح قائمتك الخاصة.", flags: MessageFlags.Ephemeral });
       return true;
     }
     await interaction.update(buildCategory(interaction.values[0] as Category, owner));
@@ -33,7 +33,7 @@ export async function handleGamesInteraction(interaction: Interaction): Promise<
     const [head, owner] = interaction.customId.split("|");
     if (head === MENU_BACK || head === MENU_CODENAMES) {
       if (owner !== interaction.user.id) {
-        await interaction.reply({ content: "اكتب `$Games` وتفتح قائمتك الخاصة.", flags: MessageFlags.Ephemeral });
+        await interaction.reply({ content: "اكتب `!العاب` وتفتح قائمتك الخاصة.", flags: MessageFlags.Ephemeral });
         return true;
       }
       if (head === MENU_BACK) await interaction.update(buildGamesMenu(owner));

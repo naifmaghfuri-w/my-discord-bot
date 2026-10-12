@@ -1,7 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, StringSelectMenuBuilder } from "discord.js";
 
-/** يفتح قائمة الألعاب بكتابة $Games */
-export const GAMES_TRIGGER = /^\$games$/i;
+/** يفتح قائمة الألعاب بكتابة !العاب */
+export const GAMES_TRIGGER = /^!\s*[اأ]لعاب$/;
 
 export const MENU_SELECT = "gm_menu";
 export const MENU_BACK = "gm_back";
