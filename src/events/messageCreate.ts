@@ -94,15 +94,15 @@ const event: BotEvent = {
     if (trigger) {
       const member = message.member ?? (await message.guild?.members.fetch(userId).catch(() => null));
       if (member) {
-        const reason = trigger[1]?.trim() || "بدون سبب";
+        const reason = trigger[1]?.trim() || "No reason given";
         await setAfk(member, reason).catch((err) => logger.error("فشل تفعيل AFK", err));
 
         const embed = new EmbedBuilder()
           .setColor(0x818cf8)
-          .setTitle("✶ غياب مؤقت")
-          .setDescription("💤 تم تفعيل وضع الغياب المؤقت بنجاح")
+          .setTitle("Away Mode")
+          .setDescription("Your away status is now active. Anyone who mentions you will be notified.")
           .setThumbnail(member.displayAvatarURL())
-          .addFields({ name: "السبب", value: `📝 ${reason}` });
+          .addFields({ name: "Reason", value: reason });
 
         await message.channel.send({ embeds: [embed] }).catch(() => undefined);
       }
@@ -563,13 +563,13 @@ const event: BotEvent = {
           const mentionCount = result.status.mentions.length;
           const mentioners = [...new Set(result.status.mentions)];
 
-          const lines = [`👋 أهلاً بعودتك يا ${member}!`, `⏱️ مدة الغياب: ${duration}`];
+          const lines = [`Welcome back, ${member}.`, `You were away for **${duration}**.`];
           if (mentionCount > 0) {
             const names = mentioners.map((id) => `<@${id}>`).join("، ");
-            lines.push(`📣 تم منشنتك **${mentionCount}** مرة، من: ${names}`);
+            lines.push(`You were mentioned **${mentionCount}** ${mentionCount === 1 ? "time" : "times"} by ${names}.`);
           }
           if (result.status.messages.length > 0) {
-            lines.push(`📬 لديك **${result.status.messages.length}** رسالة بانتظارك في صندوقك`);
+            lines.push(`**${result.status.messages.length}** ${result.status.messages.length === 1 ? "message is" : "messages are"} waiting in your inbox.`);
           }
 
           const embed = new EmbedBuilder()
@@ -586,8 +586,7 @@ const event: BotEvent = {
               new ActionRowBuilder<ButtonBuilder>().addComponents(
                 new ButtonBuilder()
                   .setCustomId(`${INBOX_PREFIX}${userId}`)
-                  .setLabel("فتح الصندوق")
-                  .setEmoji("📬")
+                  .setLabel("Open inbox")
                   .setStyle(ButtonStyle.Primary),
               ),
             );
@@ -601,7 +600,7 @@ const event: BotEvent = {
           if (result.status.notify.length > 0) {
             const mentions = result.status.notify.map((id) => `<@${id}>`).join(" ");
             await message.channel
-              .send({ content: `🔔 ${mentions} رجع ${member} من الغياب!`, allowedMentions: { users: result.status.notify } })
+              .send({ content: `${mentions}, ${member} is back from being away.`, allowedMentions: { users: result.status.notify } })
               .catch(() => undefined);
           }
         }
