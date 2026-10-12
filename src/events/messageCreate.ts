@@ -153,7 +153,7 @@ const event: BotEvent = {
     // --- قائمة الألعاب: "!العاب" ---
     if (await handleGamesMessage(message).catch(() => false)) return;
 
-    // --- دليل أوامر العائلة: "$Marriage" ---
+    // --- دليل أوامر العائلة: "!زواج" ---
     if (MARRIAGE_TRIGGER.test(rawContent.trim())) {
       await message.channel.send({ embeds: [buildMarriageGuide()] }).catch(() => undefined);
       return;
