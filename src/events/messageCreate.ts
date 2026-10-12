@@ -150,7 +150,7 @@ const event: BotEvent = {
       return;
     }
 
-    // --- قائمة الألعاب: "$Games" ---
+    // --- قائمة الألعاب: "!العاب" ---
     if (await handleGamesMessage(message).catch(() => false)) return;
 
     // --- دليل أوامر العائلة: "$Marriage" ---
