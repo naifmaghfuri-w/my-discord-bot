@@ -43,7 +43,7 @@ export async function startTradeFromMessage(message: Message<true>, targetId: st
   const profile = await getLabProfile(sellerId, message.guildId);
   const options = COMPOUNDS.filter((c) => (profile.compounds[c.id] ?? 0) >= qty)
     .slice(0, 25)
-    .map((c) => ({ label: `${c.name} (معك ${profile.compounds[c.id]})`, value: c.id, emoji: c.icon }));
+    .map((c) => ({ label: `${c.icon} ${c.name} (معك ${profile.compounds[c.id]})`, value: c.id }));
 
   if (options.length === 0) {
     await message.channel.send(`❌ ما عندك مركب بكمية ${qty} أو أكثر لتعرضه.`).catch(() => undefined);

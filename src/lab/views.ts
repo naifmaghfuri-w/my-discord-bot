@@ -185,9 +185,8 @@ export async function buildMainPanel(profile: ILabProfile, session: ILabSession,
           .setPlaceholder("➕ أضف عنصراً للخليط")
           .addOptions(
             ownedElements.map((e) => ({
-              label: `${e.name} (متاح ${(profile.inventory[e.id] ?? 0) - (session.mix[e.id] ?? 0)})`,
+              label: `${e.icon} ${e.name} (${(profile.inventory[e.id] ?? 0) - (session.mix[e.id] ?? 0)})`,
               value: e.id,
-              emoji: e.icon,
             })),
           ),
       ),
@@ -203,9 +202,8 @@ export async function buildMainPanel(profile: ILabProfile, session: ILabSession,
           .setPlaceholder("🧬 أضف مركباً مصنّعاً للخليط")
           .addOptions(
             ownedCompounds.map((c) => ({
-              label: `${c.name} (متاح ${(profile.compounds[c.id] ?? 0) - (session.mix[c.id] ?? 0)})`,
+              label: `${c.icon} ${c.name} (${(profile.compounds[c.id] ?? 0) - (session.mix[c.id] ?? 0)})`,
               value: c.id,
-              emoji: c.icon,
             })),
           ),
       ),
@@ -322,14 +320,13 @@ const STOCK_PER_PAGE = 8;
 export function buildWarehouseView(profile: ILabProfile, coins: number, note?: string, tab: "e" | "c" = "e", page = 0): PanelResult {
   const owner = profile.userId;
   const isEl = tab === "e";
-  const EXTRA_SYMBOL: Record<string, string> = { water: "H₂O", salt: "NaCl" };
-  const tag = (sym?: string) => (sym && sym !== "—" ? `\`${sym}\` ` : "");
+  const tag = (sym: string) => (sym === "✦" || sym === "∅" ? "" : `\`${sym}\` `);
   const lines = isEl
     ? ELEMENTS.filter((e) => (profile.inventory[e.id] ?? 0) > 0).map(
-        (e) => `${tag(EXTRA_SYMBOL[e.id] ?? ELEMENT_INFO[e.id]?.symbol)}**${e.name}** — ×**${profile.inventory[e.id]}**`,
+        (e) => `${tag(e.icon)}**${e.name}** — ×**${profile.inventory[e.id]}**`,
       )
     : COMPOUNDS.filter((c) => (profile.compounds[c.id] ?? 0) > 0).map(
-        (c) => `${tag(COMPOUND_INFO[c.id]?.formula)}**${c.name}** — ×**${profile.compounds[c.id]}** _(${RARITY_INFO[c.rarity].name})_`,
+        (c) => `${tag(c.icon)}**${c.name}** — ×**${profile.compounds[c.id]}** _(${RARITY_INFO[c.rarity].name})_`,
       );
   const pages = Math.max(1, Math.ceil(lines.length / STOCK_PER_PAGE));
   const p = Math.min(Math.max(0, page), pages - 1);
@@ -434,7 +431,7 @@ export async function buildMarketView(guildId: string, profile: ILabProfile, not
 
   const rows: Row[] = [];
   if (owned.length > 0) {
-    const opts = owned.map((c) => ({ label: `${c.name} (معك ${profile.compounds[c.id]})`, value: c.id, emoji: c.icon }));
+    const opts = owned.map((c) => ({ label: `${c.icon} ${c.name} (معك ${profile.compounds[c.id]})`, value: c.id }));
     rows.push(
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
         new StringSelectMenuBuilder().setCustomId(cid(MARKET_SELL_SELECT, profile.userId, p)).setPlaceholder("💰 بيع وحدة واحدة").addOptions(opts),
@@ -475,7 +472,7 @@ export function buildShopView(profile: ILabProfile, coins: number, qty = 1, note
         new StringSelectMenuBuilder()
           .setCustomId(cid(SHOP_BUY_SELECT, profile.userId, qty) + (i > 0 ? `|${i}` : ""))
           .setPlaceholder(`🛒 اختر عنصراً تشتريه (×${qty})${available.length > PAGE_SIZE ? ` — ${i / PAGE_SIZE + 1}` : ""}`)
-          .addOptions(part.map((e) => ({ label: `${e.name} — ${e.price * qty} ${CURRENCY.name}`, value: e.id, emoji: e.icon }))),
+          .addOptions(part.map((e) => ({ label: `${e.icon} ${e.name} — ${e.price * qty} ${CURRENCY.name}`, value: e.id }))),
       ),
     );
   }
@@ -543,7 +540,7 @@ export function buildLevelsView(profile: ILabProfile, note?: string, tab: Engram
         new StringSelectMenuBuilder()
           .setCustomId(cid(LEVELS_UNLOCK_SELECT, owner, tab))
           .setPlaceholder("🔓 اختر ما تفتحه")
-          .addOptions(ready.slice(0, 25).map((e) => ({ label: `${e.name} (${e.cost} 🔬)`, value: e.id, emoji: e.icon }))),
+          .addOptions(ready.slice(0, 25).map((e) => ({ label: `${e.icon} ${e.name} (${e.cost} 🔬)`, value: e.id }))),
       ),
     );
   }
@@ -780,7 +777,7 @@ export function buildRobotView(profile: ILabProfile, note?: string): PanelResult
           new StringSelectMenuBuilder()
             .setCustomId(cid(ROBOT_START, owner))
             .setPlaceholder("🤖 اختر المركب")
-            .addOptions(eligible.slice(0, 25).map((c) => ({ label: c.name, value: c.id, emoji: c.icon, description: RARITY_INFO[c.rarity].name }))),
+            .addOptions(eligible.slice(0, 25).map((c) => ({ label: `${c.icon} ${c.name}`, value: c.id, description: RARITY_INFO[c.rarity].name }))),
         ),
       );
     }
@@ -821,7 +818,7 @@ export function buildOrdersView(profile: ILabProfile, note?: string): PanelResul
     .filter((o) => !done.includes(o.compoundId))
     .map((o) => {
       const c = COMPOUND_MAP[o.compoundId];
-      return { label: `سلّم ${c.name} ×${o.qty}`, value: o.compoundId, emoji: c.icon, description: `${o.coins} ${CURRENCY.name}` };
+      return { label: `${c.icon} ${c.name} ×${o.qty}`, value: o.compoundId, description: `${o.coins} ${CURRENCY.name}` };
     });
 
   const rows: Row[] = [];

@@ -258,8 +258,9 @@ export async function renderResult(compoundId: string, color: number): Promise<B
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillStyle = "#f8fafc";
-  ctx.font = `700 34px "${family}"`;
-  ctx.fillText(compound ? compound.icon : "✨", WIDTH / 2, 150);
+  const sym = compound ? compound.icon : "✨";
+  ctx.font = `700 ${sym.length > 7 ? 24 : 34}px "${family}"`;
+  ctx.fillText(sym, WIDTH / 2, 150);
 
   return canvas.encode("png");
 }
