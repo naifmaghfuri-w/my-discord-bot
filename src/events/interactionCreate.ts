@@ -11,6 +11,7 @@ import { handleLabButton, handleLabSelect } from "../lab/interactions";
 import { handleHunterButton, handleHunterSelect } from "../hunter/interactions";
 import { handleJobButton, handleJobSelect } from "../jobs/interactions";
 import { handleStreakButton, handleStreakSelect } from "../streak/interactions";
+import { handleGamesInteraction } from "../games";
 import { handleMenuButton } from "../menu/interactions";
 import type { BotEvent } from "../types";
 import { logger } from "../utils/logger";
@@ -21,6 +22,8 @@ const cooldowns = new Collection<string, number>();
 const event: BotEvent = {
   name: Events.InteractionCreate,
   async execute(client: BotClient, interaction: Interaction) {
+    if (await handleGamesInteraction(interaction).catch((err) => (logger.error("خطأ في الألعاب", err), false))) return;
+
     if (interaction.isButton()) {
       try {
         const handled =
