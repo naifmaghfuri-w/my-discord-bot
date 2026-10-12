@@ -46,7 +46,7 @@ const AFK_TRIGGER = /^afk(?:\s+([\s\S]+))?$/i;
 /** عيد الميلاد: "ميلاد" أو "birthday" أو "dob"، مع تاريخ اختياري بعدها (بدون سلاش أو زر) */
 const BIRTHDAY_TRIGGER = /^(ميلاد|birthday|dob)(?:\s+([\s\S]+))?$/i;
 /** نظام العائلة: زواج/طلاق/خلع/تبني/تبرؤ/شجرة/قرابة (بدون سلاش) */
-const MARRY_TRIGGER = /^تزوج\s+<@!?(\d+)>\s+مهر[:\s]+(\d+)$/i;
+const MARRY_TRIGGER = /^!\s*زواج\s+<@!?(\d+)>\s+(\d+)$/;
 const TALAQ_TRIGGER = /^طلاق(?:\s+<@!?(\d+)>)?$/i;
 const ADOPT_TRIGGER = /^تبن[ىي]\s+<@!?(\d+)>$/i;
 const DISOWN_TRIGGER = /^تبرؤ\s+<@!?(\d+)>$/i;
