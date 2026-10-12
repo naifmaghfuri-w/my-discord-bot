@@ -157,22 +157,26 @@ function drawNode(ctx: SKRSContext2D, n: Placed) {
   ctx.font = `700 18px "${FONT_BOLD}"`;
   const relW = ctx.measureText(member.relation).width;
 
-  const w = Math.max(nameW, relW, 70) + 26;
+  const hasRel = member.relation.trim().length > 0;
+  const w = Math.max(nameW, hasRel ? relW : 0, 70) + 26;
+  const h = hasRel ? PILL_H : 38;
   const x0 = x - w / 2;
   const y0 = y + NODE_R + 10;
 
   // خلفية خفيفة تضمن وضوح النص حتى لو مرّ خط خلفه
   ctx.fillStyle = "rgba(11,10,20,0.82)";
   ctx.beginPath();
-  ctx.roundRect(x0, y0, w, PILL_H, 12);
+  ctx.roundRect(x0, y0, w, h, 12);
   ctx.fill();
 
   ctx.fillStyle = "#f8fafc";
   ctx.font = `700 20px "${FONT_BOLD}"`;
-  ctx.fillText(name, x, y0 + 7);
-  ctx.fillStyle = ring;
-  ctx.font = `700 18px "${FONT_BOLD}"`;
-  ctx.fillText(member.relation, x, y0 + 33);
+  ctx.fillText(name, x, y0 + (hasRel ? 7 : 8));
+  if (hasRel) {
+    ctx.fillStyle = ring;
+    ctx.font = `700 18px "${FONT_BOLD}"`;
+    ctx.fillText(member.relation, x, y0 + 33);
+  }
 }
 
 /**

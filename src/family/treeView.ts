@@ -26,11 +26,16 @@ export async function sendFamilyTree(message: Message<true>, targetId: string): 
     return;
   }
 
+  const alone =
+    view.parents.length + view.siblings.length + view.spouses.length + view.children.length +
+      view.grandparents.length + view.grandchildren.length + view.childSpouses.length === 0;
+
   /** علاقة الشخص بصاحب الشجرة (الأب، الابنة، الصهر...) وليس بمن يشاهدها */
   const relationLabel = (id: string, gender: Gender, role: Role | null): string => {
-    if (id === viewerId) return "أنت";
+    if (id === viewerId) return alone ? "" : "أنت";
     if (role) return roleLabel(role, gender);
-    // صاحب الشجرة نفسه (في شجرة شخص ثاني)
+    // صاحب الشجرة نفسه: لو ما عنده أحد ما نكتب تحت اسمه شيء
+    if (alone) return "";
     return view.children.length > 0 ? roleLabel("parent", gender) : "صاحب الشجرة";
   };
 
