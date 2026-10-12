@@ -1,7 +1,7 @@
 import { EmbedBuilder } from "discord.js";
 
-/** يفتح دليل أوامر العائلة بكتابة $Marriage */
-export const MARRIAGE_TRIGGER = /^\$marriage$/i;
+/** يفتح دليل أوامر العائلة بكتابة !زواج */
+export const MARRIAGE_TRIGGER = /^!\s*زواج$/;
 
 const COMMANDS: Array<[string, string]> = [
   ["تزوج @منشن مهر 500", "لطلب الزواج من عضو ودفع المهر المحدد (المهر 0 = زواج مجاني)."],
