@@ -23,6 +23,7 @@ import { LabProfile } from "../database/models/LabProfile";
 import { computeRelationship } from "../family/graph";
 import { ADOPT_ACCEPT_PREFIX, ADOPT_DECLINE_PREFIX, MARRY_ACCEPT_PREFIX, MARRY_DECLINE_PREFIX } from "../family/ids";
 import { sendFamilyTree } from "../family/treeView";
+import { handleGamesMessage } from "../games";
 import { MARRIAGE_TRIGGER, buildMarriageGuide } from "../family/guide";
 import { canAdopt, canPropose, disown, getParents, khulaDivorce, runAway, talaqDivorce } from "../family/service";
 import { buildMenuMessage } from "../menu/interactions";
@@ -148,6 +149,9 @@ const event: BotEvent = {
       await handleHunterMessage(message);
       return;
     }
+
+    // --- قائمة الألعاب: "$Games" ---
+    if (await handleGamesMessage(message).catch(() => false)) return;
 
     // --- دليل أوامر العائلة: "$Marriage" ---
     if (MARRIAGE_TRIGGER.test(rawContent.trim())) {
