@@ -99,7 +99,7 @@ const event: BotEvent = {
 
         const embed = new EmbedBuilder()
           .setColor(0x818cf8)
-          .setTitle("Away Mode")
+          .setTitle("AFK Mode")
           .setDescription("Your away status is now active. Anyone who mentions you will be notified.")
           .setThumbnail(member.displayAvatarURL())
           .addFields({ name: "Reason", value: reason });
