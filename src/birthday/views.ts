@@ -98,11 +98,25 @@ export function buildSetupMessage(): SetupMessage {
   };
 }
 
+/** وقت العيد القادم (ثواني يونكس) من اليوم/الشهر وعدد الأيام المتبقية */
+function nextTimestamp(day: number, month: number, daysUntil: number): number {
+  const now = Date.now();
+  const y = new Date(now).getUTCFullYear();
+  const base = [y - 1, y, y + 1].map((yr) => Date.UTC(yr, month - 1, day));
+  const best = base.reduce((a, b) =>
+    Math.abs(b - daysUntil * 86_400_000 - now) < Math.abs(a - daysUntil * 86_400_000 - now) ? b : a,
+  );
+  return Math.floor(best / 1000);
+}
+
 /** بطاقة "القادمة": الأعياد القادمة مرتبة بالأقرب */
 export async function buildUpcomingEmbed(guildId: string): Promise<EmbedBuilder> {
   const list = await getUpcomingBirthdays(guildId, 10);
 
-  const lines = list.map((b) => `<@${b.userId}> - <t:${b.nextTs}:D> (<t:${b.nextTs}:R>)`);
+  const lines = list.map((b) => {
+    const ts = nextTimestamp(b.day, b.month, b.daysUntil);
+    return `<@${b.userId}> - <t:${ts}:D> (<t:${ts}:R>)`;
+  });
   const body = lines.length ? lines.join("\n") : "ما أحد سجّل عيد ميلاده بعد.";
 
   return new EmbedBuilder()
