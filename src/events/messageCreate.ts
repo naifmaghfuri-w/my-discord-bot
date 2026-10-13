@@ -259,13 +259,13 @@ const event: BotEvent = {
         const targetId = mention[1];
         const target = await message.client.users.fetch(targetId).catch(() => null);
         if (!target || target.bot) {
-          await message.channel.send("❌ I can't find that user.").catch(() => undefined);
+          await message.channel.send("❌ ما لقيت هذا العضو.").catch(() => undefined);
           return;
         }
         const targetBirthday = await getBirthday(targetId, guildId).catch(() => null);
         if (!targetBirthday) {
           await message.channel
-            .send({ content: `❌ <@${targetId}> hasn't set a birthday yet.`, allowedMentions: { parse: [] } })
+            .send({ content: `❌ <@${targetId}> ما سجّل عيد ميلاده بعد.`, allowedMentions: { parse: [] } })
             .catch(() => undefined);
           return;
         }
@@ -285,12 +285,12 @@ const event: BotEvent = {
         const parsed = parseBirthdayInput(arg);
         if (parsed === "format") {
           await message.channel
-            .send("❌ Wrong format. Use `ميلاد day/month/year`, e.g. `ميلاد 15/8/2001` (or `ميلاد 15/8` without a year).")
+            .send("❌ الصيغة غلط. اكتب `ميلاد يوم/شهر/سنة`، مثل `ميلاد 15/8/2001` (أو `ميلاد 15/8` بدون سنة).")
             .catch(() => undefined);
           return;
         }
         if (parsed === "invalid") {
-          await message.channel.send("❌ That date isn't valid.").catch(() => undefined);
+          await message.channel.send("❌ هذا التاريخ غير صحيح.").catch(() => undefined);
           return;
         }
         await setBirthday(userId, guildId, parsed.day, parsed.month, parsed.year).catch((err) =>
