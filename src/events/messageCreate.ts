@@ -44,7 +44,7 @@ const MEOW = /م+ي+ا+و+/;
 /** يفعّل AFK إذا الرسالة "afk" لحالها أو "afk سبب..." (بدون سلاش) */
 const AFK_TRIGGER = /^afk(?:\s+([\s\S]+))?$/i;
 /** عيد الميلاد: "ميلاد" أو "birthday" أو "dob"، مع تاريخ اختياري بعدها (بدون سلاش أو زر) */
-const BIRTHDAY_TRIGGER = /^(ميلاد|birthday|dob)(?:\s+([\s\S]+))?$/i;
+const BIRTHDAY_TRIGGER = /^!\s*(ميلاد|birthday|dob)(?:\s+([\s\S]+))?$/i;
 /** نظام العائلة: زواج/طلاق/خلع/تبني/تبرؤ/شجرة/قرابة (بدون سلاش) */
 const MARRY_TRIGGER = /^!\s*زواج\s+<@!?(\d+)>\s+(\d+)$/;
 const TALAQ_TRIGGER = /^!\s*طلاق(?:\s+<@!?(\d+)>)?$/i;
@@ -285,7 +285,7 @@ const event: BotEvent = {
         const parsed = parseBirthdayInput(arg);
         if (parsed === "format") {
           await message.channel
-            .send("❌ الصيغة غلط. اكتب `ميلاد يوم/شهر/سنة`، مثل `ميلاد 15/8/2001` (أو `ميلاد 15/8` بدون سنة).")
+            .send("❌ الصيغة غلط. اكتب `!ميلاد يوم/شهر/سنة`، مثل `!ميلاد 15/8/2001` (أو `!ميلاد 15/8` بدون سنة).")
             .catch(() => undefined);
           return;
         }
