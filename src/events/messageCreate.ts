@@ -1,6 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Events, type Message } from "discord.js";
 import { INBOX_PREFIX, sendAfkNotices } from "../afk/notice";
-import { clearAfk, createInbox, formatDuration, getAfk, setAfk } from "../afk/service";
+import { arCount, clearAfk, createInbox, formatDuration, getAfk, setAfk } from "../afk/service";
 import { hasPin, openAccount } from "../bank/service";
 import { buildAccountOpenedMessage, buildMainMenu, buildNeedsPinMessage } from "../bank/views";
 import { buildBirthdayPanel, buildSetupMessage } from "../birthday/views";
@@ -96,15 +96,15 @@ const event: BotEvent = {
     if (trigger) {
       const member = message.member ?? (await message.guild?.members.fetch(userId).catch(() => null));
       if (member) {
-        const reason = trigger[1]?.trim() || "No reason given";
+        const reason = trigger[1]?.trim() || "بدون سبب";
         await setAfk(member, reason).catch((err) => logger.error("فشل تفعيل AFK", err));
 
         const embed = new EmbedBuilder()
           .setColor(0x818cf8)
-          .setTitle("AFK Mode")
-          .setDescription("Your away status is now active. Anyone who mentions you will be notified.")
+          .setTitle("وضع الغياب")
+          .setDescription("تم تفعيل وضع الغياب. أي أحد يمنشنك بنبهه.")
           .setThumbnail(member.displayAvatarURL())
-          .addFields({ name: "Reason", value: reason });
+          .addFields({ name: "السبب", value: reason });
 
         await message.channel.send({ embeds: [embed] }).catch(() => undefined);
       }
@@ -574,13 +574,13 @@ const event: BotEvent = {
           const mentionCount = result.status.mentions.length;
           const mentioners = [...new Set(result.status.mentions)];
 
-          const lines = [`Welcome back, ${member}.`, `You were away for **${duration}**.`];
+          const lines = [`حياك الله، ${member}.`, `كنت غايب لمدة **${duration}**.`];
           if (mentionCount > 0) {
             const names = mentioners.map((id) => `<@${id}>`).join("، ");
-            lines.push(`You were mentioned **${mentionCount}** ${mentionCount === 1 ? "time" : "times"} by ${names}.`);
+            lines.push(`انمنشنت **${arCount(mentionCount, "مرة", "مرتين", "مرات")}** من ${names}.`);
           }
           if (result.status.messages.length > 0) {
-            lines.push(`**${result.status.messages.length}** ${result.status.messages.length === 1 ? "message is" : "messages are"} waiting in your inbox.`);
+            lines.push(`عندك **${arCount(result.status.messages.length, "رسالة", "رسالتين", "رسائل")}** بانتظارك في الصندوق.`);
           }
 
           const embed = new EmbedBuilder()
@@ -597,7 +597,7 @@ const event: BotEvent = {
               new ActionRowBuilder<ButtonBuilder>().addComponents(
                 new ButtonBuilder()
                   .setCustomId(`${INBOX_PREFIX}${userId}`)
-                  .setLabel("Open inbox")
+                  .setLabel("افتح الصندوق")
                   .setStyle(ButtonStyle.Primary),
               ),
             );
@@ -611,7 +611,7 @@ const event: BotEvent = {
           if (result.status.notify.length > 0) {
             const mentions = result.status.notify.map((id) => `<@${id}>`).join(" ");
             await message.channel
-              .send({ content: `${mentions}, ${member} is back from being away.`, allowedMentions: { users: result.status.notify } })
+              .send({ content: `${mentions}، ${member} رجع من الغياب.`, allowedMentions: { users: result.status.notify } })
               .catch(() => undefined);
           }
         }
