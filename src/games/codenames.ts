@@ -30,6 +30,12 @@ interface Player {
   role: Role;
 }
 
+interface ClueLog {
+  team: Team;
+  word: string;
+  num: number;
+}
+
 interface Game {
   id: string;
   channelId: string;
@@ -42,6 +48,10 @@ interface Game {
   step: "clue" | "guess";
   clue?: { word: string; num: number };
   guessesLeft: number;
+  history: ClueLog[];
+  lastMove?: string;
+  /** وقت انتهاء الخطوة الحالية (ms) */
+  deadline: number;
   statusMsg?: Message;
   boardMsg?: Message;
   updated: number;
@@ -50,9 +60,13 @@ interface Game {
 const games = new Map<string, Game>();
 const byChannel = new Map<string, string>();
 
+/** مهلة كل خطوة (تلميح أو تخمين) */
+const STEP_MS = 3 * 60 * 1000;
+
 const TEAM_NAME: Record<Team, string> = { red: "الفريق الأحمر", blue: "الفريق الأزرق" };
 const TEAM_SQUARE: Record<Team, string> = { red: "🟥", blue: "🟦" };
 const TEAM_COLOR: Record<Team, number> = { red: 0xef4444, blue: 0x3b82f6 };
+const KIND_SQUARE: Record<Kind, string> = { red: "🟥", blue: "🟦", neutral: "⬜", assassin: "💀" };
 const other = (t: Team): Team => (t === "red" ? "blue" : "red");
 const NO_PINGS = { parse: [] as never[] };
 
@@ -66,6 +80,14 @@ setInterval(() => {
   const now = Date.now();
   for (const g of [...games.values()]) if (now - g.updated > 60 * 60 * 1000) drop(g);
 }, 10 * 60 * 1000).unref();
+
+/** ينهي الدور تلقائياً إذا انتهت المهلة */
+setInterval(() => {
+  const now = Date.now();
+  for (const g of [...games.values()]) {
+    if (g.phase === "play" && g.deadline > 0 && now > g.deadline) void expireStep(g);
+  }
+}, 15 * 1000).unref();
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -90,9 +112,31 @@ function buildCards(starting: Team): Card[] {
 }
 
 const remaining = (g: Game, t: Team): number => g.cards.filter((c) => c.kind === t && !c.revealed).length;
+const total = (g: Game, t: Team): number => g.cards.filter((c) => c.kind === t).length;
 
 function members(g: Game, team: Team, role: Role): string[] {
   return [...g.players.entries()].filter(([, p]) => p.team === team && p.role === role).map(([id]) => `<@${id}>`);
+}
+
+const unix = (ms: number): number => Math.floor(ms / 1000);
+
+/** شريط تقدم: ■ مكشوف، □ باقي */
+function bar(g: Game, t: Team): string {
+  const tot = total(g, t);
+  const rem = remaining(g, t);
+  return `${"■".repeat(tot - rem)}${"□".repeat(rem)}  باقي **${rem}** من ${tot}`;
+}
+
+/** كل فريق عنده قائد ومخمن على الأقل */
+function ready(g: Game): boolean {
+  return (["red", "blue"] as Team[]).every((t) => members(g, t, "spy").length >= 1 && members(g, t, "guess").length >= 1);
+}
+
+/** التلميح ممنوع إذا طابق كلمة على اللوحة (تطابق كامل أو احتواء لكلمة من 3 حروف فأكثر) */
+function clashes(clue: string, word: string): boolean {
+  if (clue === word) return true;
+  const [s, l] = clue.length <= word.length ? [clue, word] : [word, clue];
+  return s.length >= 3 && l.includes(s);
 }
 
 // ───────────────────────── الواجهات ─────────────────────────
@@ -101,7 +145,7 @@ function lobbyView(g: Game) {
   const field = (team: Team) => {
     const spy = members(g, team, "spy");
     const guess = members(g, team, "guess");
-    return [`القائد: ${spy.length ? spy.join(" ") : "—"}`, `المخمنون: ${guess.length ? guess.join(" ") : "—"}`].join("\n");
+    return [`👑 القائد: ${spy.length ? spy.join(" ") : "—"}`, `🎯 المخمنون: ${guess.length ? guess.join(" ") : "—"}`].join("\n");
   };
 
   const embed = new EmbedBuilder()
@@ -109,10 +153,12 @@ function lobbyView(g: Game) {
     .setTitle("Code Names")
     .setDescription(
       [
-        `المضيف: <@${g.hostId}>`,
+        `المضيف: <@${g.hostId}>  ·  اللاعبون: **${g.players.size}**`,
         "",
         "اختر فريقك ودورك بالأزرار. كل فريق يحتاج **قائداً** و**مخمناً** على الأقل.",
         "القائد يشوف ألوان البطاقات سراً ويعطي تلميحاً من كلمة وحدة ورقم، والمخمنون يختارون الكلمات.",
+        "",
+        ready(g) ? "✅ كل شي جاهز، المضيف يقدر يبدأ." : "⏳ بانتظار اكتمال الفريقين.",
       ].join("\n"),
     )
     .addFields(
@@ -121,23 +167,39 @@ function lobbyView(g: Game) {
     );
 
   const id = g.id;
+  const spyTaken = (t: Team) => members(g, t, "spy").length > 0;
   const rows = [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`cn|${id}|j|red-spy`).setLabel("قائد الأحمر").setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId(`cn|${id}|j|red-guess`).setLabel("مخمن الأحمر").setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId(`cn|${id}|j|blue-spy`).setLabel("قائد الأزرق").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(`cn|${id}|j|blue-guess`).setLabel("مخمن الأزرق").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId(`cn|${id}|j|red-spy`)
+        .setLabel(spyTaken("red") ? "قائد الأحمر (محجوز)" : "قائد الأحمر")
+        .setEmoji("🟥")
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(spyTaken("red")),
+      new ButtonBuilder().setCustomId(`cn|${id}|j|red-guess`).setLabel("مخمن الأحمر").setEmoji("🟥").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId(`cn|${id}|j|blue-spy`)
+        .setLabel(spyTaken("blue") ? "قائد الأزرق (محجوز)" : "قائد الأزرق")
+        .setEmoji("🟦")
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(spyTaken("blue")),
+      new ButtonBuilder().setCustomId(`cn|${id}|j|blue-guess`).setLabel("مخمن الأزرق").setEmoji("🟦").setStyle(ButtonStyle.Primary),
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`cn|${id}|leave`).setLabel("انسحاب").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(`cn|${id}|start`).setLabel("بدء اللعبة").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`cn|${id}|start`).setLabel("بدء اللعبة").setStyle(ButtonStyle.Success).setDisabled(!ready(g)),
       new ButtonBuilder().setCustomId(`cn|${id}|cancel`).setLabel("إلغاء").setStyle(ButtonStyle.Secondary),
     ),
   ];
   return { embeds: [embed], components: rows, allowedMentions: NO_PINGS };
 }
 
-/** لوحة 5×5 عامة: كل البطاقات رمادية حتى تنكشف */
+/**
+ * لوحة 5×5 عامة.
+ * - غير مكشوفة: رمادية بدون إيموجي.
+ * - مكشوفة أثناء اللعب: بلون الفريق + إيموجي (يفيد من عنده عمى ألوان).
+ * - تنكشف بنهاية اللعبة (revealAll): إيموجي فقط بدون لون، عشان تتميز عن اللي انكشف فعلاً.
+ */
 function boardView(g: Game, revealAll = false) {
   const rows: ActionRowBuilder<ButtonBuilder>[] = [];
   for (let r = 0; r < 5; r++) {
@@ -146,12 +208,14 @@ function boardView(g: Game, revealAll = false) {
       const i = r * 5 + c;
       const card = g.cards[i];
       const btn = new ButtonBuilder().setCustomId(`cn|${g.id}|g|${i}`).setLabel(card.word.slice(0, 80));
-      if (card.revealed || revealAll) {
-        btn.setDisabled(true);
+      if (card.revealed) {
+        btn.setDisabled(true).setEmoji(KIND_SQUARE[card.kind]);
         if (card.kind === "red") btn.setStyle(ButtonStyle.Danger);
         else if (card.kind === "blue") btn.setStyle(ButtonStyle.Primary);
-        else if (card.kind === "assassin") btn.setStyle(ButtonStyle.Secondary).setEmoji("💀");
+        else if (card.kind === "assassin") btn.setStyle(ButtonStyle.Danger);
         else btn.setStyle(ButtonStyle.Secondary);
+      } else if (revealAll) {
+        btn.setDisabled(true).setStyle(ButtonStyle.Secondary).setEmoji(KIND_SQUARE[card.kind]);
       } else {
         btn.setStyle(ButtonStyle.Secondary);
       }
@@ -166,11 +230,13 @@ function statusView(g: Game, over?: Over) {
   const embed = new EmbedBuilder().setTitle("Code Names");
 
   const teamField = (t: Team) =>
-    [`باقي: **${remaining(g, t)}** بطاقة`, `القائد: ${members(g, t, "spy").join(" ") || "—"}`, `المخمنون: ${members(g, t, "guess").join(" ") || "—"}`].join("\n");
+    [bar(g, t), `👑 ${members(g, t, "spy").join(" ") || "—"}`, `🎯 ${members(g, t, "guess").join(" ") || "—"}`].join("\n");
   embed.addFields(
     { name: `${TEAM_SQUARE.red} ${TEAM_NAME.red}`, value: teamField("red"), inline: true },
     { name: `${TEAM_SQUARE.blue} ${TEAM_NAME.blue}`, value: teamField("blue"), inline: true },
   );
+
+  const clueCount = (t: Team) => g.history.filter((h) => h.team === t).length;
 
   if (over && "cancelled" in over) {
     embed.setColor(0x64748b).setDescription("تم إلغاء اللعبة.");
@@ -179,23 +245,48 @@ function statusView(g: Game, over?: Over) {
   if (over) {
     embed
       .setColor(TEAM_COLOR[over.winner])
-      .setDescription(`${TEAM_SQUARE[over.winner]} **فاز ${TEAM_NAME[over.winner]}!**\n${over.reason}`);
+      .setDescription(
+        [
+          `${TEAM_SQUARE[over.winner]} **فاز ${TEAM_NAME[over.winner]}!**`,
+          over.reason,
+          "",
+          g.lastMove ? `آخر حركة: ${g.lastMove}` : "",
+          `عدد التلميحات: ${TEAM_SQUARE.red} **${clueCount("red")}**  ·  ${TEAM_SQUARE.blue} **${clueCount("blue")}**`,
+        ]
+          .filter((l, i, a) => l !== "" || (i > 0 && a[i - 1] !== ""))
+          .join("\n"),
+      );
     return { embeds: [embed], components: [], allowedMentions: NO_PINGS };
   }
 
   const spy = members(g, g.turn, "spy")[0];
+  const timer = `⏱️ تنتهي المهلة <t:${unix(g.deadline)}:R>`;
   const state =
     g.step === "clue"
-      ? `بانتظار تلميح القائد ${spy}`
-      : `التلميح: **${g.clue?.word}** — **${g.clue?.num}**\nالتخمينات المتبقية: **${g.guessesLeft}**`;
+      ? `بانتظار تلميح القائد ${spy}\n${timer}`
+      : `التلميح: **${g.clue?.word}** — **${g.clue?.num}**\nالتخمينات المتبقية: **${g.guessesLeft}**\n${timer}`;
 
-  embed
-    .setColor(TEAM_COLOR[g.turn])
-    .setDescription([`الدور: ${TEAM_SQUARE[g.turn]} **${TEAM_NAME[g.turn]}**`, state, "", `الفريق الأول (9 بطاقات): ${TEAM_NAME[g.starting]}`].join("\n"));
+  const lines = [`الدور: ${TEAM_SQUARE[g.turn]} **${TEAM_NAME[g.turn]}**`, state];
+  if (g.lastMove) lines.push("", `آخر حركة: ${g.lastMove}`);
+  lines.push("", `الفريق الأول (9 بطاقات): ${TEAM_NAME[g.starting]}`);
+
+  embed.setColor(TEAM_COLOR[g.turn]).setDescription(lines.join("\n"));
+
+  if (g.history.length) {
+    embed.addFields({
+      name: "سجل التلميحات",
+      value: g.history
+        .slice(-4)
+        .reverse()
+        .map((h) => `${TEAM_SQUARE[h.team]} **${h.word}** — ${h.num}`)
+        .join("\n"),
+      inline: false,
+    });
+  }
 
   const id = g.id;
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`cn|${id}|key`).setLabel("الخريطة السرية").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`cn|${id}|key`).setLabel("الخريطة السرية").setEmoji("🗝️").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`cn|${id}|clue`).setLabel("إعطاء تلميح").setStyle(ButtonStyle.Primary).setDisabled(g.step !== "clue"),
     new ButtonBuilder().setCustomId(`cn|${id}|end`).setLabel("إنهاء الدور").setStyle(ButtonStyle.Secondary).setDisabled(g.step !== "guess"),
     new ButtonBuilder().setCustomId(`cn|${id}|cancel`).setLabel("إلغاء اللعبة").setStyle(ButtonStyle.Danger),
@@ -203,18 +294,23 @@ function statusView(g: Game, over?: Over) {
   return { embeds: [embed], components: [row], allowedMentions: NO_PINGS };
 }
 
-/** الخريطة السرية: تظهر للقائد فقط (رد مخفي) */
+/** الخريطة السرية: قوائم مجمعة بالألوان (مقروءة على الجوال)، تظهر للقائد فقط */
 function secretMap(g: Game, team: Team): EmbedBuilder {
-  const sq: Record<Kind, string> = { red: "🟥", blue: "🟦", neutral: "⬜", assassin: "💀" };
-  const lines: string[] = [];
-  for (let r = 0; r < 5; r++) {
-    const cells = g.cards.slice(r * 5, r * 5 + 5).map((c) => `${sq[c.kind]} ${c.revealed ? `~~${c.word}~~` : c.word}`);
-    lines.push(cells.join("   "));
-  }
+  const list = (kind: Kind): string => {
+    const words = g.cards.filter((c) => c.kind === kind).map((c) => (c.revealed ? `~~${c.word}~~` : `**${c.word}**`));
+    return words.length ? words.join("، ") : "—";
+  };
+  const order: Kind[] = [team, other(team), "neutral", "assassin"];
+  const title = (k: Kind): string => {
+    if (k === "red" || k === "blue") return `${KIND_SQUARE[k]} ${TEAM_NAME[k]}${k === team ? " (فريقك)" : ""} — باقي ${remaining(g, k)}`;
+    return k === "neutral" ? `${KIND_SQUARE[k]} محايدة` : `${KIND_SQUARE[k]} القاتل`;
+  };
+
   return new EmbedBuilder()
     .setColor(TEAM_COLOR[team])
-    .setTitle("الخريطة السرية")
-    .setDescription(["🟥 أحمر   🟦 أزرق   ⬜ محايد   💀 القاتل", "", ...lines, "", "لا تُري هذه الخريطة لأحد."].join("\n"));
+    .setTitle("🗝️ الخريطة السرية")
+    .addFields(order.map((k) => ({ name: title(k), value: list(k), inline: false })))
+    .setFooter({ text: "لا تُري هذه الخريطة لأحد. المشطوب = انكشف." });
 }
 
 // ───────────────────────── المنطق ─────────────────────────
@@ -239,6 +335,8 @@ export async function createLobby(interaction: ButtonInteraction): Promise<void>
     turn: "red",
     step: "clue",
     guessesLeft: 0,
+    history: [],
+    deadline: 0,
     updated: Date.now(),
   };
   games.set(id, g);
@@ -246,8 +344,13 @@ export async function createLobby(interaction: ButtonInteraction): Promise<void>
   await interaction.reply(lobbyView(g));
 }
 
+function armTimer(g: Game): void {
+  g.deadline = Date.now() + STEP_MS;
+}
+
 function finish(g: Game, over: Over) {
   g.phase = "over";
+  g.deadline = 0;
   drop(g);
   return statusView(g, over);
 }
@@ -257,10 +360,20 @@ function switchTurn(g: Game): void {
   g.step = "clue";
   g.clue = undefined;
   g.guessesLeft = 0;
+  armTimer(g);
 }
 
 async function refreshStatus(g: Game, view: ReturnType<typeof statusView>): Promise<void> {
   await g.statusMsg?.edit(view).catch((err: unknown) => logger.error("Code Names: فشل تحديث الحالة", err));
+}
+
+/** انتهت مهلة الخطوة: ينتقل الدور للفريق الآخر */
+async function expireStep(g: Game): Promise<void> {
+  if (g.phase !== "play") return;
+  const team = g.turn;
+  g.lastMove = `⏰ انتهى وقت ${TEAM_NAME[team]}`;
+  switchTurn(g);
+  await refreshStatus(g, statusView(g));
 }
 
 async function deny(i: ButtonInteraction | ModalSubmitInteraction, content: string): Promise<true> {
@@ -311,6 +424,7 @@ export async function handleCodenamesButton(interaction: ButtonInteraction): Pro
       g.cards = buildCards(g.starting);
       g.phase = "play";
       g.statusMsg = interaction.message;
+      armTimer(g);
       await interaction.update(statusView(g));
       const ch = interaction.channel;
       if (ch && "send" in ch) {
@@ -358,6 +472,7 @@ export async function handleCodenamesButton(interaction: ButtonInteraction): Pro
     case "end": {
       if (g.phase !== "play" || g.step !== "guess") return deny(interaction, "مو وقت التخمين.");
       if (!me || me.role !== "guess" || me.team !== g.turn) return deny(interaction, "المخمنون في الفريق صاحب الدور فقط.");
+      g.lastMove = `${TEAM_SQUARE[g.turn]} <@${uid}> أنهى الدور`;
       switchTurn(g);
       await interaction.update(statusView(g));
       return true;
@@ -372,6 +487,7 @@ export async function handleCodenamesButton(interaction: ButtonInteraction): Pro
 
       card.revealed = true;
       const team = g.turn;
+      g.lastMove = `${TEAM_SQUARE[team]} <@${uid}> كشف «${card.word}» ${KIND_SQUARE[card.kind]}`;
       let over: Over | null = null;
 
       if (card.kind === "assassin") {
@@ -414,14 +530,16 @@ export async function handleCodenamesModal(interaction: ModalSubmitInteraction):
 
   if (!word || /\s/.test(word)) return deny(interaction, "التلميح لازم يكون كلمة وحدة بدون مسافات.");
   if (!Number.isInteger(num) || num < 1 || num > 9) return deny(interaction, "الرقم لازم يكون من 1 إلى 9.");
-  if (g.cards.some((c) => !c.revealed && (c.word === word || c.word.includes(word) || word.includes(c.word)))) {
+  if (g.cards.some((c) => !c.revealed && clashes(word, c.word))) {
     return deny(interaction, "ما يصير التلميح يكون من كلمات اللوحة.");
   }
 
   g.updated = Date.now();
   g.clue = { word, num };
+  g.history.push({ team: g.turn, word, num });
   g.guessesLeft = num + 1;
   g.step = "guess";
+  armTimer(g);
 
   if (interaction.isFromMessage()) {
     await interaction.update(statusView(g));
