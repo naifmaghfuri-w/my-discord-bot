@@ -112,7 +112,8 @@ function nextOccurrence(month: number, day: number, ty: number, todayUTC: number
 }
 
 export interface BirthdayEntry {
-@@ -117,15 +53,17 @@ export interface BirthdayEntry {
+  userId: string;
+  day: number;
   month: number;
   /** أيام متبقية للعيد القادم (0 = اليوم) */
   daysUntil: number;
@@ -128,7 +129,8 @@ export async function getUpcomingBirthdays(guildId: string, limit = 10): Promise
   );
 
   const { day: td, month: tm, year: ty } = todayDayMonth();
-@@ -134,65 +72,71 @@ export async function getUpcomingBirthdays(guildId: string, limit = 10): Promise
+  const todayUTC = Date.UTC(ty, tm - 1, td);
+
   const entries: BirthdayEntry[] = docs.map((d) => {
     const day = d.birthdayDay!;
     const month = d.birthdayMonth!;
