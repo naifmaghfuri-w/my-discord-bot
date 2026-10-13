@@ -16,13 +16,21 @@ import {
 export const BIRTHDAY_COLOR = 0xf472b6;
 
 const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
+  "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو",
+  "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر",
 ];
-const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const WEEKDAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 
-function plural(n: number, word: string): string {
-  return `${n} ${word}${n === 1 ? "" : "s"}`;
+/** عدد + معدود بالعربي: [مفرد، مثنى، جمع (3-10)، تمييز (11+)] */
+type Unit = [string, string, string, string];
+const DAY: Unit = ["يوم", "يومان", "أيام", "يوماً"];
+const MONTH: Unit = ["شهر", "شهران", "أشهر", "شهراً"];
+const YEAR: Unit = ["سنة", "سنتان", "سنوات", "سنة"];
+
+function count(n: number, u: Unit): string {
+  if (n === 1) return u[0];
+  if (n === 2) return u[1];
+  return `${n} ${n >= 3 && n <= 10 ? u[2] : u[3]}`;
 }
 
 function progressBar(pct: number, length = 10): string {
@@ -32,9 +40,9 @@ function progressBar(pct: number, length = 10): string {
 
 function actionRow(): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(BIRTHDAY_UPCOMING_BUTTON).setLabel("Upcoming").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(BIRTHDAY_EDIT_BUTTON).setLabel("Edit").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(BIRTHDAY_DETAILS_BUTTON).setLabel("Details").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(BIRTHDAY_UPCOMING_BUTTON).setLabel("القادمة").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(BIRTHDAY_EDIT_BUTTON).setLabel("تعديل").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(BIRTHDAY_DETAILS_BUTTON).setLabel("التفاصيل").setStyle(ButtonStyle.Secondary),
   );
 }
 
@@ -56,18 +64,18 @@ export function buildBirthdayPanel(
 
   const nextLine =
     age.daysUntilNext === 0
-      ? "**It's today!**"
+      ? "**اليوم!**"
       : `<t:${age.nextBirthdayUTC}:R> · <t:${age.nextBirthdayUTC}:D>`;
 
   const embed = new EmbedBuilder()
     .setColor(BIRTHDAY_COLOR)
     .setThumbnail(avatarURL)
-    .setTitle(`${BIRTHDAY_EMOJI} ${displayName}'s Birthday`)
+    .setTitle(`${BIRTHDAY_EMOJI} عيد ميلاد ${displayName}`)
     .setDescription(`**${dateText}**`)
     .addFields(
-      { name: "Next birthday", value: nextLine },
+      { name: "عيد الميلاد القادم", value: nextLine },
       {
-        name: "Progress to next birthday",
+        name: "التقدم نحو عيد الميلاد القادم",
         value: `${progressBar(age.progress)} **${Math.round(age.progress * 100)}%**`,
       },
     );
@@ -85,17 +93,17 @@ export function buildSetupMessage(): SetupMessage {
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(BIRTHDAY_EDIT_BUTTON)
-      .setLabel("Set your birthday")
+      .setLabel("سجّل عيد ميلادك")
       .setStyle(ButtonStyle.Success),
   );
 
   return {
-    content: "You haven't set your birthday yet. Press the button below to set it.",
+    content: "ما سجّلت عيد ميلادك بعد. اضغط الزر بالأسفل لتسجيله.",
     components: [row],
   };
 }
 
-/** بطاقة "Upcoming": أصحاب عيد اليوم أولاً، ثم أقرب الأعياد */
+/** بطاقة "القادمة": أصحاب عيد اليوم أولاً، ثم أقرب الأعياد */
 export async function buildUpcomingEmbed(guildId: string): Promise<EmbedBuilder> {
   const [list, total] = await Promise.all([getUpcomingBirthdays(guildId, 10), countRegisteredBirthdays(guildId)]);
 
@@ -104,50 +112,50 @@ export async function buildUpcomingEmbed(guildId: string): Promise<EmbedBuilder>
 
   const lines: string[] = [];
   if (today.length) {
-    lines.push("**Today**");
+    lines.push("**اليوم**");
     lines.push(...today.map((b) => `<@${b.userId}>`));
     lines.push("");
   }
   if (rest.length) {
-    lines.push("**Coming up**");
+    lines.push("**قريباً**");
     lines.push(
       ...rest.map(
-        (b) => `<@${b.userId}> — ${b.day} ${MONTHS[b.month - 1]} · in ${plural(b.daysUntil, "day")}`,
+        (b) => `<@${b.userId}> — ${b.day} ${MONTHS[b.month - 1]} · بعد ${count(b.daysUntil, DAY)}`,
       ),
     );
   }
-  if (!lines.length) lines.push("Nobody has set a birthday yet.");
+  if (!lines.length) lines.push("ما أحد سجّل عيد ميلاده بعد.");
 
   return new EmbedBuilder()
     .setColor(BIRTHDAY_COLOR)
-    .setTitle(`${BIRTHDAY_EMOJI} Upcoming Birthdays`)
+    .setTitle(`${BIRTHDAY_EMOJI} أقرب أعياد الميلاد`)
     .setDescription(lines.join("\n"))
-    .setFooter({ text: `${plural(total, "member")} registered` });
+    .setFooter({ text: `عدد المسجلين: ${total}` });
 }
 
-/** بطاقة "Details": خاصة بصاحبها فقط (تظهر له كل شيء حتى لو العمر مخفي عن غيره) */
+/** بطاقة "التفاصيل": خاصة بصاحبها فقط (تظهر له كل شيء حتى لو العمر مخفي عن غيره) */
 export function buildDetailsEmbed(b: Birthday, displayName: string): EmbedBuilder {
   const age = calculateAge(b);
   const nextWeekday = WEEKDAYS[new Date(age.nextBirthdayUTC * 1000).getUTCDay()];
 
   const embed = new EmbedBuilder()
     .setColor(BIRTHDAY_COLOR)
-    .setTitle(`${BIRTHDAY_EMOJI} ${displayName}'s birthday details`)
+    .setTitle(`${BIRTHDAY_EMOJI} تفاصيل ميلاد ${displayName}`)
     .addFields({
-      name: "Date of Birth",
-      value: `${MONTHS[b.month - 1]} ${b.day}${b.year !== undefined ? `, ${b.year}` : " (no year set)"}`,
+      name: "تاريخ الميلاد",
+      value: `${b.day} ${MONTHS[b.month - 1]}${b.year !== undefined ? ` ${b.year}` : " (بدون سنة)"}`,
     });
 
   if (age.age) {
     embed.addFields({
-      name: "Current Age",
-      value: `${plural(age.age.years, "year")}, ${plural(age.age.months, "month")}, ${plural(age.age.days, "day")}`,
+      name: "العمر الحالي",
+      value: [count(age.age.years, YEAR), count(age.age.months, MONTH), count(age.age.days, DAY)].join(" و"),
     });
   }
 
   embed.addFields({
-    name: "Next Birthday",
-    value: `${nextWeekday}, <t:${age.nextBirthdayUTC}:D> (in ${plural(age.daysUntilNext, "day")})`,
+    name: "عيد الميلاد القادم",
+    value: `${nextWeekday}، <t:${age.nextBirthdayUTC}:D> (${age.daysUntilNext === 0 ? "اليوم" : `بعد ${count(age.daysUntilNext, DAY)}`})`,
   });
 
   return embed;

@@ -28,18 +28,18 @@ async function handleWish(interaction: ButtonInteraction, guildId: string): Prom
   const wisherId = interaction.user.id;
 
   if (!targetId || !Number.isInteger(year)) {
-    await interaction.reply({ content: "This button is no longer valid.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: "هذا الزر ما عاد صالحاً.", flags: MessageFlags.Ephemeral });
     return;
   }
   if (wisherId === targetId) {
-    await interaction.reply({ content: "Enjoy your day! Others will send you their wishes.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: "استمتع بيومك! الباقي بيرسلون لك تهانيهم.", flags: MessageFlags.Ephemeral });
     return;
   }
 
   const filter = { guildId, userId: targetId, year };
   const existing = await BirthdayWish.findOne(filter);
   if (existing?.wisherIds.includes(wisherId)) {
-    await interaction.reply({ content: "You already sent your wishes.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: "أرسلت تهنئتك من قبل.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -52,7 +52,7 @@ async function handleWish(interaction: ButtonInteraction, guildId: string): Prom
 
   const base = interaction.message.embeds[0];
   if (!base) {
-    await interaction.reply({ content: "Your wishes were sent!", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: "تم إرسال تهنئتك!", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -87,7 +87,7 @@ export async function handleBirthdayButton(interaction: ButtonInteraction): Prom
   if (customId === BIRTHDAY_DETAILS_BUTTON) {
     const b = await getBirthday(interaction.user.id, guildId);
     if (!b) {
-      await interaction.reply({ content: "You haven't set your birthday yet.", flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: "ما سجّلت عيد ميلادك بعد.", flags: MessageFlags.Ephemeral });
       return true;
     }
     const embed = buildDetailsEmbed(b, interaction.user.displayName);
@@ -98,13 +98,13 @@ export async function handleBirthdayButton(interaction: ButtonInteraction): Prom
   if (customId === BIRTHDAY_EDIT_BUTTON) {
     const modal = new ModalBuilder()
       .setCustomId(BIRTHDAY_EDIT_MODAL)
-      .setTitle("Edit your birthday")
+      .setTitle("تعديل عيد ميلادك")
       .addComponents(
         new ActionRowBuilder<TextInputBuilder>().addComponents(
           new TextInputBuilder()
             .setCustomId("date")
-            .setLabel("Birthday (day/month/year)")
-            .setPlaceholder("e.g. 15/8/2001 or 15/8 (year is optional)")
+            .setLabel("تاريخ ميلادك (يوم/شهر/سنة)")
+            .setPlaceholder("مثال: 15/8/2001 أو 15/8 (السنة اختيارية)")
             .setStyle(TextInputStyle.Short)
             .setMaxLength(10)
             .setRequired(true),
@@ -125,13 +125,13 @@ export async function handleBirthdayModal(interaction: ModalSubmitInteraction): 
 
   if (parsed === "format") {
     await interaction.reply({
-      content: "Wrong format. Use day/month/year, e.g. `15/8/2001` (or `15/8` without a year).",
+      content: "الصيغة غلط. اكتب يوم/شهر/سنة، مثل `15/8/2001` (أو `15/8` بدون سنة).",
       flags: MessageFlags.Ephemeral,
     });
     return true;
   }
   if (parsed === "invalid") {
-    await interaction.reply({ content: "That date isn't valid.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: "هذا التاريخ غير صحيح.", flags: MessageFlags.Ephemeral });
     return true;
   }
 
@@ -141,7 +141,7 @@ export async function handleBirthdayModal(interaction: ModalSubmitInteraction): 
 
   const shown = `${parsed.day}/${parsed.month}${parsed.year !== undefined ? `/${parsed.year}` : ""}`;
   await interaction.reply({
-    content: `Your birthday is now **${shown}**${parsed.year === undefined ? "\nNo year set, so your age won't be shown." : ""}`,
+    content: `تم تسجيل عيد ميلادك: **${shown}**${parsed.year === undefined ? "\nما حددت سنة، فما راح يظهر عمرك." : ""}`,
     flags: MessageFlags.Ephemeral,
   });
   return true;
