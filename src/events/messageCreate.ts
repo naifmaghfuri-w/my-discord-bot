@@ -1,6 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Events, type Message } from "discord.js";
 import { INBOX_PREFIX, sendAfkNotices } from "../afk/notice";
-import { arCount, clearAfk, createInbox, formatDuration, getAfk, setAfk } from "../afk/service";
+import { arCount, clearAfk, createInbox, getAfk, setAfk } from "../afk/service";
 import { hasPin, openAccount } from "../bank/service";
 import { buildAccountOpenedMessage, buildMainMenu, buildNeedsPinMessage } from "../bank/views";
 import { buildBirthdayPanel, buildSetupMessage } from "../birthday/views";
@@ -100,13 +100,12 @@ const event: BotEvent = {
         await setAfk(member, reason).catch((err) => logger.error("فشل تفعيل AFK", err));
 
         const embed = new EmbedBuilder()
-          .setColor(0x818cf8)
-          .setTitle("وضع الغياب")
-          .setDescription("تم تفعيل وضع الغياب. أي أحد يمنشنك بنبهه.")
-          .setThumbnail(member.displayAvatarURL())
-          .addFields({ name: "السبب", value: reason });
+          .setColor(0x22c55e)
+          .setTitle("★ غياب مؤقت")
+          .setDescription(["💤 تم تفعيل وضع الغياب المؤقت بنجاح", "", `📝 **السبب:** ${reason}`].join("\n"))
+          .setThumbnail(member.displayAvatarURL());
 
-        await message.channel.send({ embeds: [embed] }).catch(() => undefined);
+        await message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } }).catch(() => undefined);
       }
       return; // ما نكمل تتبع مهام على رسالة الأمر نفسها
     }
@@ -570,11 +569,11 @@ const event: BotEvent = {
         });
 
         if (result) {
-          const duration = formatDuration(Date.now() - result.status.since.getTime());
+          const sinceUnix = Math.floor(result.status.since.getTime() / 1000);
           const mentionCount = result.status.mentions.length;
           const mentioners = [...new Set(result.status.mentions)];
 
-          const lines = [`حياك الله، ${member}.`, `كنت غايب لمدة **${duration}**.`];
+          const lines = [`👋 ★أهلاً بعودتك يا ${member}!`, `⏱️ ★**مدة الغياب:** <t:${sinceUnix}:R>`];
           if (mentionCount > 0) {
             const names = mentioners.map((id) => `<@${id}>`).join("، ");
             lines.push(`انمنشنت **${arCount(mentionCount, "مرة", "مرتين", "مرات")}** من ${names}.`);
@@ -582,11 +581,6 @@ const event: BotEvent = {
           if (result.status.messages.length > 0) {
             lines.push(`عندك **${arCount(result.status.messages.length, "رسالة", "رسالتين", "رسائل")}** بانتظارك في الصندوق.`);
           }
-
-          const embed = new EmbedBuilder()
-            .setColor(0x4ade80)
-            .setThumbnail(member.displayAvatarURL())
-            .setDescription(lines.join("\n"));
 
           const components: ActionRowBuilder<ButtonBuilder>[] = [];
           if (result.status.messages.length > 0) {
@@ -604,7 +598,7 @@ const event: BotEvent = {
           }
 
           await message.channel
-            .send({ embeds: [embed], components, allowedMentions: { users: [...mentioners, userId] } })
+            .send({ content: lines.join("\n"), components, allowedMentions: { users: [...mentioners, userId] } })
             .catch(() => undefined);
 
           // إشعار من طلبوا التنبيه عند رجوعه
