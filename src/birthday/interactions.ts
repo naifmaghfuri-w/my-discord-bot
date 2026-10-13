@@ -57,14 +57,14 @@ async function handleWish(interaction: ButtonInteraction, guildId: string): Prom
   }
 
   const kept = (base.fields ?? [])
-    .filter((f) => !f.name.startsWith("🎉 Wishes"))
+    .filter((f) => !f.name.startsWith("التهاني") && !f.name.startsWith("🎉 Wishes"))
     .map((f) => ({ name: f.name, value: f.value, inline: f.inline }));
   const shown = ids.slice(-MAX_SHOWN_WISHERS).map((id) => `<@${id}>`).join(" ");
-  const extra = ids.length > MAX_SHOWN_WISHERS ? ` +${ids.length - MAX_SHOWN_WISHERS} more` : "";
+  const extra = ids.length > MAX_SHOWN_WISHERS ? ` +${ids.length - MAX_SHOWN_WISHERS} آخرين` : "";
 
   const embed = EmbedBuilder.from(base).setFields([
     ...kept,
-    { name: `🎉 Wishes (${ids.length})`, value: `${shown}${extra}` },
+    { name: `التهاني (${ids.length})`, value: `${shown}${extra}` },
   ]);
   await interaction.update({ embeds: [embed] });
 }
