@@ -3,6 +3,8 @@ import { UserProfile } from "../database/models/UserProfile";
 
 const DAYS_IN_MONTH = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]; // فبراير 29 لتقبل السنين الكبيسة
 const MIN_YEAR = 1930;
+const DAY_MS = 86_400_000;
+
 
 export function isValidBirthday(day: number, month: number, year: number): boolean {
   if (![day, month, year].every(Number.isInteger)) return false;
