@@ -14,7 +14,7 @@ export function buildAnnouncement(
 ): MessageCreateOptions {
   const embed = new EmbedBuilder()
     .setColor(BIRTHDAY_COLOR)
-    .setTitle(`${BIRTHDAY_EMOJI} عيد ميلاد سعيد، ${displayName}!`)
+    .setTitle(`عيد ميلاد سعيد، ${displayName} 🎂`)
     .setDescription(`هنّوا <@${userId}> وتمنّوا له يوم جميل!`)
     .setThumbnail(avatarURL)
     .addFields(

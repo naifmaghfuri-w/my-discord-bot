@@ -1,8 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from "discord.js";
-import { BIRTHDAY_EMOJI } from "../constants";
 import {
   calculateAge,
-  countRegisteredBirthdays,
   getUpcomingBirthdays,
   isAgeVisible,
   type Birthday,
@@ -70,14 +68,11 @@ export function buildBirthdayPanel(
   const embed = new EmbedBuilder()
     .setColor(BIRTHDAY_COLOR)
     .setThumbnail(avatarURL)
-    .setTitle(`${BIRTHDAY_EMOJI} عيد ميلاد ${displayName}`)
+    .setTitle(`${displayName} 🎂`)
     .setDescription(`**${dateText}**`)
     .addFields(
       { name: "عيد الميلاد القادم", value: nextLine },
-      {
-        name: "التقدم نحو عيد الميلاد القادم",
-        value: `${progressBar(age.progress)} **${Math.round(age.progress * 100)}%**`,
-      },
+      { name: "\u200b", value: `**التقدم** ${progressBar(age.progress)} **${Math.round(age.progress * 100)}%**` },
     );
 
   return { embeds: [embed], components: withButtons ? [actionRow()] : [] };
@@ -103,34 +98,16 @@ export function buildSetupMessage(): SetupMessage {
   };
 }
 
-/** بطاقة "القادمة": أصحاب عيد اليوم أولاً، ثم أقرب الأعياد */
+/** بطاقة "القادمة": الأعياد القادمة مرتبة بالأقرب */
 export async function buildUpcomingEmbed(guildId: string): Promise<EmbedBuilder> {
-  const [list, total] = await Promise.all([getUpcomingBirthdays(guildId, 10), countRegisteredBirthdays(guildId)]);
+  const list = await getUpcomingBirthdays(guildId, 10);
 
-  const today = list.filter((b) => b.daysUntil === 0);
-  const rest = list.filter((b) => b.daysUntil > 0);
-
-  const lines: string[] = [];
-  if (today.length) {
-    lines.push("**اليوم**");
-    lines.push(...today.map((b) => `<@${b.userId}>`));
-    lines.push("");
-  }
-  if (rest.length) {
-    lines.push("**قريباً**");
-    lines.push(
-      ...rest.map(
-        (b) => `<@${b.userId}> — ${b.day} ${MONTHS[b.month - 1]} · بعد ${count(b.daysUntil, DAY)}`,
-      ),
-    );
-  }
-  if (!lines.length) lines.push("ما أحد سجّل عيد ميلاده بعد.");
+  const lines = list.map((b) => `<@${b.userId}> - <t:${b.nextTs}:D> (<t:${b.nextTs}:R>)`);
+  const body = lines.length ? lines.join("\n") : "ما أحد سجّل عيد ميلاده بعد.";
 
   return new EmbedBuilder()
     .setColor(BIRTHDAY_COLOR)
-    .setTitle(`${BIRTHDAY_EMOJI} أقرب أعياد الميلاد`)
-    .setDescription(lines.join("\n"))
-    .setFooter({ text: `عدد المسجلين: ${total}` });
+    .setDescription(`## 🎂 Upcoming Birthdays\n${body}`);
 }
 
 /** بطاقة "التفاصيل": خاصة بصاحبها فقط (تظهر له كل شيء حتى لو العمر مخفي عن غيره) */
@@ -140,7 +117,7 @@ export function buildDetailsEmbed(b: Birthday, displayName: string): EmbedBuilde
 
   const embed = new EmbedBuilder()
     .setColor(BIRTHDAY_COLOR)
-    .setTitle(`${BIRTHDAY_EMOJI} تفاصيل ميلاد ${displayName}`)
+    .setTitle(`تفاصيل ميلاد ${displayName} 🎂`)
     .addFields({
       name: "تاريخ الميلاد",
       value: `${b.day} ${MONTHS[b.month - 1]}${b.year !== undefined ? ` ${b.year}` : " (بدون سنة)"}`,
