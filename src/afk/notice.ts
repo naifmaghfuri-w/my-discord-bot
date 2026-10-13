@@ -5,7 +5,7 @@ import {
   EmbedBuilder,
   type Message,
 } from "discord.js";
-import { addMention, getAfk } from "./service";
+import { addMention, arCount, getAfk } from "./service";
 
 export const NOTIFY_PREFIX = "afk_notify_";
 export const MESSAGE_PREFIX = "afk_msg_";
@@ -31,22 +31,22 @@ export async function sendAfkNotices(message: Message<true>, mentionedIds: Itera
 
     const embed = new EmbedBuilder()
       .setColor(0x818cf8)
-      .setAuthor({ name: `[AFK] ${user.username}`, iconURL: user.displayAvatarURL() })
+      .setAuthor({ name: `[غائب] ${user.username}`, iconURL: user.displayAvatarURL() })
       .setThumbnail(user.displayAvatarURL())
-      .setDescription("Currently away. They'll see your mention when they return.")
+      .setDescription("غير متواجد حالياً، وبيشوف منشنك أول ما يرجع.")
       .addFields(
-        { name: "Reason", value: status.reason, inline: true },
-        { name: "Away for", value: `${minutesAgo} ${minutesAgo === 1 ? "minute" : "minutes"}`, inline: true },
+        { name: "السبب", value: status.reason, inline: true },
+        { name: "مدة الغياب", value: arCount(minutesAgo, "دقيقة", "دقيقتين", "دقائق"), inline: true },
       );
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`${NOTIFY_PREFIX}${targetId}`)
-        .setLabel("Notify me")
+        .setLabel("نبهني عند رجوعه")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(`${MESSAGE_PREFIX}${targetId}`)
-        .setLabel("Leave a message")
+        .setLabel("اترك رسالة")
         .setStyle(ButtonStyle.Primary),
     );
 

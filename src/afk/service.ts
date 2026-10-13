@@ -101,10 +101,16 @@ export function formatDuration(ms: number): string {
   const hours = Math.floor((totalMinutes % 1440) / 60);
   const minutes = totalMinutes % 60;
 
-  const unit = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
   const parts: string[] = [];
-  if (days) parts.push(unit(days, "day"));
-  if (hours) parts.push(unit(hours, "hour"));
-  if (minutes) parts.push(unit(minutes, "minute"));
-  return parts.slice(0, 2).join(" and ");
+  if (days) parts.push(arCount(days, "يوم", "يومين", "أيام"));
+  if (hours) parts.push(arCount(hours, "ساعة", "ساعتين", "ساعات"));
+  if (minutes) parts.push(arCount(minutes, "دقيقة", "دقيقتين", "دقائق"));
+  return parts.slice(0, 2).join(" و");
+}
+
+/** عدد بصيغته العربية: 1 مفرد، 2 مثنى، 3-10 جمع، 11+ مفرد */
+export function arCount(n: number, one: string, two: string, many: string): string {
+  if (n === 1) return one;
+  if (n === 2) return two;
+  return `${n} ${n >= 3 && n <= 10 ? many : one}`;
 }
