@@ -2,7 +2,7 @@ import type { Message } from "discord.js";
 import { CountingState } from "../database/models/CountingState";
 import { logger } from "../utils/logger";
 
-const COUNT_EMOJI = "a:6nice:1527585495125590076";
+const COUNT_EMOJI = "<a:a6nice1527585495125590076:1552794707023757515>";
 const FALLBACK_EMOJI = "☑️";
 
 export type CountResult = "ignored" | "correct" | "wrong";
