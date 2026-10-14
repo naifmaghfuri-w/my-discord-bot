@@ -1,10 +1,9 @@
+import { handleBankText } from "../bank/text";
 import { BALANCE_TRIGGER, handleBalanceMessage } from "../balance/text";
 import { handleEconomyTextCommand } from "../handlers/economyText";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Events, type Message } from "discord.js";
 import { INBOX_PREFIX, sendAfkNotices } from "../afk/notice";
 import { arCount, clearAfk, createInbox, getAfk, setAfk } from "../afk/service";
-import { hasPin, openAccount } from "../bank/service";
-import { buildAccountOpenedMessage, buildMainMenu, buildNeedsPinMessage } from "../bank/views";
 import { buildBirthdayPanel, buildSetupMessage } from "../birthday/views";
 import type { BotClient } from "../client";
 import { config } from "../config";
@@ -166,38 +165,15 @@ const event: BotEvent = {
       return;
     }
 
+    // --- البنك: "!ايداع 500" / "!سحب 500" / "!رصيدي بنكي" ---
+    if (await handleBankText(message)) return;
+
     if (await handleEconomyTextCommand(message)) return;
     if (await handleTextCommand(client, message)) return;
 
     // --- دليل الأوامر: "مساعدة" ---
     if (/^(مساعدة|مساعده|اوامر|أوامر|help)$/i.test(rawContent.trim())) {
       await message.channel.send({ ...buildHelpHome(userId, message.guild.name) }).catch(() => undefined);
-      return;
-    }
-
-    // --- البنك بكتابة "بنك" لحالها (بدون سلاش) ---
-    if (rawContent.trim() === "بنك") {
-      const opened = await openAccount(userId, guildId).catch((err) => {
-        logger.error("فشل فتح حساب بنكي", err);
-        return null;
-      });
-
-      if (!opened) {
-        await message.channel.send("❌ تعذّر فتح حسابك البنكي، حاول لاحقاً.").catch(() => undefined);
-        return;
-      }
-
-      if (!opened.alreadyExisted) {
-        await message.channel.send(buildAccountOpenedMessage(opened.accountNumber)).catch(() => undefined);
-        return;
-      }
-
-      if (!(await hasPin(userId, guildId))) {
-        await message.channel.send(buildNeedsPinMessage()).catch(() => undefined);
-        return;
-      }
-
-      await message.channel.send(buildMainMenu()).catch(() => undefined);
       return;
     }
 
