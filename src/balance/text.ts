@@ -1,6 +1,6 @@
 import type { Message } from "discord.js";
-import { CURRENCY, jenny, XP } from "../constants";
-import { getProfile, xpNeeded } from "../services/economy";
+import { jenny } from "../constants";
+import { getProfile } from "../services/economy";
 
 /** "!رصيدي" أو "!رصيد @شخص" */
 export const BALANCE_TRIGGER = /^!\s*(?:رصيدي|رصيد\s+<@!?\d+>)$/;
@@ -17,20 +17,13 @@ export async function handleBalanceMessage(message: Message<true>): Promise<void
     return;
   }
 
-  const member = await message.guild.members.fetch(targetId).catch(() => null);
-  const name = member?.displayName ?? user.username;
-
   const profile = await getProfile(targetId, message.guildId).catch(() => null);
   if (!profile) {
     await message.reply({ content: "❌ تعذّر جلب الرصيد، حاول لاحقاً.", allowedMentions: { repliedUser: false } }).catch(() => undefined);
     return;
   }
 
-  const content = [
-    `${CURRENCY.emoji} رصيد **${name}**: ${jenny(profile.coins)}`,
-    `⭐ المستوى: **${profile.level}** — \`${profile.xp}/${xpNeeded(profile.level)}\` ${XP.emoji}`,
-    `🏆 مرات الفوز: **${profile.wins}**`,
-  ].join("\n");
-
-  await message.reply({ content, allowedMentions: { parse: [], repliedUser: false } }).catch(() => undefined);
+  await message
+    .reply({ content: `رصيد: ${jenny(profile.coins)}`, allowedMentions: { parse: [], repliedUser: false } })
+    .catch(() => undefined);
 }
