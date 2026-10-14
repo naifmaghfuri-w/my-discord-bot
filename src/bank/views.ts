@@ -3,7 +3,6 @@ import { CURRENCY, jenny } from "../constants";
 import type { IUserProfile } from "../database/models/UserProfile";
 import {
   MENU_BACK_BUTTON,
-  MENU_BALANCE_BUTTON,
   MENU_DEPOSIT_BUTTON,
   MENU_SETTINGS_BUTTON,
   MENU_TRANSFER_BUTTON,
@@ -45,7 +44,6 @@ export function buildMainMenu() {
     new ButtonBuilder().setCustomId(MENU_TRANSFER_BUTTON).setLabel("تحويل").setEmoji("💸").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(MENU_DEPOSIT_BUTTON).setLabel("إيداع").setEmoji("📥").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(MENU_WITHDRAW_BUTTON).setLabel("سحب").setEmoji("📤").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(MENU_BALANCE_BUTTON).setLabel("الرصيد").setEmoji("📊").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(MENU_SETTINGS_BUTTON).setLabel("إعدادات").setEmoji("⚙️").setStyle(ButtonStyle.Secondary),
   );
 
