@@ -1,3 +1,4 @@
+import { handleEconomyTextCommand } from "../handlers/economyText";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Events, type Message } from "discord.js";
 import { INBOX_PREFIX, sendAfkNotices } from "../afk/notice";
 import { arCount, clearAfk, createInbox, getAfk, setAfk } from "../afk/service";
@@ -159,6 +160,7 @@ const event: BotEvent = {
     }
 
     // --- باقي الأوامر بالكتابة بدون سلاش: "ban @شخص سبب"، "pay @شخص 100"، "daily"... ---
+   if (await handleEconomyTextCommand(message)) return;
     if (await handleTextCommand(client, message)) return;
 
     // --- دليل الأوامر: "مساعدة" ---
