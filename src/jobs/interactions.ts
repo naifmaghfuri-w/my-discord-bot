@@ -34,8 +34,8 @@ function workText(r: WorkResult): string {
     return `⏳ دوامك مستمر، يخلص بعد ${fmtMs(r.msLeft)}.`;
   }
   if (r.kind === "started") return "🛠️ بدأت دوامك الكامل! ارجع بعد 24 ساعة واكتب `!دوام` لتستلم راتبك.";
-  if (r.kind === "claimed") return r.accident ? `🤕 تعرضت لإصابة في الدوام! استلمت ${jenny(r.pay)} فقط.` : `✅ خلص دوامك واستلمت ${jenny(r.pay)}.`;
-  return `✅ داومت كـ **${r.rankTitle}** واستلمت ${jenny(r.pay)} (مجموع دوامك: ${r.shifts})\n🔥 سلسلة الدوام: **${r.streak}** يوم متتالي${r.promoReady ? "\n📈 صرت مؤهلًا للترقية! اكتب `!ترقية`." : ""}`;
+  if (r.kind === "claimed") return r.accident ? ` تعرضت لإصابة في الدوام! استلمت ${jenny(r.pay)} فقط.` : ` خلص دوامك واستلمت ${jenny(r.pay)}.`;
+  return `✅ داومت كـ **${r.rankTitle}** واستلمت ${jenny(r.pay)} (مجموع دوامك: ${r.shifts})\n سلسلة الدوام: **${r.streak}** يوم متتالي${r.promoReady ? "\n📈 صرت مؤهلًا للترقية! اكتب `!ترقية`." : ""}`;
 }
 
 function promoText(r: PromoResult): string {
@@ -44,11 +44,11 @@ function promoText(r: PromoResult): string {
     case "no_job":
       return "❌ ما عندك وظيفة فيها ترقيات.";
     case "max":
-      return "🏆 أنت في أعلى رتبة.";
+      return " أنت في أعلى رتبة.";
     case "not_ready":
-      return `🔥 ما وصلت بعد: سلسلة دوامك **${r.streak}/${r.need}** يوم متتالي.\n_تفوّت يوم = تبدأ من الصفر._`;
+      return ` ما وصلت بعد: سلسلة دوامك **${r.streak}/${r.need}** يوم متتالي.\n_تفوّت يوم = تبدأ من الصفر._`;
     case "discoveries":
-      return `🧪 تحتاج ${r.discoveriesLeft} اكتشافًا إضافيًا في المختبر.`;
+      return ` تحتاج ${r.discoveriesLeft} اكتشافًا إضافيًا في المختبر.`;
   }
 }
 
