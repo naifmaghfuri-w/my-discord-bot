@@ -1,3 +1,4 @@
+import { BALANCE_TRIGGER, handleBalanceMessage } from "../balance/text";
 import { handleEconomyTextCommand } from "../handlers/economyText";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Events, type Message } from "discord.js";
 import { INBOX_PREFIX, sendAfkNotices } from "../afk/notice";
@@ -27,7 +28,6 @@ import { sendFamilyTree } from "../family/treeView";
 import { handleGamesMessage } from "../games";
 import { MARRIAGE_TRIGGER, buildMarriageGuide } from "../family/guide";
 import { canAdopt, canPropose, disown, getParents, khulaDivorce, runAway, talaqDivorce } from "../family/service";
-import { buildMenuMessage } from "../menu/interactions";
 import { QUEST_SETTINGS, type QuestId } from "../quests/definitions";
 import { progressQuest, toAnnouncer } from "../quests/service";
 import { progressWeeklyQuest } from "../quests/weeklyService";
@@ -160,18 +160,18 @@ const event: BotEvent = {
     }
 
     // --- باقي الأوامر بالكتابة بدون سلاش: "ban @شخص سبب"، "pay @شخص 100"، "daily"... ---
-   if (await handleEconomyTextCommand(message)) return;
+    // --- الرصيد: "!رصيدي" لرصيدك، "!رصيد @شخص" لرصيد غيرك ---
+    if (BALANCE_TRIGGER.test(rawContent.trim())) {
+      await handleBalanceMessage(message);
+      return;
+    }
+
+    if (await handleEconomyTextCommand(message)) return;
     if (await handleTextCommand(client, message)) return;
 
     // --- دليل الأوامر: "مساعدة" ---
     if (/^(مساعدة|مساعده|اوامر|أوامر|help)$/i.test(rawContent.trim())) {
       await message.channel.send({ ...buildHelpHome(userId, message.guild.name) }).catch(() => undefined);
-      return;
-    }
-
-    // --- القائمة الرئيسية بكتابة "p" لحالها ---
-    if (rawContent.trim().toLowerCase() === "p") {
-      await message.channel.send(buildMenuMessage()).catch(() => undefined);
       return;
     }
 
