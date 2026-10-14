@@ -5,6 +5,50 @@ import { getProfile } from "../services/economy";
 import { logTransaction } from "../services/transactions";
 import { JOB_MAP, JOB_RULES, type JobDef, type JobReq } from "./data";
 
+// ---------- سلسلة الدوام (أيام متتالية) ----------
+
+let dayFmt: Intl.DateTimeFormat | null = null;
+
+/** مفتاح اليوم "YYYY-MM-DD" حسب TIMEZONE من متغيرات البيئة (الافتراضي UTC) */
+function dayKey(ms: number): string {
+  if (!dayFmt) {
+    const opts = { year: "numeric", month: "2-digit", day: "2-digit" } as const;
+    try {
+      dayFmt = new Intl.DateTimeFormat("en-CA", { timeZone: process.env.TIMEZONE || "UTC", ...opts });
+    } catch {
+      dayFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "UTC", ...opts });
+    }
+  }
+  return dayFmt.format(ms);
+}
+
+const dayNum = (key: string): number => Math.floor(Date.parse(`${key}T00:00:00Z`) / 86_400_000);
+
+/** السلسلة المعروضة الآن (0 لو انقطعت). السلسلة المكتملة (30+) تبقى لين يطلب الترقية */
+export function currentStreak(jp: IJobProfile, now = Date.now()): number {
+  const streak = jp.streakDays ?? 0;
+  if (streak >= JOB_RULES.promotionStreakDays) return streak;
+  if (!jp.lastShiftDay) return 0;
+  const gap = dayNum(dayKey(now)) - dayNum(jp.lastShiftDay);
+  return gap > 1 ? 0 : streak;
+}
+
+/** السلسلة الجديدة بعد دوام الآن */
+function nextStreak(jp: IJobProfile, now: number): { streak: number; day: string } {
+  const today = dayKey(now);
+  const streak = jp.streakDays ?? 0;
+  if (streak >= JOB_RULES.promotionStreakDays) return { streak, day: today }; // مؤهّل: ما تضيع منه
+  if (!jp.lastShiftDay) return { streak: 1, day: today };
+  const gap = dayNum(today) - dayNum(jp.lastShiftDay);
+  if (gap <= 0) return { streak: Math.max(1, streak), day: today }; // نفس اليوم
+  if (gap === 1) return { streak: streak + 1, day: today };
+  return { streak: 1, day: today }; // انقطع يوم أو أكثر
+}
+
+const RESET_STREAK = { streakDays: 0, lastShiftDay: "" } as const;
+
+// ---------- الملف الوظيفي ----------
+
 /** يجلب ملف الوظيفة، وينفصل الموظف تلقائياً لو ما داوم أسبوع */
 export async function getJob(userId: string, guildId: string): Promise<IJobProfile> {
   let doc = await JobProfile.findOneAndUpdate({ userId, guildId }, { $setOnInsert: { userId, guildId } }, { upsert: true, new: true });
@@ -19,7 +63,7 @@ export async function getJob(userId: string, guildId: string): Promise<IJobProfi
         { userId, guildId, jobId: doc.jobId },
         {
           $set: {
-            jobId: "", rank: 0, shifts: 0, lastShiftAt: null, shiftStartedAt: null,
+            jobId: "", rank: 0, shifts: 0, lastShiftAt: null, shiftStartedAt: null, ...RESET_STREAK,
             blockedUntil: new Date(Date.now() + JOB_RULES.reapplyCooldownMs),
             notice: `📉 تم فصلك من وظيفة **${job?.name ?? "عملك"}** لأنك ما داومت أكثر من أسبوع.`,
           },
@@ -85,7 +129,7 @@ export async function applyForJob(userId: string, guildId: string, jobId: string
 
   const hired = await JobProfile.findOneAndUpdate(
     { userId, guildId, jobId: "" },
-    { $set: { jobId, rank: 0, shifts: 0, lastShiftAt: null, shiftStartedAt: null, lastActiveAt: new Date(), notice: "" } },
+    { $set: { jobId, rank: 0, shifts: 0, lastShiftAt: null, shiftStartedAt: null, lastActiveAt: new Date(), notice: "", ...RESET_STREAK } },
     { new: true },
   );
   if (!hired) {
@@ -99,7 +143,7 @@ export async function applyForJob(userId: string, guildId: string, jobId: string
 export async function resign(userId: string, guildId: string): Promise<boolean> {
   const r = await JobProfile.updateOne(
     { userId, guildId, jobId: { $ne: "" } },
-    { $set: { jobId: "", rank: 0, shifts: 0, lastShiftAt: null, shiftStartedAt: null, blockedUntil: new Date(Date.now() + JOB_RULES.reapplyCooldownMs) } },
+    { $set: { jobId: "", rank: 0, shifts: 0, lastShiftAt: null, shiftStartedAt: null, ...RESET_STREAK, blockedUntil: new Date(Date.now() + JOB_RULES.reapplyCooldownMs) } },
   );
   return r.modifiedCount > 0;
 }
@@ -108,7 +152,7 @@ export type WorkResult =
   | { ok: false; reason: "no_job" }
   | { ok: false; reason: "cooldown"; msLeft: number }
   | { ok: false; reason: "on_shift"; msLeft: number }
-  | { ok: true; kind: "shift"; pay: number; shifts: number; rankTitle: string; promoReady: boolean }
+  | { ok: true; kind: "shift"; pay: number; shifts: number; streak: number; rankTitle: string; promoReady: boolean }
   | { ok: true; kind: "started"; endsAt: Date }
   | { ok: true; kind: "claimed"; pay: number; accident: boolean };
 
@@ -131,9 +175,10 @@ export async function work(userId: string, guildId: string): Promise<WorkResult>
 
   if (job.kind === "career") {
     const cutoff = new Date(now - JOB_RULES.shiftCooldownMs);
+    const { streak, day } = nextStreak(jp, now);
     const updated = await JobProfile.findOneAndUpdate(
       { userId, guildId, jobId: job.id, $or: [{ lastShiftAt: null }, { lastShiftAt: { $lte: cutoff } }] },
-      { $set: { lastShiftAt: new Date(now), lastActiveAt: new Date(now) }, $inc: { shifts: 1 } },
+      { $set: { lastShiftAt: new Date(now), lastActiveAt: new Date(now), streakDays: streak, lastShiftDay: day }, $inc: { shifts: 1 } },
       { new: true },
     );
     if (!updated) {
@@ -143,8 +188,8 @@ export async function work(userId: string, guildId: string): Promise<WorkResult>
     const rank = job.ranks[updated.rank] ?? job.ranks[0];
     await payOut(userId, guildId, rank.pay);
     const next = job.ranks[updated.rank + 1];
-    const promoReady = Boolean(next) && updated.shifts >= next.shiftsNeeded;
-    return { ok: true, kind: "shift", pay: rank.pay, shifts: updated.shifts, rankTitle: rank.title, promoReady };
+    const promoReady = Boolean(next) && (updated.streakDays ?? 0) >= JOB_RULES.promotionStreakDays;
+    return { ok: true, kind: "shift", pay: rank.pay, shifts: updated.shifts, streak: updated.streakDays ?? streak, rankTitle: rank.title, promoReady };
   }
 
   // دوام كامل
@@ -175,22 +220,32 @@ export async function work(userId: string, guildId: string): Promise<WorkResult>
 
 export type PromoResult =
   | { ok: true; title: string; pay: number; bonus: number }
-  | { ok: false; reason: "no_job" | "max" | "not_ready" | "discoveries"; shiftsLeft?: number; need?: number };
+  | { ok: false; reason: "no_job" | "max" }
+  | { ok: false; reason: "not_ready"; streak: number; need: number }
+  | { ok: false; reason: "discoveries"; discoveriesLeft: number };
 
-/** طلب ترقية: اللاعب يطلبها بنفسه لما يحقق الشروط */
+/** طلب ترقية: تحتاج 30 يوم دوام متتالي (والمختبر لبعض الرتب) */
 export async function requestPromotion(userId: string, guildId: string): Promise<PromoResult> {
   const jp = await getJob(userId, guildId);
   const job = JOB_MAP[jp.jobId];
   if (!job || job.kind !== "career") return { ok: false, reason: "no_job" };
   const next = job.ranks[jp.rank + 1];
   if (!next) return { ok: false, reason: "max" };
-  if (jp.shifts < next.shiftsNeeded) return { ok: false, reason: "not_ready", shiftsLeft: next.shiftsNeeded - jp.shifts };
+
+  const need = JOB_RULES.promotionStreakDays;
+  if ((jp.streakDays ?? 0) < need) return { ok: false, reason: "not_ready", streak: currentStreak(jp), need };
+
   if (next.labDiscoveries) {
     const ctx = await loadContext(userId, guildId);
-    if (ctx.labDiscoveries < next.labDiscoveries) return { ok: false, reason: "discoveries", need: next.labDiscoveries - ctx.labDiscoveries };
+    if (ctx.labDiscoveries < next.labDiscoveries) return { ok: false, reason: "discoveries", discoveriesLeft: next.labDiscoveries - ctx.labDiscoveries };
   }
-  const up = await JobProfile.findOneAndUpdate({ userId, guildId, jobId: job.id, rank: jp.rank }, { $inc: { rank: 1 }, $set: { lastActiveAt: new Date() } }, { new: true });
-  if (!up) return { ok: false, reason: "not_ready" };
+
+  const up = await JobProfile.findOneAndUpdate(
+    { userId, guildId, jobId: job.id, rank: jp.rank, streakDays: { $gte: need } },
+    { $inc: { rank: 1 }, $set: { lastActiveAt: new Date(), ...RESET_STREAK } },
+    { new: true },
+  );
+  if (!up) return { ok: false, reason: "not_ready", streak: currentStreak(jp), need };
   await payOut(userId, guildId, JOB_RULES.promotionBonus);
   return { ok: true, title: next.title, pay: next.pay, bonus: JOB_RULES.promotionBonus };
 }

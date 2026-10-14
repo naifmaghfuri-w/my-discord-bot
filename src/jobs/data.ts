@@ -1,5 +1,3 @@
-/** كل أرقام الوظائف هنا: الرواتب، الشروط، الترقيات. عدّلها بحرية لتوازن الاقتصاد */
-
 export const JOB_RULES = {
   /** رسوم التقديم على وظيفة */
   applyFee: 200,
@@ -13,6 +11,8 @@ export const JOB_RULES = {
   reapplyCooldownMs: 24 * 60 * 60 * 1000,
   /** مكافأة الترقية */
   promotionBonus: 500,
+  /** عدد أيام الدوام المتتالية المطلوبة للترقية */
+  promotionStreakDays: 30,
 } as const;
 
 export interface JobReq {
@@ -28,7 +28,7 @@ export interface JobRank {
   title: string;
   /** الراتب لكل دوام */
   pay: number;
-  /** مجموع الدوامات المطلوبة للترقية إلى هذي الرتبة */
+  /** (قديم، ما عاد يُستخدم للترقية — الترقية الآن بسلسلة 30 يوم) */
   shiftsNeeded: number;
   /** شرط إضافي للترقية: عدد المركبات المكتشفة في المختبر */
   labDiscoveries?: number;
