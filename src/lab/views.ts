@@ -69,8 +69,6 @@ import {
   OPEN_MARKET,
   OPEN_SHOP,
   OPEN_WAREHOUSE,
-  PRESSURE_DOWN,
-  PRESSURE_UP,
   PUBLISH,
   REACT,
   RESET,
@@ -78,9 +76,8 @@ import {
   SELECT_ELEMENT,
   SHOP_BUY_SELECT,
   SHOP_QTY,
-  STEP_TOGGLE,
-  TEMP_DOWN,
-  TEMP_UP,
+  TEMP_SELECT,
+  PRESSURE_SELECT,
   cid,
 } from "./ids";
 import { getMarketQuote, trendIcon } from "./market";
@@ -98,6 +95,10 @@ export interface PanelResult {
   components: Row[];
   files: { attachment: Buffer; name: string }[];
 }
+
+/** خيارات الحرارة والضغط في القوائم (الحد 25 خيار بالقائمة) */
+export const TEMP_CHOICES = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 120, 150, 180, 200, 250, 300, 350, 400, 450, 500];
+export const PRESSURE_CHOICES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
 
 const RARITY_ORDER: Rarity[] = ["common", "uncommon", "rare", "epic", "legendary"];
 
@@ -148,7 +149,6 @@ export async function buildMainPanel(profile: ILabProfile, session: ILabSession,
   const owner = profile.userId;
   const buffer = await renderFlask(session.mix, session.temp, session.pressure);
   const files = buffer ? [{ attachment: buffer, name: "flask.png" }] : [];
-  const mult = session.stepMult || 1;
 
   const mixLines = Object.entries(session.mix)
     .filter(([, qty]) => qty > 0)
@@ -162,7 +162,7 @@ export async function buildMainPanel(profile: ILabProfile, session: ILabSession,
       [
         `**المستوى ${profile.labLevel}** \`${bar(profile.labXp, need)}\` ${profile.labXp}/${need}`,
         `🔬 نقاط الفتح: **${profile.labTokens}** • ✨ سمعة: **${profile.reputation}**`,
-        `🌡️ **${session.temp}°** • 💨 **${session.pressure}** • الخطوة: **${mult === 1 ? "عادية" : "سريعة ×" + mult}**`,
+        `🌡️ **${session.temp}°** • 💨 **${session.pressure}**`,
         statusLine(profile),
         "",
         `**الخليط:** ${mixLines.length ? mixLines.join("، ") : "فاضي، أضف مكونات من القوائم بالأسفل"}`,
@@ -211,16 +211,21 @@ export async function buildMainPanel(profile: ILabProfile, session: ILabSession,
   }
 
   rows.push(
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(cid(TEMP_DOWN, owner)).setLabel("حرارة").setEmoji("➖").setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId(cid(TEMP_UP, owner)).setLabel("حرارة").setEmoji("➕").setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId(cid(PRESSURE_DOWN, owner)).setLabel("ضغط").setEmoji("➖").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(cid(PRESSURE_UP, owner)).setLabel("ضغط").setEmoji("➕").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(cid(REACT, owner)).setLabel("تفاعل").setEmoji("⚗️").setStyle(ButtonStyle.Success),
+    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(cid(TEMP_SELECT, owner))
+        .setPlaceholder(`🌡️ الحرارة: ${session.temp}°C`)
+        .addOptions(TEMP_CHOICES.map((t) => ({ label: `${t}°C`, value: String(t), emoji: "🌡️", default: t === session.temp }))),
+    ),
+    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(cid(PRESSURE_SELECT, owner))
+        .setPlaceholder(`💨 الضغط: ${session.pressure} atm`)
+        .addOptions(PRESSURE_CHOICES.map((p) => ({ label: `${p} atm`, value: String(p), emoji: "💨", default: p === session.pressure }))),
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(cid(REACT, owner)).setLabel("تفاعل").setEmoji("⚗️").setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId(cid(RESET, owner)).setLabel("تصفير").setEmoji("🔄").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(cid(STEP_TOGGLE, owner)).setLabel(mult === 1 ? "خطوة سريعة" : "خطوة عادية").setEmoji("⚡").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId(cid(BACK, owner)).setLabel("القائمة الرئيسية").setEmoji("🏠").setStyle(ButtonStyle.Secondary),
       ...(pages > 1
         ? [new ButtonBuilder().setCustomId(cid(PAGE_CYCLE, owner)).setLabel(`صفحة ${page + 1}/${pages}`).setEmoji("📑").setStyle(ButtonStyle.Secondary)]
