@@ -258,12 +258,13 @@ export function buildHubPanel(profile: ILabProfile, coins: number, _name: string
     .setThumbnail(avatarUrl)
     .setDescription(
       [
-        `**المستوى ${profile.labLevel}** \`${bar(profile.labXp, need)}\` ${profile.labXp}/${need}`,
-        `\`${profile.labTokens} 🔬 نقطة فتح\``,
-        jenny(coins),
+        `**المستوى ${profile.labLevel}** \`${bar(profile.labXp, need, 6)}\` ${profile.labXp}/${need}`,
+        `**الرصيد** ${jenny(coins)}`,
+        `**لقب** ${titleFor(profile.reputation).name}`,
         "",
-        "**🎓 اللقب العلمي**",
-        `\`${titleFor(profile.reputation).icon} ${titleFor(profile.reputation).name}\``,
+        "",
+        `\`${profile.labTokens} 🔬 نقطة فتح\``,
+        "",
         "**📜 السمعة العلمية**",
         `\`${profile.reputation} pts\``,
         "**📘 الموسوعة**",
