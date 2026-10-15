@@ -34,8 +34,10 @@ const UNMUTE = new RegExp(`^!\\s*نو\\s*ميوت\\s+${MENTION}$`);
 const BAN = new RegExp(`^!\\s*بان\\s+(?:${MENTION}|(\\d{17,20}))(?:\\s+([\\s\\S]+))?$`);
 /** !نو بان @شخص (أو ايدي) */
 const UNBAN = new RegExp(`^!\\s*نو\\s*بان\\s+(?:${MENTION}|(\\d{17,20}))$`);
+/** !طرد @شخص سبب */
+const KICK = new RegExp(`^!\\s*طرد\\s+${MENTION}(?:\\s+([\\s\\S]+))?$`);
 /** نفس الأوامر بصيغة غلط: نعرض طريقة الاستخدام */
-const LOOSE = /^!\s*(تحذير|تحذيرات|ميوت|نو\s*ميوت|بان|نو\s*بان)(?:\s|$)/;
+const LOOSE = /^!\s*(تحذير|تحذيرات|ميوت|نو\s*ميوت|بان|نو\s*بان|طرد)(?:\s|$)/;
 
 const USAGE: Record<string, string> = {
   تحذير: "`!تحذير @شخص السبب`",
@@ -44,6 +46,7 @@ const USAGE: Record<string, string> = {
   "نو ميوت": "`!نو ميوت @شخص`",
   بان: "`!بان @شخص السبب` (أو آيدي)",
   "نو بان": "`!نو بان آيدي_الشخص`",
+  طرد: "`!طرد @شخص السبب`",
 };
 
 function can(message: Message<true>, perm: bigint): boolean {
@@ -113,9 +116,14 @@ export async function handleModerationText(message: Message<true>): Promise<bool
     message.reply({ content, allowedMentions: { parse: [], users: ping, repliedUser: false } }).catch(() => undefined);
 
   const verb = loose[1].replace(/\s+/g, " ").replace("نوميوت", "نو ميوت").replace("نوبان", "نو بان");
-  const needsBan = verb === "بان" || verb === "نو بان";
+  const perm =
+    verb === "بان" || verb === "نو بان"
+      ? PermissionFlagsBits.BanMembers
+      : verb === "طرد"
+        ? PermissionFlagsBits.KickMembers
+        : PermissionFlagsBits.ModerateMembers;
   // من ما عنده صلاحية: نتجاهل بصمت
-  if (!can(message, needsBan ? PermissionFlagsBits.BanMembers : PermissionFlagsBits.ModerateMembers)) return false;
+  if (!can(message, perm)) return false;
 
   const fetchMember = (id: string) => guild.members.fetch(id).catch(() => null);
 
@@ -282,6 +290,27 @@ export async function handleModerationText(message: Message<true>): Promise<bool
     }
     await reply(`🔨 تم حظر **${user.tag}**\nالسبب: ${reason}`);
     await log(message, "حظر", user, `**السبب:** ${reason}`);
+    return true;
+  }
+
+  // ---------- !طرد ----------
+  const kick = KICK.exec(text);
+  if (kick) {
+    const target = await fetchMember(kick[1]);
+    if (!target) return (await reply("❌ ما لقيت هذا العضو في السيرفر."), true);
+    const err = hierarchyError(message, target);
+    if (err) return (await reply(err), true);
+    if (!target.kickable) return (await reply("❌ ما أقدر أطرده (رتبته أعلى مني أو مساوية)."), true);
+
+    const reason = (kick[2] ?? "بدون سبب").trim().slice(0, 200);
+    try {
+      await target.kick(`${reason} | بواسطة ${message.author.tag}`);
+    } catch (e) {
+      logger.error("فشل الطرد", e);
+      return (await reply("❌ ما قدرت أطرده، تأكد من صلاحياتي."), true);
+    }
+    await reply(`👢 تم طرد **${target.user.tag}**\nالسبب: ${reason}`);
+    await log(message, "طرد", target.user, `**السبب:** ${reason}`);
     return true;
   }
 
