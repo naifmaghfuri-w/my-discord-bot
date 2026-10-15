@@ -1,3 +1,4 @@
+import { handleModerationText } from "../moderation/text";
 import { handleBankText } from "../bank/text";
 import { ROB_TRIGGER, handleRobMessage } from "../rob/text";
 import { BALANCE_TRIGGER, handleBalanceMessage } from "../balance/text";
@@ -113,6 +114,9 @@ const event: BotEvent = {
     // --- مسح رسائل: "clear 10" أو "clear 10 @شخص" أو "clear 10 <ايدي>" (بدون سلاش) ---
     const clearTrigger = CLEAR_TRIGGER.exec(rawContent.trim());
     if (clearTrigger && (await handleClearMessage(message, clearTrigger[1]))) return;
+
+    // --- إدارة: !تحذير !تحذيرات !ميوت !نو ميوت !بان !نو بان ---
+    if (await handleModerationText(message)) return;
 
     // --- مبارزة لاعبين: "قتال @شخص 500" ---
     const duelMatch = DUEL_TRIGGER.exec(rawContent.trim());
