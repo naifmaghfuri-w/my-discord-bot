@@ -86,7 +86,7 @@ import {
 import { getMarketQuote, trendIcon } from "./market";
 import { ACHIEVEMENTS, questsForDay, titleFor } from "./progress";
 import { renderFlask, renderResult } from "./render";
-import { ARTICLE_REPUTATION, HINT_PRICE, hintClues, reputationBonus, xpNeeded } from "./service";
+import { ARTICLE_REPUTATION, HINT_PRICE, hintClues, recipeSymbol, reputationBonus, xpNeeded } from "./service";
 import type { ILabProfile } from "../database/models/LabProfile";
 import type { ILabSession } from "../database/models/LabSession";
 
@@ -378,7 +378,7 @@ export function buildCodexView(profile: ILabProfile, page = 0): PanelResult {
       return `❔ **???** — ${Object.keys(c.recipe).length} مكونات${tags}${clues.length ? `\n┗ 💡 ${clues.join(" • ")}` : ""}`;
     }
     const recipe = Object.entries(c.recipe)
-      .map(([id, q]) => `${ELEMENT_MAP[id]?.name ?? COMPOUND_MAP[id]?.name ?? id}×${q}`)
+      .map(([id, q]) => `${recipeSymbol(id)}${q}`)
       .join(" + ");
     const info = COMPOUND_INFO[c.id];
     const infoLine = info ? `\n┗ 🧬 ${info.formula !== "—" ? `\`${info.formula}\` • ` : ""}${info.type} • ${REALISM_LABEL[info.real]}` : "";
