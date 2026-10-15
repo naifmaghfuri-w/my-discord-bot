@@ -11,7 +11,6 @@ import { config } from "../config";
 import { CURRENCY, jenny } from "../constants";
 import { getGender, type Gender } from "../family/gender";
 import { touchRoom } from "../chat/service";
-import { buildHelpHome } from "../help/views";
 import { JOBS_TRIGGER, PROMO_TRIGGER, RESIGN_TRIGGER, WORK_TRIGGER, handleJobMessage } from "../jobs/interactions";
 import { DUEL_TRIGGER, HUNTER_TRIGGER, handleDuelMessage, handleHunterMessage } from "../hunter/interactions";
 import { handleCountingMessage } from "../counting/service";
@@ -178,12 +177,6 @@ const event: BotEvent = {
 
     if (await handleEconomyTextCommand(message)) return;
     if (await handleTextCommand(client, message)) return;
-
-    // --- دليل الأوامر: "مساعدة" ---
-    if (/^(مساعدة|مساعده|اوامر|أوامر|help)$/i.test(rawContent.trim())) {
-      await message.channel.send({ ...buildHelpHome(userId, message.guild.name) }).catch(() => undefined);
-      return;
-    }
 
     // --- مختبر لاعب آخر: "lab @شخص" ---
     const labCardMatch = /^lab\s+<@!?(\d+)>$/i.exec(rawContent.trim());
