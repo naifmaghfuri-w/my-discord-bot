@@ -1,4 +1,5 @@
 import { handleBankText } from "../bank/text";
+import { ROB_TRIGGER, handleRobMessage } from "../rob/text";
 import { BALANCE_TRIGGER, handleBalanceMessage } from "../balance/text";
 import { handleEconomyTextCommand } from "../handlers/economyText";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Events, type Message } from "discord.js";
@@ -162,6 +163,13 @@ const event: BotEvent = {
     // --- الرصيد: "!رصيدي" لرصيدك، "!رصيد @شخص" لرصيد غيرك ---
     if (BALANCE_TRIGGER.test(rawContent.trim())) {
       await handleBalanceMessage(message);
+      return;
+    }
+
+    // --- النهب: "!نهب @شخص" (لعبة تخمين: مال / فخ / فارغ) ---
+    const robMatch = ROB_TRIGGER.exec(rawContent.trim());
+    if (robMatch) {
+      await handleRobMessage(message, robMatch[1]);
       return;
     }
 
