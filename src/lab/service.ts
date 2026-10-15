@@ -357,11 +357,16 @@ export function reputationBonus(reputation: number): number {
 /** سعر التلميح حسب ندرة المركب */
 export const HINT_PRICE: Record<string, number> = { common: 50, uncommon: 100, rare: 200, epic: 400, legendary: 800 };
 
+/** رمز المكوّن للوصفات (Fe، NaCl...)، وإذا ما له رمز يرجع الاسم */
+export function recipeSymbol(id: string): string {
+  const item = ELEMENT_MAP[id] ?? COMPOUND_MAP[id];
+  if (!item) return id;
+  return item.icon === "✦" || item.icon === "∅" ? item.name : item.icon;
+}
+
 /** كل التلميحات الممكنة لمركب: كل مكوّن، ثم الحرارة، ثم الضغط */
 export function hintClues(c: CompoundDef): string[] {
-  const clues = Object.entries(c.recipe).map(
-    ([id, q]) => `${ELEMENT_MAP[id]?.name ?? COMPOUND_MAP[id]?.name ?? id} ×${q}`,
-  );
+  const clues = Object.entries(c.recipe).map(([id, q]) => `${recipeSymbol(id)}${q}`);
   clues.push(`🌡️ ${c.tempRange[0]}-${c.tempRange[1]}°`);
   clues.push(`💨 ${c.pressureRange[0]}-${c.pressureRange[1]}`);
   return clues;
