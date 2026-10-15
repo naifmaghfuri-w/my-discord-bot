@@ -3,8 +3,8 @@ import { config } from "../config";
 import { logModActionText } from "../logs/logger";
 import { logger } from "../utils/logger";
 
-/** clear 10 | clear 10 @شخص | clear 10 <ايدي> | clear @شخص 10 (مع "مسح" كبديل عربي) */
-export const CLEAR_TRIGGER = /^(?:clear|مسح)(?:\s+([\s\S]+))?$/i;
+/** !حذف 10 | !حذف @شخص 10 | !حذف 10 <ايدي> */
+export const CLEAR_TRIGGER = /^!\s*حذف(?:\s+([\s\S]+))?$/;
 
 const MAX_AMOUNT = 100;
 const MAX_SCAN = 500; // أقصى عدد رسائل نفحصه لما نمسح لعضو معيّن
@@ -25,7 +25,7 @@ export async function handleClearMessage(message: Message<true>, args: string | 
   const canClear =
     member?.permissions.has(PermissionFlagsBits.ManageMessages) || message.author.id === config.ownerId;
 
-  // من ما عنده صلاحية: نتجاهل بصمت (الكلمة "clear" ممكن تنكتب بكلام عادي)
+  // من ما عنده صلاحية: نتجاهل بصمت
   if (!canClear) return false;
 
   let amount: number | undefined;
@@ -39,13 +39,13 @@ export async function handleClearMessage(message: Message<true>, args: string | 
     } else if (/^\d{1,3}$/.test(normalized) && amount === undefined) {
       amount = Number(normalized);
     } else {
-      notice(message, "❌ الصيغة: `clear 10` أو `clear 10 @شخص` أو `clear 10 <ايدي>`", 8000);
+      notice(message, "❌ الصيغة: `!حذف 10` أو `!حذف @شخص 10`", 8000);
       return true;
     }
   }
 
   if (amount === undefined || amount < 1 || amount > MAX_AMOUNT) {
-    notice(message, `❌ حدد عدد من 1 إلى ${MAX_AMOUNT}، مثال: \`clear 10\` أو \`clear 10 @شخص\``, 8000);
+    notice(message, `❌ حدد عدد من 1 إلى ${MAX_AMOUNT}، مثال: \`!حذف 10\` أو \`!حذف @شخص 10\``, 8000);
     return true;
   }
 
