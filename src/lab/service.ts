@@ -1,4 +1,4 @@
-import { COMPOUND_MAP, COMPOUNDS, STEP_MULTIPLIERS, type CompoundDef } from "./compounds";
+import { COMPOUND_MAP, COMPOUNDS, PRESSURE, STEP_MULTIPLIERS, TEMP, type CompoundDef } from "./compounds";
 import { ELEMENT_MAP } from "./elements";
 import { LabProfile, type ILabProfile } from "../database/models/LabProfile";
 import { LabSession, type ILabSession } from "../database/models/LabSession";
@@ -73,6 +73,18 @@ export async function adjustPressure(userId: string, guildId: string, direction:
   const next = Math.min(max, Math.max(min, session.pressure + direction * baseStep * (session.stepMult || 1)));
   await LabSession.updateOne({ userId, guildId }, { $set: { pressure: next, updatedAt: new Date() } });
   return next;
+}
+
+export async function setTemp(userId: string, guildId: string, value: number): Promise<void> {
+  const v = Math.min(TEMP.max, Math.max(TEMP.min, Math.round(value)));
+  await getSession(userId, guildId);
+  await LabSession.updateOne({ userId, guildId }, { $set: { temp: v, updatedAt: new Date() } });
+}
+
+export async function setPressure(userId: string, guildId: string, value: number): Promise<void> {
+  const v = Math.min(PRESSURE.max, Math.max(PRESSURE.min, Math.round(value)));
+  await getSession(userId, guildId);
+  await LabSession.updateOne({ userId, guildId }, { $set: { pressure: v, updatedAt: new Date() } });
 }
 
 export async function toggleStep(userId: string, guildId: string): Promise<number> {
