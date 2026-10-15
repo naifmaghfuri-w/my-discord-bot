@@ -250,19 +250,15 @@ export function backRow(owner: string, to: BackTarget = "hub"): ActionRowBuilder
   );
 }
 
-export function buildHubPanel(profile: ILabProfile, coins: number, name: string, avatarUrl: string): PanelResult {
+export function buildHubPanel(profile: ILabProfile, coins: number, _name: string, avatarUrl: string): PanelResult {
   const owner = profile.userId;
   const need = xpNeeded(profile.labLevel);
   const embed = new EmbedBuilder()
     .setColor(0x0ea5e9)
-    .setTitle("🧪 Lab")
     .setThumbnail(avatarUrl)
     .setDescription(
       [
-        `أهلاً **${name}** 👋`,
-        "",
-        `\`المستوى ${profile.labLevel}\``,
-        `\`${profile.labXp} / ${need} XP\` ${bar(profile.labXp, need, 10)}`,
+        `**المستوى ${profile.labLevel}** \`${bar(profile.labXp, need)}\` ${profile.labXp}/${need}`,
         `\`${profile.labTokens} 🔬 نقطة فتح\``,
         jenny(coins),
         "",
