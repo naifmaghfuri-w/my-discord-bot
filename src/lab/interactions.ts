@@ -53,6 +53,8 @@ import {
   SELECT_ELEMENT,
   SHOP_BUY_SELECT,
   SHOP_QTY,
+  TEMP_SELECT,
+  PRESSURE_SELECT,
   STEP_TOGGLE,
   TEMP_DOWN,
   TEMP_UP,
@@ -77,6 +79,8 @@ import {
   getSession,
   publishArticle,
   resetSession,
+  setPressure,
+  setTemp,
   toggleStep,
   unlockEngram,
 } from "./service";
@@ -483,6 +487,17 @@ export async function handleLabSelect(interaction: StringSelectMenuInteraction):
         const res = await addToMix(userId, guildId, value);
         const note = res.ok ? undefined : res.reason === "insufficient" ? "❌ ما عندك كمية أكثر من هذا بالمستودع." : "❌ هذا العنصر غير متاح لك.";
         await interaction.update(asUpdate(await renderMain(userId, guildId, note)));
+        return true;
+      }
+
+      case TEMP_SELECT:
+      case PRESSURE_SELECT: {
+        const n = Number(value);
+        if (Number.isFinite(n)) {
+          if (base === TEMP_SELECT) await setTemp(userId, guildId, n);
+          else await setPressure(userId, guildId, n);
+        }
+        await interaction.update(asUpdate(await renderMain(userId, guildId)));
         return true;
       }
 
