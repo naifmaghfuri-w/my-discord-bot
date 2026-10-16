@@ -10,7 +10,18 @@ import { nextResetUnix, todayKey } from "../quests/time";
 import { COMPOUND_MAP, COMPOUNDS, RARITY_INFO, type Rarity } from "./compounds";
 import { CATEGORIES, categoryProgress } from "./categories";
 import { ELEMENT_MAP, ELEMENTS } from "./elements";
-import { ENGRAMS, KIND_LABEL, engramName, engramState, type EngramKind } from "./engrams";
+import { ENGRAMS, engramName, engramState, hasEngram } from "./engrams";
+import {
+  ELEMENTS_BY_PAGE,
+  HELPER_BY_PAGE,
+  MACHINE_BY_PAGE,
+  TECH_BY_PAGE,
+  TREE_LEVELS,
+  pageCost,
+  pageUnlocked,
+  passive,
+  type TreeItem,
+} from "./tree";
 import { COMPOUND_INFO, ELEMENT_INFO, REALISM_LABEL } from "./info";
 import {
   CONSUMABLES,
@@ -37,7 +48,9 @@ import {
 import {
   BACK,
   CENTRIFUGE_RUN,
-  ENGRAM_TAB,
+  TREE_PAGE,
+  TREE_UNLOCK,
+  SHOP_PAGE,
   MARKET_PAGE,
   OPEN_ROBOT,
   PAGE_CYCLE,
@@ -61,7 +74,6 @@ import {
   EXPED_COLLECT,
   OPEN_EXTRA,
   OPEN_LAB,
-  LEVELS_UNLOCK_SELECT,
   MARKET_SELL_SELECT,
   MARKET_SELLALL_SELECT,
   OPEN_CODEX,
@@ -83,7 +95,7 @@ import {
 import { getMarketQuote, trendIcon } from "./market";
 import { ACHIEVEMENTS, questsForDay, titleFor } from "./progress";
 import { renderFlask, renderResult } from "./render";
-import { ARTICLE_REPUTATION, HINT_PRICE, hintClues, recipeSymbol, reputationBonus, xpNeeded } from "./service";
+import { ARTICLE_REPUTATION, hintClues, hintPrice, recipeSymbol, reputationBonus, xpNeeded } from "./service";
 import type { ILabProfile } from "../database/models/LabProfile";
 import type { ILabSession } from "../database/models/LabSession";
 
@@ -453,98 +465,118 @@ export async function buildMarketView(guildId: string, profile: ILabProfile, not
   return sub(embed, rows, note);
 }
 
-export function buildShopView(profile: ILabProfile, coins: number, qty = 1, note?: string): PanelResult {
-  const available = ELEMENTS.filter((e) => e.tier === 1 || profile.unlockedElements.includes(e.id));
-  const lines = available.map((e) => `${e.icon} **${e.name}** — ${jenny(e.price)} (معك ${profile.inventory[e.id] ?? 0})`);
+export function buildShopView(profile: ILabProfile, coins: number, qty = 1, note?: string, page = 0): PanelResult {
+  const available = ELEMENTS.filter((e) => e.tier === 1 || hasEngram(profile, e.id));
+  const pages = Math.max(1, Math.ceil(available.length / PAGE_SIZE));
+  const p = Math.min(Math.max(0, page), pages - 1);
+  const shown = pageSlice(available, p);
+  const discount = passive(profile, "shop");
+  const unitPrice = (price: number) => Math.max(1, Math.round(price * (1 - discount)));
+  const lines = shown.map((e) => `${e.icon} **${e.name}**${e.radioactive ? " ☢️" : ""} — ${jenny(unitPrice(e.price))} (معك ${profile.inventory[e.id] ?? 0})`);
 
   const embed = new EmbedBuilder()
     .setColor(0xf59e0b)
     .setTitle("🏪 متجر المختبر")
     .setDescription(
-      `${lines.join("\n")}\n\n💼 رصيدك: ${jenny(coins)}\n🛒 الكمية لكل شراء: **${qty}**\n_المتجر يبيع العناصر الأولية فقط، المركبات لازم تكتشفها بنفسك._`,
-    );
+      `${lines.join("\n")}\n\n💼 رصيدك: ${jenny(coins)}\n🛒 الكمية لكل شراء: **${qty}**${discount > 0 ? `\n🏷️ خصم أجهزتك: **${Math.round(discount * 100)}%**` : ""}\n_المتجر يبيع العناصر فقط، والمركبات لازم تكتشفها بنفسك._`,
+    )
+    .setFooter({ text: `صفحة ${p + 1} من ${pages} • ${available.length} عنصر متاح` });
 
-  const selects: Row[] = [];
-  for (let i = 0; i < available.length; i += PAGE_SIZE) {
-    const part = available.slice(i, i + PAGE_SIZE);
-    selects.push(
-      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-        new StringSelectMenuBuilder()
-          .setCustomId(cid(SHOP_BUY_SELECT, profile.userId, qty) + (i > 0 ? `|${i}` : ""))
-          .setPlaceholder(`🛒 اختر عنصراً تشتريه (×${qty})${available.length > PAGE_SIZE ? ` — ${i / PAGE_SIZE + 1}` : ""}`)
-          .addOptions(part.map((e) => ({ label: `${e.icon} ${e.name} — ${e.price * qty} ${CURRENCY.name}`, value: e.id }))),
-      ),
-    );
-  }
+  const select = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(cid(SHOP_BUY_SELECT, profile.userId, `${qty}:${p}`))
+      .setPlaceholder(`🛒 اختر عنصراً تشتريه (×${qty})`)
+      .addOptions(shown.map((e) => ({ label: `${e.icon} ${e.name} — ${Math.max(1, Math.round(e.price * qty * (1 - discount)))} ${CURRENCY.name}`, value: e.id }))),
+  );
 
   const qtyRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     ...[1, 5, 10, 25].map((n) =>
       new ButtonBuilder()
-        .setCustomId(cid(SHOP_QTY, profile.userId, n))
+        .setCustomId(cid(SHOP_QTY, profile.userId, `${n}:${p}`))
         .setLabel(`×${n}`)
         .setStyle(n === qty ? ButtonStyle.Primary : ButtonStyle.Secondary),
     ),
   );
 
-  return sub(embed, [...selects, qtyRow, backRow(profile.userId)], note);
-}
-
-const STATE_ICON = { unlocked: "✅", ready: "🔓", need_points: "💰", need_level: "🔒", need_prereq: "⛓️" } as const;
-
-export function buildLevelsView(profile: ILabProfile, note?: string, tab: EngramKind = "element"): PanelResult {
-  const owner = profile.userId;
-  const need = xpNeeded(profile.labLevel);
-  const list = ENGRAMS.filter((e) => e.kind === tab);
-  const open = list.filter((e) => engramState(profile, e) === "unlocked").length;
-
-  const lines = list.map((e) => {
-    const st = engramState(profile, e);
-    let tail = "";
-    if (st === "need_level") tail = `يحتاج مستوى ${e.level}`;
-    else if (st === "need_prereq") tail = `يتطلب: ${e.requires.filter((r) => !list.concat(ENGRAMS).some((x) => x.id === r && engramState(profile, x) === "unlocked")).map(engramName).join("، ")}`;
-    else if (st === "need_points") tail = `يحتاج ${e.cost} نقاط`;
-    else if (st === "ready") tail = `جاهز للفتح (${e.cost} 🔬)`;
-    else tail = "مفتوح";
-    return `${STATE_ICON[st]} ${e.icon} **${e.name}** — ${tail}${tab !== "element" ? `\n┗ ${e.desc}` : ""}`;
-  });
-
-  const embed = new EmbedBuilder()
-    .setColor(0x8b5cf6)
-    .setTitle(`🎚️ شجرة الفتح — ${KIND_LABEL[tab].icon} ${KIND_LABEL[tab].name} (${open}/${list.length})`)
-    .setDescription(
-      [
-        `**المستوى ${profile.labLevel}** \`${bar(profile.labXp, need)}\` ${profile.labXp}/${need} XP`,
-        `**🔬 نقاط الفتح:** ${profile.labTokens}`,
-        "_كل مستوى جديد يعطيك نقاط (1 حتى مستوى 9، 2 حتى 19، 3 بعدها) تصرفها على فتح عناصر وأجهزة وتقنيات._",
-        "✅ مفتوح • 🔓 جاهز • 💰 نقاط ناقصة • 🔒 مستوى ناقص • ⛓️ يحتاج متطلبات",
-        "",
-        lines.join("\n"),
-      ].join("\n").slice(0, 4000),
-    );
-
-  const tabs = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    ...(Object.keys(KIND_LABEL) as EngramKind[]).map((k) =>
-      new ButtonBuilder()
-        .setCustomId(cid(ENGRAM_TAB, owner, k))
-        .setLabel(KIND_LABEL[k].name)
-        .setEmoji(KIND_LABEL[k].icon)
-        .setStyle(k === tab ? ButtonStyle.Primary : ButtonStyle.Secondary),
-    ),
-  );
-
-  const rows: Row[] = [tabs];
-  const ready = list.filter((e) => engramState(profile, e) === "ready");
-  if (ready.length > 0) {
+  const rows: Row[] = [select, qtyRow];
+  if (pages > 1) {
     rows.push(
-      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-        new StringSelectMenuBuilder()
-          .setCustomId(cid(LEVELS_UNLOCK_SELECT, owner, tab))
-          .setPlaceholder("🔓 اختر ما تفتحه")
-          .addOptions(ready.slice(0, 25).map((e) => ({ label: `${e.icon} ${e.name} (${e.cost} 🔬)`, value: e.id }))),
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(cid(SHOP_PAGE, profile.userId, `${qty}:${p - 1}`)).setLabel("السابق").setEmoji("◀️").setStyle(ButtonStyle.Primary).setDisabled(p === 0),
+        new ButtonBuilder().setCustomId(cid(NOOP, profile.userId)).setLabel(`${p + 1}/${pages}`).setStyle(ButtonStyle.Secondary).setDisabled(true),
+        new ButtonBuilder().setCustomId(cid(SHOP_PAGE, profile.userId, `${qty}:${p + 1}`)).setLabel("التالي").setEmoji("▶️").setStyle(ButtonStyle.Primary).setDisabled(p >= pages - 1),
       ),
     );
   }
+  rows.push(backRow(profile.userId));
   return sub(embed, rows, note);
+}
+
+/** أول صفحة وصلت لها ولسا ما فتحتها (وإلا صفحة مستواك) */
+export function defaultTreePage(profile: ILabProfile): number {
+  const top = Math.min(Math.max(1, profile.labLevel), TREE_LEVELS);
+  for (let p = 1; p <= top; p++) if (!pageUnlocked(profile, p)) return p;
+  return top;
+}
+
+export function buildLevelsView(profile: ILabProfile, note?: string, pageArg?: number): PanelResult {
+  const owner = profile.userId;
+  const page = Math.min(TREE_LEVELS, Math.max(1, pageArg ?? defaultTreePage(profile)));
+  const unlocked = pageUnlocked(profile, page);
+  const reached = profile.labLevel >= page;
+  const cost = pageCost(page);
+  const mark = (id: string) => (hasEngram(profile, id) ? "✅" : reached ? "🔓" : "🔒");
+
+  const status = unlocked
+    ? "✅ **الصفحة مفتوحة** — كل اللي فيها صار لك"
+    : reached
+      ? `🔓 **جاهزة للفتح** — التكلفة **${cost}** 🔬 (معك **${profile.labTokens}**)`
+      : `🔒 **مقفلة** — تنفتح عند المستوى **${page}** (مستواك **${profile.labLevel}**)`;
+
+  const elementLines = ELEMENTS_BY_PAGE[page - 1].map((id) => {
+    const e = ELEMENT_MAP[id];
+    return `${mark(id)} \`${e.icon}\` **${e.name}**${e.radioactive ? " ☢️" : ""} — ${jenny(e.price)}`;
+  });
+  const itemLine = (it: TreeItem) => `${mark(it.id)} ${it.icon} **${it.name}**\n┗ ${it.desc}`;
+  const techLines = (TECH_BY_PAGE[page] ?? []).map((t) => `${mark(t.id)} ${t.icon} **${t.name}**\n┗ ${t.desc}`);
+
+  const embed = new EmbedBuilder()
+    .setColor(unlocked ? 0x22c55e : reached ? 0xf59e0b : 0x64748b)
+    .setTitle(`🎚️ شجرة الفتح — المستوى ${page}`)
+    .setDescription(
+      [
+        status,
+        "",
+        "**🧱 العناصر**",
+        ...elementLines,
+        "",
+        "**⚙️ الآلة**",
+        itemLine(MACHINE_BY_PAGE[page - 1]),
+        "",
+        "**🛠️ المساعد**",
+        itemLine(HELPER_BY_PAGE[page - 1]),
+        ...(techLines.length ? ["", "**📜 تقنية**", ...techLines] : []),
+        "",
+        "_تكسب نقاط الفتح مع كل مستوى (5 بالبداية وتقل تدريجياً)، وتكفي لفتح الشجرة كاملة._",
+      ].join("\n").slice(0, 4000),
+    )
+    .setFooter({ text: `صفحة ${page} من ${TREE_LEVELS} • مستواك ${profile.labLevel} • نقاطك ${profile.labTokens} 🔬` });
+
+  const center = unlocked
+    ? new ButtonBuilder().setCustomId(cid(NOOP, owner)).setLabel("مفتوحة").setEmoji("✅").setStyle(ButtonStyle.Success).setDisabled(true)
+    : reached
+      ? new ButtonBuilder().setCustomId(cid(TREE_UNLOCK, owner, page)).setLabel(`فتح (${cost} 🔬)`).setEmoji("🔓").setStyle(ButtonStyle.Primary)
+      : new ButtonBuilder().setCustomId(cid(NOOP, owner)).setLabel(`المستوى ${page}`).setEmoji("🔒").setStyle(ButtonStyle.Secondary).setDisabled(true);
+
+  const jump = (target: number, fast = false) => cid(TREE_PAGE, owner, `${Math.min(TREE_LEVELS, Math.max(1, target))}${fast ? "f" : ""}`);
+  const nav = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(jump(page - 5, true)).setLabel("-5").setEmoji("⏪").setStyle(ButtonStyle.Secondary).setDisabled(page <= 1),
+    new ButtonBuilder().setCustomId(jump(page - 1)).setEmoji("◀️").setStyle(ButtonStyle.Primary).setDisabled(page <= 1),
+    center,
+    new ButtonBuilder().setCustomId(jump(page + 1)).setEmoji("▶️").setStyle(ButtonStyle.Primary).setDisabled(page >= TREE_LEVELS),
+    new ButtonBuilder().setCustomId(jump(page + 5, true)).setLabel("+5").setEmoji("⏩").setStyle(ButtonStyle.Secondary).setDisabled(page >= TREE_LEVELS),
+  );
+  return sub(embed, [nav], note);
 }
 
 export async function buildReactSuccessView(
@@ -911,7 +943,7 @@ export function buildHintsView(profile: ILabProfile, coins: number, page = 0, no
   const last = RARITY_ORDER.length - 1;
   const p = Math.max(0, Math.min(last, page));
   const rarity = RARITY_ORDER[p];
-  const price = Math.round(HINT_PRICE[rarity] * (hasGear(profile, "analyzer") ? 0.5 : 1));
+  const price = hintPrice(profile, rarity);
 
   const items = COMPOUNDS.filter((c) => c.rarity === rarity);
   const open = items
