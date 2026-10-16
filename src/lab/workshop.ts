@@ -5,6 +5,7 @@ import { todayKey } from "../quests/time";
 import { logTransaction } from "../services/transactions";
 import { COMPOUND_MAP, COMPOUNDS, type CompoundDef } from "./compounds";
 import { hasEngram, engramName } from "./engrams";
+import { passive } from "./tree";
 import { ELEMENT_MAP, ELEMENTS } from "./elements";
 import { getLabProfile, grantLabXp } from "./service";
 
@@ -53,19 +54,20 @@ export const hasGear = (p: Pick<ILabProfile, "equipment">, key: string): boolean
   (p.equipment?.[key] ?? 0) >= 1;
 
 /** هامش التسامح الإضافي للحرارة (الفرن) والضغط (المضخة) */
-export function tolerance(p: Pick<ILabProfile, "equipment">): { temp: number; pressure: number } {
+export function tolerance(p: Pick<ILabProfile, "equipment" | "engrams">): { temp: number; pressure: number } {
   const f = level(p, "furnace");
   const pm = level(p, "pump");
-  return { temp: (f - 1) * 10, pressure: pm >= 3 ? pm - 2 : 0 };
+  return { temp: (f - 1) * 10 + passive(p, "tol"), pressure: pm >= 3 ? pm - 2 : 0 };
 }
 
 /** احتمال حادث لتفاعل معيّن (0 لو غير خطير) */
-export function accidentChance(compound: CompoundDef, p: Pick<ILabProfile, "equipment">): number {
+export function accidentChance(compound: CompoundDef, p: Pick<ILabProfile, "equipment" | "engrams">): number {
   if (!compound.hazard) return 0;
   const base = compound.hazard * 0.1;
   const reduce =
     (["goggles", "gloves", "hazmat"] as const).reduce((a, k) => a + (hasGear(p, k) ? GEAR[k].reduce : 0), 0) +
-    (hasGear(p, "extinguisher") ? 0.25 : 0);
+    (hasGear(p, "extinguisher") ? 0.25 : 0) +
+    passive(p, "safe");
   return base * (1 - Math.min(0.9, reduce));
 }
 
@@ -186,7 +188,7 @@ export async function applyRadiation(userId: string, guildId: string, mixIds: st
 
   const now = Date.now();
   const cooler = hasGear(profile, "cooler");
-  const total = currentRadiation(profile, now) + Math.round(EXPOSURE_PER_REACTION * (cooler ? 0.5 : 1));
+  const total = currentRadiation(profile, now) + Math.round(EXPOSURE_PER_REACTION * (cooler ? 0.5 : 1) * (1 - passive(profile, "rad")));
   if (total >= 100) {
     const ms = cooler ? SICK_MS_COOLER : SICK_MS;
     await LabProfile.updateOne(
@@ -274,9 +276,10 @@ export async function deliverOrder(userId: string, guildId: string, compoundId: 
     return { ok: false, reason: doneOrders(fresh, day).includes(compoundId) ? "done" : "stock" };
   }
 
-  await UserProfile.updateOne({ userId, guildId }, { $inc: { coins: order.coins } }, { upsert: true });
+  const coins = Math.round(order.coins * (1 + passive(taken, "order")));
+  await UserProfile.updateOne({ userId, guildId }, { $inc: { coins } }, { upsert: true });
   const xpRes = await grantLabXp(userId, guildId, order.xp);
-  return { ok: true, coins: order.coins, xp: order.xp, levelUp: xpRes.leveledUp, level: xpRes.level };
+  return { ok: true, coins, xp: order.xp, levelUp: xpRes.leveledUp, level: xpRes.level };
 }
 
 /* ───────────── رحلات الاستكشاف ───────────── */
@@ -321,8 +324,8 @@ export async function collectExpedition(userId: string, guildId: string): Promis
   if (!done) return null;
 
   const hours = done.expeditionHours || 1;
-  const rolls = hours === 2 ? 4 : 2;
-  const available = ELEMENTS.filter((e) => e.tier === 1 || (e.tier === 2 && done.unlockedElements.includes(e.id)));
+  const rolls = (hours === 2 ? 4 : 2) + (Math.random() < passive(done, "loot") ? 1 : 0);
+  const available = ELEMENTS.filter((e) => e.tier === 1 || (e.tier === 2 && hasEngram(done, e.id)));
   const items: Record<string, number> = {};
   const add = (id: string, n: number) => {
     items[id] = (items[id] ?? 0) + n;
@@ -374,7 +377,7 @@ export async function runCentrifuge(userId: string, guildId: string): Promise<Ce
   );
   if (!taken) return { ok: false, reason: "no_waste" };
 
-  const pool = ELEMENTS.filter((e) => e.tier === 1 || (e.tier === 2 && profile.unlockedElements.includes(e.id)));
+  const pool = ELEMENTS.filter((e) => e.tier === 1 || (e.tier === 2 && hasEngram(profile, e.id)));
   const items: Record<string, number> = {};
   for (let i = 0; i < batches * 3; i++) {
     const id = pick(pool).id;
@@ -442,7 +445,7 @@ export async function startRobot(userId: string, guildId: string, compoundId: st
     filter[path] = { $gte: n * qty };
     dec[path] = -n * qty;
   }
-  const endsAt = Date.now() + qty * ROBOT_MINUTES_PER_UNIT * 60_000;
+  const endsAt = Date.now() + Math.round(qty * ROBOT_MINUTES_PER_UNIT * (1 - passive(profile, "robot")) * 60_000);
   const res = await LabProfile.findOneAndUpdate(filter, {
     $inc: dec,
     $set: { robotCompound: compoundId, robotQty: qty, robotEndsAt: new Date(endsAt) },
