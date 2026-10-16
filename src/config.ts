@@ -6,6 +6,13 @@ function required(name: string): string {
   return value;
 }
 
+/** يحوّل قائمة IDs مفصولة بفاصلة إلى مصفوفة */
+const parseIds = (v?: string): string[] =>
+  (v ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
 export const config = {
   token: required("DISCORD_TOKEN"),
   clientId: required("CLIENT_ID"),
@@ -28,9 +35,17 @@ export const config = {
   birthdayChannelId: process.env.BIRTHDAY_CHANNEL_ID || undefined,
   /** بانر اختياري يظهر في بطاقة تهنئة عيد الميلاد */
   birthdayBannerUrl: process.env.BIRTHDAY_BANNER_URL || undefined,
-  /** رتب تحديد الجنس (لنظام العائلة: تبني، زواج، مواريث اللقب) */
-  maleRoleIds: parseIds([process.env.MALE_ROLE_ID_1, process.env.MALE_ROLE_ID_2].filter(Boolean).join(",")),
-femaleRoleIds: parseIds([process.env.FEMALE_ROLE_ID_1, process.env.FEMALE_ROLE_ID_2].filter(Boolean).join(",")),
+  /**
+   * رتب تحديد الجنس (لنظام العائلة: تبني، زواج، مواريث اللقب).
+   * تدعم عدة سيرفرات: MALE_ROLE_ID_1 و MALE_ROLE_ID_2 (وكذلك FEMALE_ROLE_ID_1 و FEMALE_ROLE_ID_2).
+   * ويمكن أيضاً وضع عدة IDs مفصولة بفاصلة في MALE_ROLE_ID / FEMALE_ROLE_ID.
+   */
+  maleRoleIds: parseIds(
+    [process.env.MALE_ROLE_ID, process.env.MALE_ROLE_ID_1, process.env.MALE_ROLE_ID_2].filter(Boolean).join(","),
+  ),
+  femaleRoleIds: parseIds(
+    [process.env.FEMALE_ROLE_ID, process.env.FEMALE_ROLE_ID_1, process.env.FEMALE_ROLE_ID_2].filter(Boolean).join(","),
+  ),
   /** صورة بانر لوحات الدردشة الخاصة (اختياري، ويمكن تحديدها من أمر /chatpanel) */
   chatBannerUrl: process.env.CHAT_BANNER_URL || undefined,
   /** قناة سجلات الإدارة الافتراضية (يمكن تغييرها لكل سيرفر بأمر /setlog) */
