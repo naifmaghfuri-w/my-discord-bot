@@ -1,5 +1,6 @@
 import { COMPOUND_MAP } from "./compounds";
 import { reputationBonus } from "./service";
+import { passive } from "./tree";
 import { LabMarketPrice } from "../database/models/LabMarketPrice";
 import { LabProfile } from "../database/models/LabProfile";
 import { UserProfile } from "../database/models/UserProfile";
@@ -68,7 +69,8 @@ export async function sellCompound(userId: string, guildId: string, compoundId: 
   );
   if (!updated) return { ok: false, reason: "insufficient" };
 
-  const bonus = reputationBonus(updated.reputation);
+  // مكافأة السمعة + تأثير آلات شجرة الفتح
+  const bonus = reputationBonus(updated.reputation) + passive(updated, "sell");
   const earned = Math.round(price * qty * (1 + bonus));
 
   // البيع المتتالي يضغط السعر للأسفل (مع حد أدنى)
