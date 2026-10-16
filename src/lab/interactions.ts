@@ -8,7 +8,9 @@ import { ELEMENT_MAP } from "./elements";
 import {
   BACK,
   CENTRIFUGE_RUN,
-  ENGRAM_TAB,
+  TREE_PAGE,
+  TREE_UNLOCK,
+  SHOP_PAGE,
   MARKET_PAGE,
   OPEN_ROBOT,
   PAGE_CYCLE,
@@ -36,7 +38,6 @@ import {
   TRADE_PICK,
   OPEN_EXTRA,
   OPEN_LAB,
-  LEVELS_UNLOCK_SELECT,
   MARKET_SELL_SELECT,
   MARKET_SELLALL_SELECT,
   OPEN_CODEX,
@@ -64,7 +65,6 @@ import { sellAllCompound, sellCompound } from "./market";
 import { recordEvent } from "./progress";
 import { renderReactionGif } from "./render";
 import { OFFER_TTL_MS, buildOffer, executeTrade } from "./trade";
-import { ENGRAM_MAP, KIND_LABEL, type EngramKind } from "./engrams";
 import { buyConsumable, buyEquipment, collectExpedition, collectRobot, deliverOrder, lootLines, runCentrifuge, startExpedition, startRobot, useAntirad } from "./workshop";
 import { COMPOUND_MAP } from "./compounds";
 import { RARITY_INFO } from "./compounds";
@@ -82,7 +82,7 @@ import {
   setPressure,
   setTemp,
   toggleStep,
-  unlockEngram,
+  unlockPage,
 } from "./service";
 import {
   buildAccidentView,
@@ -109,7 +109,11 @@ import {
   type PanelResult,
 } from "./views";
 
-const tabOf = (v?: string): EngramKind => (v && v in KIND_LABEL ? (v as EngramKind) : "element");
+/** "كمية:صفحة" بأزرار وقوائم المتجر */
+function shopArgs(extra?: string): { qty: number; page: number } {
+  const [q, p] = (extra ?? "").split(":");
+  return { qty: Math.max(1, Math.min(25, Number(q) || 1)), page: Math.max(0, Number(p) || 0) };
+}
 
 const NOT_YOUR_OFFER = "🔒 هذا العرض مو لك.";
 const NOT_OWNER = "🔒 هذا مختبر غيرك. اكتب `lab` عشان تفتح مختبرك.";
@@ -208,9 +212,32 @@ export async function handleLabButton(interaction: ButtonInteraction): Promise<b
         await interaction.update(asUpdate(await buildMarketView(guildId, await getLabProfile(userId, guildId), undefined, Number(extra) || 0)));
         return true;
 
-      case ENGRAM_TAB:
-        await interaction.update(asUpdate(buildLevelsView(await getLabProfile(userId, guildId), undefined, tabOf(extra))));
+      case TREE_PAGE:
+        await interaction.update(asUpdate(buildLevelsView(await getLabProfile(userId, guildId), undefined, parseInt(extra ?? "", 10) || 1)));
         return true;
+
+      case TREE_UNLOCK: {
+        const page = parseInt(extra ?? "", 10) || 1;
+        const result = await unlockPage(userId, guildId, page);
+        const messages: Record<string, string> = {
+          already: "✅ الصفحة مفتوحة بالفعل.",
+          points: "❌ نقاط الفتح ما تكفي.",
+          level: "❌ مستواك ما يكفي لهذي الصفحة.",
+          unknown: "❌ صفحة غير معروفة.",
+        };
+        const note = result.ok
+          ? `🔓 فتحت صفحة المستوى **${result.page}** بالكامل! (−${result.cost} 🔬)`
+          : `${messages[result.reason]}${result.need && result.reason === "points" ? ` (تحتاج ${result.need})` : ""}`;
+        await interaction.update(asUpdate(buildLevelsView(await getLabProfile(userId, guildId), note, page)));
+        return true;
+      }
+
+      case SHOP_PAGE: {
+        const { qty, page } = shopArgs(extra);
+        const [profile, coins] = await Promise.all([getLabProfile(userId, guildId), coinsOf(userId, guildId)]);
+        await interaction.update(asUpdate(buildShopView(profile, coins, qty, undefined, page)));
+        return true;
+      }
 
       case OPEN_ROBOT:
         await interaction.update(asUpdate(buildRobotView(await getLabProfile(userId, guildId))));
@@ -267,9 +294,9 @@ export async function handleLabButton(interaction: ButtonInteraction): Promise<b
       }
 
       case SHOP_QTY: {
-        const qty = Math.max(1, Math.min(25, Number(extra) || 1));
+        const { qty, page } = shopArgs(extra);
         const [profile, coins] = await Promise.all([getLabProfile(userId, guildId), coinsOf(userId, guildId)]);
-        await interaction.update(asUpdate(buildShopView(profile, coins, qty)));
+        await interaction.update(asUpdate(buildShopView(profile, coins, qty, undefined, page)));
         return true;
       }
 
@@ -502,7 +529,7 @@ export async function handleLabSelect(interaction: StringSelectMenuInteraction):
       }
 
       case SHOP_BUY_SELECT: {
-        const qty = Math.max(1, Math.min(25, Number(extra) || 1));
+        const { qty, page } = shopArgs(extra);
         const result = await buyElement(userId, guildId, value, qty);
         const [profile, coins] = await Promise.all([getLabProfile(userId, guildId), coinsOf(userId, guildId)]);
         const el = ELEMENT_MAP[value];
@@ -515,7 +542,7 @@ export async function handleLabSelect(interaction: StringSelectMenuInteraction):
           const lines = await recordEvent(userId, guildId, { type: "buy", qty });
           if (lines.length) note += `\n${lines.join("\n")}`;
         }
-        await interaction.update(asUpdate(buildShopView(profile, coins, qty, note)));
+        await interaction.update(asUpdate(buildShopView(profile, coins, qty, note, page)));
         return true;
       }
 
@@ -614,22 +641,6 @@ export async function handleLabSelect(interaction: StringSelectMenuInteraction):
           return true;
         }
         await interaction.update({ ...buildOffer(userId, targetId, value, price, qty), allowedMentions: { users: [targetId] } });
-        return true;
-      }
-
-      case LEVELS_UNLOCK_SELECT: {
-        const result = await unlockEngram(userId, guildId, value);
-        const profile = await getLabProfile(userId, guildId);
-        const messages: Record<string, string> = {
-          already: "❌ فاتحه بالفعل.",
-          points: "❌ نقاط الفتح ما تكفي.",
-          level: "❌ مستواك ما يكفي.",
-          prereq: "❌ ناقصك متطلبات سابقة.",
-          unknown: "❌ غير معروف.",
-        };
-        const def = ENGRAM_MAP[value];
-        const note = result.ok ? `🔓 فتحت ${def?.icon ?? ""} **${result.name}**!` : `${messages[result.reason]}${result.need ? ` (${result.need})` : ""}`;
-        await interaction.update(asUpdate(buildLevelsView(profile, note, def?.kind ?? tabOf(extra))));
         return true;
       }
     }
