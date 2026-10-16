@@ -3,10 +3,10 @@ import { config } from "../config";
 
 export type Gender = "male" | "female" | null;
 
-/** يحدد الجنس حسب رتبة العضو (MALE_ROLE_ID / FEMALE_ROLE_ID بالإعدادات) */
+/** يحدد الجنس حسب رتبة العضو (MALE_ROLE_ID_1/2 و FEMALE_ROLE_ID_1/2 بالإعدادات، تدعم عدة سيرفرات) */
 export function getGender(member: GuildMember): Gender {
-  if (config.femaleRoleId && member.roles.cache.has(config.femaleRoleId)) return "female";
-  if (config.maleRoleId && member.roles.cache.has(config.maleRoleId)) return "male";
+  if (config.femaleRoleIds.some((id) => member.roles.cache.has(id))) return "female";
+  if (config.maleRoleIds.some((id) => member.roles.cache.has(id))) return "male";
   return null;
 }
 
