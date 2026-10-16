@@ -28,6 +28,9 @@ export const NOOP = "lab_noop";
 
 export const SHOP_BUY_SELECT = "lab_shop_buy_select";
 export const SHOP_QTY = "lab_shop_qty";
+export const SHOP_PAGE = "lab_shop_page";
+export const TREE_PAGE = "lab_tree_page";
+export const TREE_UNLOCK = "lab_tree_unlock";
 export const MARKET_SELL_SELECT = "lab_market_sell_select";
 export const MARKET_SELLALL_SELECT = "lab_market_sellall_select";
 export const LEVELS_UNLOCK_SELECT = "lab_levels_unlock_select";
