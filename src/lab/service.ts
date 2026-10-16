@@ -4,7 +4,8 @@ import { LabProfile, type ILabProfile } from "../database/models/LabProfile";
 import { LabSession, type ILabSession } from "../database/models/LabSession";
 import { UserProfile } from "../database/models/UserProfile";
 import { logTransaction } from "../services/transactions";
-import { ENGRAM_MAP, engramName, engramState, hasEngram, pointsForLevel } from "./engrams";
+import { engramName, hasEngram, pointsForLevel } from "./engrams";
+import { TREE_LEVELS, pageCost, pageKey, pageUnlocked, passive } from "./tree";
 import { accidentChance, applyRadiation, consumableCount, consumeOne, hasGear, sickMinutesLeft, tolerance } from "./workshop";
 
 export async function getLabProfile(userId: string, guildId: string): Promise<ILabProfile> {
@@ -38,7 +39,7 @@ export async function resetSession(userId: string, guildId: string): Promise<voi
 export function isElementAvailable(profile: ILabProfile, elementId: string): boolean {
   const el = ELEMENT_MAP[elementId];
   if (!el) return false;
-  return el.tier !== 2 || profile.unlockedElements.includes(elementId);
+  return el.tier !== 2 || hasEngram(profile, elementId);
 }
 
 export async function addToMix(userId: string, guildId: string, itemId: string): Promise<{ ok: boolean; reason?: string }> {
@@ -102,9 +103,9 @@ export async function buyElement(userId: string, guildId: string, elementId: str
   if (!el) return { ok: false, reason: "locked" };
 
   const profile = await getLabProfile(userId, guildId);
-  if (el.tier === 3 || (el.tier === 2 && !profile.unlockedElements.includes(elementId))) return { ok: false, reason: "locked" };
+  if (el.tier === 3 || (el.tier === 2 && !hasEngram(profile, elementId))) return { ok: false, reason: "locked" };
 
-  const cost = el.price * qty;
+  const cost = Math.max(1, Math.round(el.price * qty * (1 - passive(profile, "shop"))));
   const updated = await UserProfile.findOneAndUpdate(
     { userId, guildId, coins: { $gte: cost } },
     { $inc: { coins: -cost } },
@@ -118,32 +119,27 @@ export async function buyElement(userId: string, guildId: string, elementId: str
 }
 
 export type UnlockResult =
-  | { ok: true; name: string }
-  | { ok: false; reason: "already" | "points" | "level" | "prereq" | "unknown"; need?: string };
+  | { ok: true; page: number; cost: number }
+  | { ok: false; reason: "already" | "points" | "level" | "unknown"; need?: string };
 
-/** فتح إنجرام (عنصر/جهاز/تقنية): يتحقق من المستوى والمتطلبات والنقاط، وخصم النقاط ذرّي */
-export async function unlockEngram(userId: string, guildId: string, engramId: string): Promise<UnlockResult> {
-  const def = ENGRAM_MAP[engramId];
-  if (!def) return { ok: false, reason: "unknown" };
+/** فتح صفحة كاملة من شجرة الفتح (عناصرها وآلتها ومساعدها): يتحقق من المستوى والنقاط، وخصم النقاط ذرّي */
+export async function unlockPage(userId: string, guildId: string, page: number): Promise<UnlockResult> {
+  if (!Number.isInteger(page) || page < 1 || page > TREE_LEVELS) return { ok: false, reason: "unknown" };
 
   const profile = await getLabProfile(userId, guildId);
-  const state = engramState(profile, def);
-  if (state === "unlocked") return { ok: false, reason: "already" };
-  if (state === "need_level") return { ok: false, reason: "level", need: String(def.level) };
-  if (state === "need_prereq") {
-    const missing = def.requires.filter((r) => !hasEngram(profile, r)).map(engramName);
-    return { ok: false, reason: "prereq", need: missing.join("، ") };
-  }
-  if (state === "need_points") return { ok: false, reason: "points", need: String(def.cost) };
+  if (pageUnlocked(profile, page)) return { ok: false, reason: "already" };
+  if (profile.labLevel < page) return { ok: false, reason: "level", need: String(page) };
 
-  const field = def.kind === "element" ? "unlockedElements" : "engrams";
+  const cost = pageCost(page);
+  if (profile.labTokens < cost) return { ok: false, reason: "points", need: String(cost) };
+
   const updated = await LabProfile.findOneAndUpdate(
-    { userId, guildId, labTokens: { $gte: def.cost }, labLevel: { $gte: def.level }, [field]: { $ne: engramId } },
-    { $inc: { labTokens: -def.cost }, $addToSet: { [field]: engramId } },
+    { userId, guildId, labTokens: { $gte: cost }, labLevel: { $gte: page }, engrams: { $ne: pageKey(page) } },
+    { $inc: { labTokens: -cost }, $addToSet: { engrams: pageKey(page) } },
     { new: true },
   );
-  if (!updated) return { ok: false, reason: "points", need: String(def.cost) };
-  return { ok: true, name: def.name };
+  if (!updated) return { ok: false, reason: pageUnlocked(await getLabProfile(userId, guildId), page) ? "already" : "points", need: String(cost) };
+  return { ok: true, page, cost };
 }
 
 export function xpNeeded(level: number): number {
@@ -174,15 +170,16 @@ export async function grantLabXp(userId: string, guildId: string, xp: number): P
     tokensGained += pointsForLevel(level);
   }
 
-  if (tokensGained > 0) {
-    // نظام الإنجرام: نقاط الفتح تزيد مع المستويات العالية
+  const leveledUp = level > doc.labLevel;
+  if (leveledUp) {
+    // نقاط الفتح: 5 بالبداية وتقل مع المستويات (وبعد 50 ما فيه نقاط)
     await LabProfile.updateOne(
       { userId, guildId },
       { $set: { labLevel: level, labXp: xpLeft }, $inc: { labTokens: tokensGained } },
     );
   }
 
-  return { level, leveledUp: tokensGained > 0, tokensGained };
+  return { level, leveledUp, tokensGained };
 }
 
 /** سمعة تُكتسب عند أول اكتشاف (النادر جداً يُكتسب بنشر مقال) */
@@ -318,9 +315,9 @@ export async function attemptReaction(userId: string, guildId: string): Promise<
 
   // وحدة التقطير: فرصة لمضاعفة الناتج
   let qty = 1;
-  if (hasGear(profile, "distiller") && Math.random() < DISTILLER_CHANCE) {
+  if (Math.random() < (hasGear(profile, "distiller") ? DISTILLER_CHANCE : 0) + passive(profile, "yield")) {
     qty = 2;
-    notes.push("⚗️ وحدة التقطير ضاعفت الناتج ×2!");
+    notes.push("⚗️ أجهزتك ضاعفت الناتج ×2!");
   }
 
   await LabProfile.updateOne(
@@ -332,7 +329,7 @@ export async function attemptReaction(userId: string, guildId: string): Promise<
   );
 
   // مشروب الطاقة: ×1.5 خبرة لهذا التفاعل
-  let xp = candidate.xp;
+  let xp = Math.round(candidate.xp * (1 + passive(profile, "xp")));
   if (consumableCount(profile, "energy") > 0 && (await consumeOne(userId, guildId, "energy"))) {
     xp = Math.round(xp * ENERGY_XP_MULT);
     notes.push("🥤 مشروب الطاقة رفع خبرتك ×1.5!");
@@ -376,6 +373,11 @@ export function recipeSymbol(id: string): string {
   return item.icon === "✦" || item.icon === "∅" ? item.name : item.icon;
 }
 
+/** سعر التلميح بعد خصم المحلّل وتأثيرات الشجرة */
+export function hintPrice(p: Pick<ILabProfile, "equipment" | "engrams">, rarity: string): number {
+  return Math.max(1, Math.round(HINT_PRICE[rarity] * (hasGear(p, "analyzer") ? 0.5 : 1) * (1 - passive(p, "hint"))));
+}
+
 /** كل التلميحات الممكنة لمركب: كل مكوّن، ثم الحرارة، ثم الضغط */
 export function hintClues(c: CompoundDef): string[] {
   const clues = Object.entries(c.recipe).map(([id, q]) => `${recipeSymbol(id)}${q}`);
@@ -399,7 +401,7 @@ export async function buyHint(userId: string, guildId: string, compoundId: strin
   const bought = profile.hinted?.[compoundId] ?? 0;
   if (bought >= clues.length) return { ok: false, reason: "no_more" };
 
-  const price = Math.round(HINT_PRICE[def.rarity] * (hasGear(profile, "analyzer") ? 0.5 : 1));
+  const price = hintPrice(profile, def.rarity);
   const paid = await UserProfile.findOneAndUpdate(
     { userId, guildId, coins: { $gte: price } },
     { $inc: { coins: -price } },
