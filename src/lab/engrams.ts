@@ -1,60 +1,55 @@
-import { ELEMENTS } from "./elements";
+import { ELEMENT_MAP } from "./elements";
+import {
+  ELEMENTS_BY_PAGE,
+  HELPER_BY_PAGE,
+  MACHINE_BY_PAGE,
+  TECH_BY_PAGE,
+  TREE_LEVELS,
+  pageCost,
+  pageKey,
+} from "./tree";
 
 /**
- * نظام الفتح على طريقة ARK: كل مستوى جديد يعطيك نقاط فتح (🔬)،
- * وكل "إنجرام" له مستوى مطلوب وتكلفة نقاط وربما إنجرامات لازم تفتحها قبله.
- * العناصر القديمة (قبل التحديث) تبقى مفتوحة لمن فتحها.
+ * شجرة الفتح: 50 صفحة، كل صفحة مستوى. فتح الصفحة (بنقاط الفتح) يعطيك كل اللي فيها:
+ * عناصر + آلة + مساعد (+ تقنية أحياناً). اللي فتحه اللاعب قديماً بشكل فردي يبقى مفتوحاً.
  */
-export type EngramKind = "element" | "device" | "tech";
+export type EngramKind = "element" | "device" | "machine" | "helper" | "tech";
 
 export interface EngramDef {
   id: string;
   name: string;
   icon: string;
   kind: EngramKind;
+  /** تكلفة فتح الصفحة كاملة بنقاط الفتح */
   cost: number;
+  /** المستوى (الصفحة) المطلوب */
   level: number;
+  page: number;
   requires: string[];
   desc: string;
 }
 
-export const KIND_LABEL: Record<EngramKind, { name: string; icon: string }> = {
-  element: { name: "العناصر", icon: "🧱" },
-  device: { name: "الأجهزة", icon: "🛠️" },
-  tech: { name: "التقنيات", icon: "📜" },
-};
+const defs: EngramDef[] = [];
 
-const DEVICE_ENGRAMS: EngramDef[] = [
-  { id: "analyzer", name: "المحلّل (المجهر)", icon: "🔬", kind: "device", cost: 2, level: 4, requires: [], desc: "يخفّض سعر التلميحات 50% ويلمّح لك لما يكون خليطك ناقصاً" },
-  { id: "extinguisher", name: "طفاية الحريق", icon: "🧯", kind: "device", cost: 2, level: 3, requires: [], desc: "تقلل احتمال حوادث المختبر" },
-  { id: "geiger", name: "عدّاد جايغر", icon: "📟", kind: "device", cost: 2, level: 6, requires: [], desc: "يقيس إشعاعك بدقة ويحذّرك قبل الخطر" },
-  { id: "centrifuge", name: "الطرد المركزي", icon: "🌀", kind: "device", cost: 3, level: 5, requires: [], desc: "يستخلص عناصر من النفايات الكيميائية" },
-  { id: "distiller", name: "وحدة التقطير", icon: "⚗️", kind: "device", cost: 3, level: 7, requires: ["centrifuge"], desc: "فرصة 25% لمضاعفة ناتج كل تفاعل ناجح" },
-  { id: "robot", name: "الروبوت الآلي", icon: "🤖", kind: "device", cost: 4, level: 9, requires: ["distiller"], desc: "يصنّع لك مركبات تعرفها وأنت غايب" },
-  { id: "cooler", name: "مبرّد المفاعل", icon: "🧊", kind: "device", cost: 3, level: 10, requires: ["geiger"], desc: "يبطّئ تراكم الإشعاع ويقصّر مدة الإصابة" },
-];
+for (let page = 1; page <= TREE_LEVELS; page++) {
+  const cost = pageCost(page);
+  for (const id of ELEMENTS_BY_PAGE[page - 1]) {
+    const e = ELEMENT_MAP[id];
+    if (!e) continue;
+    defs.push({ id, name: e.name, icon: e.icon, kind: "element", cost, level: page, page, requires: [], desc: `عنصر (سعر ${e.price})` });
+  }
+  for (const [item, kind] of [
+    [MACHINE_BY_PAGE[page - 1], "machine"],
+    [HELPER_BY_PAGE[page - 1], "helper"],
+  ] as const) {
+    defs.push({ id: item.id, name: item.name, icon: item.icon, kind: item.legacy ? "device" : kind, cost, level: page, page, requires: [], desc: item.desc });
+  }
+  for (const t of TECH_BY_PAGE[page] ?? []) {
+    defs.push({ id: t.id, name: t.name, icon: t.icon, kind: "tech", cost, level: page, page, requires: [], desc: t.desc });
+  }
+}
 
-const TECH_ENGRAMS: EngramDef[] = [
-  { id: "chem_advanced", name: "الكيمياء المتقدمة", icon: "🧪", kind: "tech", cost: 3, level: 6, requires: ["fluorine"], desc: "الهيدروفلوريك والمحلول المطهّر" },
-  { id: "metallurgy", name: "علم المعادن", icon: "⚒️", kind: "tech", cost: 3, level: 6, requires: ["tin"], desc: "النحاس الأصفر واللحام" },
-  { id: "optics", name: "البصريات", icon: "🔭", kind: "tech", cost: 3, level: 8, requires: ["neon"], desc: "الزجاج البصري ومصباح النيون" },
-  { id: "adv_metal", name: "السبائك المتقدمة", icon: "🛩️", kind: "tech", cost: 4, level: 12, requires: ["metallurgy", "titanium"], desc: "سبيكة الطيران وفتيلة التنغستن" },
-  { id: "electronics", name: "الإلكترونيات", icon: "💾", kind: "tech", cost: 5, level: 14, requires: ["platinum", "optics"], desc: "المعالج الدقيق والمحفّز البلاتيني" },
-  { id: "nuclear", name: "الكيمياء النووية", icon: "☢️", kind: "tech", cost: 6, level: 16, requires: ["geiger", "electronics"], desc: "المواد المشعة المتقدمة (بدلة الحماية مطلوبة)" },
-];
-
-const ELEMENT_ENGRAMS: EngramDef[] = ELEMENTS.filter((e) => e.tier === 2 && e.unlockCost).map((e) => ({
-  id: e.id,
-  name: e.name,
-  icon: e.icon,
-  kind: "element" as const,
-  cost: e.unlockCost ?? 1,
-  level: e.reqLevel ?? 1,
-  requires: e.requires ?? [],
-  desc: `عنصر من الدرجة الثانية (سعر ${e.price})`,
-}));
-
-export const ENGRAMS: EngramDef[] = [...ELEMENT_ENGRAMS, ...DEVICE_ENGRAMS, ...TECH_ENGRAMS];
+export const ENGRAMS: EngramDef[] = defs;
 export const ENGRAM_MAP: Record<string, EngramDef> = Object.fromEntries(ENGRAMS.map((e) => [e.id, e]));
 
 interface HasEngrams {
@@ -62,10 +57,11 @@ interface HasEngrams {
   engrams?: string[];
 }
 
-/** هل الإنجرام مفتوح؟ (العناصر تُخزّن في unlockedElements للتوافق مع القديم) */
+/** هل العنصر/الجهاز/التقنية مفتوح؟ (صفحته مفتوحة، أو فتحه اللاعب فردياً بالنظام القديم) */
 export function hasEngram(p: HasEngrams, id: string): boolean {
   const def = ENGRAM_MAP[id];
   if (!def) return false;
+  if ((p.engrams ?? []).includes(pageKey(def.page))) return true;
   return def.kind === "element" ? (p.unlockedElements ?? []).includes(id) : (p.engrams ?? []).includes(id);
 }
 
@@ -74,14 +70,18 @@ export type EngramState = "unlocked" | "ready" | "need_points" | "need_level" | 
 export function engramState(p: HasEngrams & { labLevel: number; labTokens: number }, def: EngramDef): EngramState {
   if (hasEngram(p, def.id)) return "unlocked";
   if (p.labLevel < def.level) return "need_level";
-  if (!def.requires.every((r) => hasEngram(p, r))) return "need_prereq";
   if (p.labTokens < def.cost) return "need_points";
   return "ready";
 }
 
 export const engramName = (id: string): string => ENGRAM_MAP[id]?.name ?? id;
 
-/** نقاط الفتح اللي يكسبها اللاعب عند الوصول لمستوى جديد */
+/**
+ * نقاط الفتح اللي يكسبها اللاعب عند الوصول لمستوى جديد:
+ * 5 للمستويات 2-10، ثم تقل (4، 3، 2، 1 كل 10 مستويات)، وبعد المستوى 50 ما فيه نقاط.
+ * المجموع (145) يكفي لفتح الشجرة كاملة (140).
+ */
 export function pointsForLevel(level: number): number {
-  return level < 10 ? 1 : level < 20 ? 2 : 3;
+  if (level > TREE_LEVELS) return 0;
+  return Math.max(1, 5 - Math.floor((level - 1) / 10));
 }
