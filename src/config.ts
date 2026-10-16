@@ -29,8 +29,8 @@ export const config = {
   /** بانر اختياري يظهر في بطاقة تهنئة عيد الميلاد */
   birthdayBannerUrl: process.env.BIRTHDAY_BANNER_URL || undefined,
   /** رتب تحديد الجنس (لنظام العائلة: تبني، زواج، مواريث اللقب) */
-  maleRoleId: process.env.MALE_ROLE_ID || undefined,
-  femaleRoleId: process.env.FEMALE_ROLE_ID || undefined,
+  maleRoleIds: parseIds([process.env.MALE_ROLE_ID_1, process.env.MALE_ROLE_ID_2].filter(Boolean).join(",")),
+femaleRoleIds: parseIds([process.env.FEMALE_ROLE_ID_1, process.env.FEMALE_ROLE_ID_2].filter(Boolean).join(",")),
   /** صورة بانر لوحات الدردشة الخاصة (اختياري، ويمكن تحديدها من أمر /chatpanel) */
   chatBannerUrl: process.env.CHAT_BANNER_URL || undefined,
   /** قناة سجلات الإدارة الافتراضية (يمكن تغييرها لكل سيرفر بأمر /setlog) */
