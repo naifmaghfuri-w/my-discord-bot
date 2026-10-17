@@ -6,6 +6,7 @@ import { startVoiceTracker } from "../services/voiceTracker";
 import { startBackupScheduler } from "../backup/scheduler";
 import { startChatCleaner } from "../chat/cleaner";
 import { loadTicketCache } from "../tickets/service";
+import { applyBotStatus } from "../botprofile/interactions";
 import { logger } from "../utils/logger";
 
 const event: BotEvent = {
@@ -18,6 +19,8 @@ const event: BotEvent = {
     startChatCleaner(client);
     startBackupScheduler(client);
     loadTicketCache().catch((err) => logger.error("فشل تحميل كاش التذاكر", err));
+    // يرجّع حالة البوت المحفوظة (من لوحة !ايقونة البوت)
+    applyBotStatus(client).catch((err) => logger.error("فشل تطبيق حالة البوت", err));
   },
 };
 
