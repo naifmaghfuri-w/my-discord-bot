@@ -60,6 +60,10 @@ const RELATION_TRIGGER = /^!\s*قرابة\s+<@!?(\d+)>$/i;
 
 const lastCounted = new Map<string, number>();
 
+/** قنوات العد (كل قناة لها عدّاد مستقل). أضف أي ID جديد هنا */
+const EXTRA_COUNTING_CHANNELS = ["1551164925001342986"];
+const countingChannels = (): string[] => [config.countingChannelId, ...EXTRA_COUNTING_CHANNELS].filter((id): id is string => !!id);
+
 function countEmojis(text: string): number {
   const custom = text.match(CUSTOM_EMOJI)?.length ?? 0;
   const unicode = text.replace(CUSTOM_EMOJI, "").match(UNICODE_EMOJI)?.length ?? 0;
@@ -80,7 +84,7 @@ const event: BotEvent = {
 
     // --- قناة العد: رقم صحيح (أو عملية ناتجها الرقم الصحيح) يتعلّم، وأي شيء ثاني يُمسح بدون ما يحسب لأي مهمة ---
     let countedCorrectly = false;
-    if (config.countingChannelId && message.channelId === config.countingChannelId) {
+    if (countingChannels().includes(message.channelId)) {
       const result = await handleCountingMessage(message);
       if (result === "wrong") return; // انمسحت: كأنها ما انكتبت
       countedCorrectly = result === "correct";
