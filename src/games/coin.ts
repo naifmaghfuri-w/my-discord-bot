@@ -105,7 +105,7 @@ async function soloFlip(message: Message<true>, arg: string): Promise<void> {
 
   const sent = await message
     .reply({
-      content: "🪙 اختر: **صورة** أو **كتابة**؟ (مرة كل 24 ساعة)",
+      content: "🪙 اختر: **صورة** أو **كتابة**؟",
       components: [sideRow("coinsolo")],
       allowedMentions: { repliedUser: false },
     })
