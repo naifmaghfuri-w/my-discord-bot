@@ -48,7 +48,7 @@ async function buildPanel(guild: Guild) {
         `**الصورة:** ${m?.avatar ? "مخصصة لهذا السيرفر" : "الافتراضية"}`,
         `**البنر:** ${m?.banner ? "مخصص لهذا السيرفر" : "الافتراضي"}`,
         "",
-        "الاسم والصورة والبنر والنبذة تنطبق على **هذا السيرفر فقط**.\nالحالة وحدة للبوت كله (ديسكورد ما يسمح بغير كذا).",
+        "                ",
       ].join("\n"),
     )
     .setThumbnail(me?.displayAvatarURL({ size: 256 }) ?? guild.client.user.displayAvatarURL({ size: 256 }));
