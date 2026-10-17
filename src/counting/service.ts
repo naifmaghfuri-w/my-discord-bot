@@ -1,5 +1,6 @@
 import type { Message } from "discord.js";
 import { CountingState } from "../database/models/CountingState";
+import { config } from "../config";
 import { logger } from "../utils/logger";
 
 const COUNT_EMOJI = "<a:a6nice1527585495125590076:1552794707023757515>";
@@ -99,7 +100,16 @@ const parseNumber = evalCountExpression;
 
 /** أول مرة بدون حالة محفوظة: نكمل من آخر رقم موجود في القناة (لو فيه) */
 async function ensureState(message: Message<true>): Promise<void> {
-  if (await CountingState.exists({ guildId: message.guildId })) return;
+  if (await CountingState.exists({ channelId: message.channelId })) return;
+
+  // حالة قديمة (قبل فصل القنوات) بدون channelId: تنربط بالقناة الرئيسية بس
+  if (message.channelId === config.countingChannelId) {
+    const legacy = await CountingState.findOneAndUpdate(
+      { guildId: message.guildId, channelId: { $exists: false } },
+      { $set: { channelId: message.channelId } },
+    );
+    if (legacy) return;
+  }
 
   let start = 0;
   let lastUserId: string | undefined;
@@ -115,8 +125,8 @@ async function ensureState(message: Message<true>): Promise<void> {
     }
   }
   await CountingState.updateOne(
-    { guildId: message.guildId },
-    { $setOnInsert: { guildId: message.guildId, current: start, highScore: start, ...(lastUserId ? { lastUserId } : {}) } },
+    { channelId: message.channelId },
+    { $setOnInsert: { guildId: message.guildId, channelId: message.channelId, current: start, highScore: start, ...(lastUserId ? { lastUserId } : {}) } },
     { upsert: true },
   );
 }
@@ -141,7 +151,7 @@ export async function handleCountingMessage(message: Message<true>): Promise<Cou
     // ذري: ينجح فقط لو الرقم الحالي = n - 1 وآخر من عدّ شخص غيره
     // (يمنع تعارض شخصين يكتبون نفس الرقم بنفس اللحظة، ويمنع نفس الشخص يعدّ مرتين ورا بعض)
     const updated = await CountingState.findOneAndUpdate(
-      { guildId: message.guildId, current: n - 1, lastUserId: { $ne: message.author.id } },
+      { channelId: message.channelId, current: n - 1, lastUserId: { $ne: message.author.id } },
       { $set: { current: n, lastUserId: message.author.id }, $max: { highScore: n } },
       { new: true },
     );
