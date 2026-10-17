@@ -2,6 +2,7 @@ import { handleModerationText } from "../moderation/text";
 import { handleBankText } from "../bank/text";
 import { handleGiveMessage } from "../balance/give";
 import { handleColorMessage } from "../colors/text";
+import { handleWhisperMessage } from "../whisper/interactions";
 import { ROB_TRIGGER, handleRobMessage } from "../rob/text";
 import { BALANCE_TRIGGER, handleBalanceMessage } from "../balance/text";
 import { handleEconomyTextCommand } from "../handlers/economyText";
@@ -178,6 +179,9 @@ const event: BotEvent = {
 
     // --- لوحة الألوان: "!لون" ---
     if (await handleColorMessage(message)) return;
+
+    // --- الهمسات: "!همسة @شخص" ---
+    if (await handleWhisperMessage(message)) return;
 
     // --- الرصيد: "!رصيدي" لرصيدك، "!رصيد @شخص" لرصيد غيرك ---
     if (BALANCE_TRIGGER.test(rawContent.trim())) {
