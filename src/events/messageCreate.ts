@@ -82,7 +82,6 @@ const event: BotEvent = {
     // 🔥 شعلة النشاط: أي رسالة (نص/صورة/ايموجي/ستيكر) في أي روم تحسب يوم (تظهر بجانب الاسم فقط)
     void tickStreak(message.author.id, message.guildId).then((t) => {
       if (!t) return;
-      if (t.notify && t.milestone > 0) void message.reply({ content: `🏆 شعلتك وصلت **${t.streak}** يوم! جائزتك ${jenny(t.milestone)}`, allowedMentions: { repliedUser: false } }).catch(() => undefined);
       if (message.member) void applyStreakNick(message.member, t.streak, t.sep, t.hidden);
     });
 
