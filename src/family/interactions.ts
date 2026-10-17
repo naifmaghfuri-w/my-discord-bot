@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, type ButtonInteraction } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, type ButtonInteraction } from "discord.js";
 import { CURRENCY, jenny } from "../constants";
 import { getGender } from "./gender";
 import {
@@ -10,6 +10,7 @@ import {
   MARRY_FATHER_DECLINE_PREFIX,
 } from "./ids";
 import { adopt, getParents, marry } from "./service";
+import { pickMarriageGif } from "./marriageGif";
 import { logger } from "../utils/logger";
 
 const MARRY_REASON_TEXT: Record<string, string> = {
@@ -62,9 +63,16 @@ async function finalizeMarriage(interaction: ButtonInteraction, fromId: string, 
     return;
   }
 
+  const gif = pickMarriageGif();
+  const embed = new EmbedBuilder()
+    .setColor(0xff8fb8)
+    .setDescription(`💍 مبروك! <@${fromId}> و<@${toId}> صاروا زوجين (${dowry > 0 ? `مهر: ${jenny(dowry)} ${CURRENCY.emoji}` : "بدون مهر"})`);
+  if (gif) embed.setImage(`attachment://${gif.name}`);
+
   await interaction.update({
-    content: `💍 مبروك! <@${fromId}> و<@${toId}> صاروا زوجين (${dowry > 0 ? `مهر: ${jenny(dowry)} ${CURRENCY.emoji}` : "بدون مهر"})`,
-    embeds: [],
+    content: `<@${fromId}> <@${toId}>`,
+    embeds: [embed],
+    files: gif ? [gif.file] : [],
     components: [],
   });
 }
