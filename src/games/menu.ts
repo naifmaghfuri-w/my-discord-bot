@@ -30,7 +30,7 @@ export function buildGamesMenu(owner: string) {
 }
 
 const BODY: Record<Category, { title: string; lines: string[] }> = {
-  solo: { title: "الألعاب الفردية", lines: ["`!عملة صورة` أو `!عملة كتابة` ← صورة أو كتابة (مرة كل 24 ساعة)"] },
+  solo: { title: "الألعاب الفردية", lines: ["`!عملة` ← صورة أو كتابة"] },
   duo: {
     title: "الألعاب الثنائية",
     lines: [
