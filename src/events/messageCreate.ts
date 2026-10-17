@@ -28,6 +28,7 @@ import { computeRelationship } from "../family/graph";
 import { ADOPT_ACCEPT_PREFIX, ADOPT_DECLINE_PREFIX, MARRY_ACCEPT_PREFIX, MARRY_DECLINE_PREFIX } from "../family/ids";
 import { sendFamilyTree } from "../family/treeView";
 import { handleGamesMessage } from "../games";
+import { handleCoinMessage } from "../games/coin";
 import { MARRIAGE_TRIGGER, buildMarriageGuide } from "../family/guide";
 import { canAdopt, canPropose, disown, getParents, khulaDivorce, runAway, talaqDivorce } from "../family/service";
 import { QUEST_SETTINGS, type QuestId } from "../quests/definitions";
@@ -158,6 +159,9 @@ const event: BotEvent = {
       await handleHunterMessage(message);
       return;
     }
+
+    // --- العملة: "!عملة صورة|كتابة" فردي، أو "!عملة @شخص مبلغ" ---
+    if (await handleCoinMessage(message)) return;
 
     // --- قائمة الألعاب: "!العاب" ---
     if (await handleGamesMessage(message).catch(() => false)) return;
