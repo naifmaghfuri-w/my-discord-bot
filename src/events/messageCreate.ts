@@ -3,6 +3,7 @@ import { handleBankText } from "../bank/text";
 import { handleGiveMessage } from "../balance/give";
 import { handleColorMessage } from "../colors/text";
 import { handleWhisperMessage } from "../whisper/interactions";
+import { handleBotProfileMessage } from "../botprofile/interactions";
 import { ROB_TRIGGER, handleRobMessage } from "../rob/text";
 import { BALANCE_TRIGGER, handleBalanceMessage } from "../balance/text";
 import { handleEconomyTextCommand } from "../handlers/economyText";
@@ -182,6 +183,9 @@ const event: BotEvent = {
 
     // --- الهمسات: "!همسة @شخص" ---
     if (await handleWhisperMessage(message)) return;
+
+    // --- تخصيص البوت لكل سيرفر: "!ايقونة البوت" (للمالك) ---
+    if (await handleBotProfileMessage(message)) return;
 
     // --- الرصيد: "!رصيدي" لرصيدك، "!رصيد @شخص" لرصيد غيرك ---
     if (BALANCE_TRIGGER.test(rawContent.trim())) {
