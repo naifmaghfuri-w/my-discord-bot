@@ -4,6 +4,7 @@ import { handleGiveMessage } from "../balance/give";
 import { handleColorMessage } from "../colors/text";
 import { handleWhisperMessage } from "../whisper/interactions";
 import { handleBotProfileMessage } from "../botprofile/interactions";
+import { handleAdminSettingsMessage } from "../admin/settings";
 import { ROB_TRIGGER, handleRobMessage } from "../rob/text";
 import { BALANCE_TRIGGER, handleBalanceMessage } from "../balance/text";
 import { handleEconomyTextCommand } from "../handlers/economyText";
@@ -122,6 +123,9 @@ const event: BotEvent = {
     // --- مسح رسائل: "clear 10" أو "clear 10 @شخص" أو "clear 10 <ايدي>" (بدون سلاش) ---
     const clearTrigger = CLEAR_TRIGGER.exec(rawContent.trim());
     if (clearTrigger && (await handleClearMessage(message, clearTrigger[1]))) return;
+
+    // --- لوحة تشغيل/إيقاف الأوامر الإدارية: "!إعدادات المسؤول" ---
+    if (await handleAdminSettingsMessage(message)) return;
 
     // --- إدارة: !تحذير !تحذيرات !ميوت !نو ميوت !بان !نو بان ---
     if (await handleModerationText(message)) return;
