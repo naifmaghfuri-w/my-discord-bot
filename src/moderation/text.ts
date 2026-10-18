@@ -11,6 +11,7 @@ import {
   type User,
 } from "discord.js";
 import { config } from "../config";
+import { isCommandDisabled } from "../admin/commandToggle";
 import { Warning } from "../database/models/Warning";
 import { logModActionText } from "../logs/logger";
 import { logger } from "../utils/logger";
@@ -124,6 +125,12 @@ export async function handleModerationText(message: Message<true>): Promise<bool
         : PermissionFlagsBits.ModerateMembers;
   // من ما عنده صلاحية: نتجاهل بصمت
   if (!can(message, perm)) return false;
+
+  // أمر موقوف من "!إعدادات المسؤول"
+  if (await isCommandDisabled(guild.id, verb)) {
+    await reply(`⛔ أمر **${verb}** موقوف حالياً.`);
+    return true;
+  }
 
   const fetchMember = (id: string) => guild.members.fetch(id).catch(() => null);
 
