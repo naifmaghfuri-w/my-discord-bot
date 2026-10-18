@@ -46,7 +46,7 @@ function buildModal(fromId: string, toId: string, origId?: string): ModalBuilder
   if (D.LabelBuilder && D.FileUploadBuilder) {
     const textLabel = new D.LabelBuilder().setLabel("اكتب همستك").setTextInputComponent(input);
     const file = new D.FileUploadBuilder().setCustomId("img").setRequired(false).setMinValues(0).setMaxValues(1);
-    const fileLabel = new D.LabelBuilder().setLabel("صورة (اختياري)").setFileUploadComponent(file);
+    const fileLabel = new D.LabelBuilder().setLabel("صورة أو فيديو (اختياري)").setFileUploadComponent(file);
     (modal as any).addLabelComponents(textLabel, fileLabel);
   } else {
     input.setLabel("اكتب همستك");
@@ -178,7 +178,9 @@ async function handleButton(i: ButtonInteraction): Promise<void> {
       .setTitle("💌 محتوى الهمسة")
       .setDescription(lines.join("\n"))
       .setThumbnail(i.guild?.iconURL() ?? null);
-    if (doc.imageUrl) embed.setImage(doc.imageUrl);
+    const isVideo = doc.mediaType === "video" && !!doc.imageUrl;
+    if (doc.imageUrl && !isVideo) embed.setImage(doc.imageUrl);
+    if (isVideo) embed.setDescription(`${lines.join("\n")}\n\n🎬 **فيديو مرفق** بالأسفل`);
     if (isRecipient) embed.setFooter({ text: "تُحذف رسالة «وصلتك همسة» بعد ٣٠ ثانية" });
 
     const row = new ActionRowBuilder<ButtonBuilder>();
@@ -194,6 +196,8 @@ async function handleButton(i: ButtonInteraction): Promise<void> {
     }
 
     await i.reply({
+      // رابط الفيديو في المحتوى: ديسكورد يعرضه كمشغّل فيديو داخل الرسالة
+      ...(isVideo ? { content: doc.imageUrl } : {}),
       embeds: [embed],
       components: row.components.length ? [row] : [],
       flags: ephemeral,
@@ -270,14 +274,25 @@ async function handleModal(i: ModalSubmitInteraction): Promise<void> {
     return;
   }
 
-  // الصورة (اختياري): تظهر فقط إذا نسخة discord.js تدعم رفع الملفات في النموذج
-  let imageUrl: string | undefined;
+  // المرفق (اختياري): صورة أو فيديو. يظهر فقط إذا نسخة discord.js تدعم رفع الملفات في النموذج
+  let mediaUrl: string | undefined;
+  let mediaType: "image" | "video" | undefined;
   try {
-    const files = (i.fields as any).getUploadedFiles?.("img") as Map<string, { url: string; contentType?: string | null }> | null | undefined;
+    const files = (i.fields as any).getUploadedFiles?.("img") as
+      | Map<string, { url: string; contentType?: string | null; size?: number }>
+      | null
+      | undefined;
     const first = files ? [...files.values()][0] : undefined;
-    if (first && (first.contentType ?? "").startsWith("image/")) imageUrl = first.url;
+    const ct = first?.contentType ?? "";
+    if (first && ct.startsWith("image/")) {
+      mediaUrl = first.url;
+      mediaType = "image";
+    } else if (first && ct.startsWith("video/")) {
+      mediaUrl = first.url;
+      mediaType = "video";
+    }
   } catch {
-    /* بدون صورة */
+    /* بدون مرفق */
   }
 
   const channel = i.channel;
@@ -291,7 +306,7 @@ async function handleModal(i: ModalSubmitInteraction): Promise<void> {
     fromId,
     toId,
     text,
-    ...(imageUrl ? { imageUrl } : {}),
+    ...(mediaUrl ? { imageUrl: mediaUrl, mediaType } : {}),
     ...(origId ? { replyTo: origId } : {}),
   });
   lastSent.set(fromId, now);
