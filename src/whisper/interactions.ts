@@ -1,5 +1,6 @@
 import {
   ActionRowBuilder,
+  AttachmentBuilder,
   ButtonBuilder,
   ButtonStyle,
   EmbedBuilder,
@@ -25,6 +26,23 @@ const READ_DELETE_MS = 30_000;
 const PROMPT_TTL_MS = 120_000;
 const COOLDOWN_MS = 5_000;
 const lastSent = new Map<string, number>();
+const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
+
+/** ننزّل الفيديو ونرفعه كمرفق حقيقي: هذا اللي يخلي ديسكورد يعرضه كمشغّل داخل الرسالة */
+async function downloadVideo(url: string): Promise<AttachmentBuilder | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+    if (!res.ok) return null;
+    if (Number(res.headers.get("content-length") ?? 0) > MAX_VIDEO_BYTES) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > MAX_VIDEO_BYTES) return null;
+    let ext = (new URL(url).pathname.split(".").pop() ?? "mp4").toLowerCase().replace(/[^a-z0-9]/g, "") || "mp4";
+    if (ext === "mov" || ext === "qt") ext = "mp4"; // مقاطع الآيفون: نفس الترميز، لكن mp4 يشتغل مباشرة بالمشغّل
+    return new AttachmentBuilder(buf, { name: `whisper.${ext}` });
+  } catch {
+    return null;
+  }
+}
 
 const ephemeral = MessageFlags.Ephemeral;
 const quote = (t: string) => t.split("\n").map((l) => `> ${l}`).join("\n");
@@ -195,14 +213,21 @@ async function handleButton(i: ButtonInteraction): Promise<void> {
       }
     }
 
-    await i.reply({
-      // رابط الفيديو في المحتوى: ديسكورد يعرضه كمشغّل فيديو داخل الرسالة
-      ...(isVideo ? { content: doc.imageUrl } : {}),
+    const payload = {
       embeds: [embed],
       components: row.components.length ? [row] : [],
-      flags: ephemeral,
-      allowedMentions: { parse: [] },
-    });
+      allowedMentions: { parse: [] as never[] },
+    };
+    if (isVideo) {
+      await i.deferReply({ flags: ephemeral });
+      const file = await downloadVideo(doc.imageUrl!);
+      let ok = false;
+      if (file) ok = await i.editReply({ ...payload, files: [file] }).then(() => true).catch(() => false);
+      // لو الفيديو كبير أو فشل الرفع: نعرض الرابط
+      if (!ok) await i.editReply({ ...payload, content: doc.imageUrl }).catch(() => undefined);
+    } else {
+      await i.reply({ ...payload, flags: ephemeral });
+    }
 
     // المستلم فتحها: نعلّمها مقروءة ونحذف رسالة الإشعار بعد 30 ثانية
     if (isRecipient && !doc.readAt) {
