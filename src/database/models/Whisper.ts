@@ -6,7 +6,9 @@ export interface IWhisper {
   fromId: string;
   toId: string;
   text: string;
+  /** رابط المرفق (صورة أو فيديو) */
   imageUrl?: string;
+  mediaType?: "image" | "video";
   /** لو هذي همسة رد: معرّف الهمسة الأصلية */
   replyTo?: string;
   readAt?: Date;
@@ -19,6 +21,7 @@ const whisperSchema = new Schema<IWhisper>({
   toId: { type: String, required: true },
   text: { type: String, required: true },
   imageUrl: { type: String },
+  mediaType: { type: String, enum: ["image", "video"] },
   replyTo: { type: String },
   readAt: { type: Date },
   createdAt: { type: Date, default: Date.now, expires: 60 * 60 * 24 * 3 },
