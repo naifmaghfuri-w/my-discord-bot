@@ -1,5 +1,6 @@
 import { PermissionFlagsBits, type Message, type Snowflake } from "discord.js";
 import { config } from "../config";
+import { isCommandDisabled } from "../admin/commandToggle";
 import { logModActionText } from "../logs/logger";
 import { logger } from "../utils/logger";
 
@@ -27,6 +28,12 @@ export async function handleClearMessage(message: Message<true>, args: string | 
 
   // من ما عنده صلاحية: نتجاهل بصمت
   if (!canClear) return false;
+
+  // أمر موقوف من "!إعدادات المسؤول"
+  if (await isCommandDisabled(message.guildId, "حذف")) {
+    notice(message, "⛔ أمر **حذف** موقوف حالياً.");
+    return true;
+  }
 
   let amount: number | undefined;
   let targetId: Snowflake | undefined;
