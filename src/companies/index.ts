@@ -212,7 +212,9 @@ async function buildCompanyPanel(guildId: string, userId: string, note?: string)
         lines.join("\n"),
       ].filter((x, i) => x !== "" || i > 0).join("\n"),
     );
-  const rows: ActionRowBuilder<ButtonBuilder>[] = [row(btn(`co|work|${cid}`, "دوام", ButtonStyle.Success, "🛠️"))];
+  const first = [btn(`co|work|${cid}`, "دوام", ButtonStyle.Success)];
+  if (m.role === "owner") first.push(btn(`co|self|${cid}`, "منصبي وراتبي", ButtonStyle.Secondary, "✏️"));
+  const rows: ActionRowBuilder<ButtonBuilder>[] = [row(...first)];
   if (isBoss(m)) {
     rows.push(row(btn(`co|post|${cid}`, "طلب توظيف", ButtonStyle.Primary, "📢"), btn(`co|mng|${cid}`, "إدارة الموظفين", ButtonStyle.Secondary, "👥")));
   }
@@ -407,6 +409,26 @@ async function route(i: AnyI): Promise<void> {
     if (!m || m.role === "owner") return void (await i.update({ content: "❌ ما تقدر.", components: [] }));
     await CompanyMember.deleteOne({ _id: m._id });
     return void (await i.update({ content: "🚪 استقلت من الشركة.", components: [] }));
+  }
+
+  /* --- المالك يعدّل منصبه وراتبه --- */
+  if (act === "self" && i.isButton()) {
+    const { me } = await ctxOf(i, a);
+    if (me?.role !== "owner") return void (await say("❌ فقط المالك."));
+    const t1 = input("title", "اسم منصبك", "المالك", TextInputStyle.Short, true, 40).components[0].setValue(me.title);
+    const t2 = input("salary", "راتبك اليومي", "0", TextInputStyle.Short, true, 6).components[0].setValue(String(me.salary));
+    await i.showModal(new ModalBuilder().setCustomId(`co|selfm|${a}`).setTitle("منصبي وراتبي").addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(t1), new ActionRowBuilder<TextInputBuilder>().addComponents(t2)));
+    return;
+  }
+  if (act === "selfm" && i.isModalSubmit()) {
+    const { me } = await ctxOf(i, a);
+    if (!me || me.role !== "owner") return void (await say("❌ فقط المالك."));
+    const title = i.fields.getTextInputValue("title").trim();
+    const salary = num(i.fields.getTextInputValue("salary"));
+    if (!title || !(salary >= 0 && salary <= COMPANY_RULES.maxSalary)) return void (await say(`❌ الراتب لازم بين 0 و ${COMPANY_RULES.maxSalary}.`));
+    await CompanyMember.updateOne({ _id: me._id }, { $set: { title, salary } });
+    await i.reply({ ...(await buildCompanyPanel(guildId, uid, `✏️ صار منصبك **${title}** وراتبك ${jenny(salary)} يوميًا (يُدفع من ميزانية الشركة).`)), ...eph });
+    return;
   }
 
   /* --- نشر طلب توظيف --- */
