@@ -4,7 +4,7 @@ export interface ChatMsg {
 }
 
 /** الافتراضي لكل مزوّد (يتغير بمتغير AI_MODEL أو بخيار الموديل في /ذكاء تعيين) */
-const DEFAULT_GEMINI = "gemini-3.6-flash";
+const DEFAULT_GEMINI = "gemini-3.5-flash-lite";
 const DEFAULT_CLAUDE = "claude-haiku-5-5";
 
 /** الأدوار لازم تتناوب وتبدأ بـ user */
