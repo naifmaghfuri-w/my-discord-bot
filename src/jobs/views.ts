@@ -2,7 +2,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, StringSelec
 import { jenny } from "../constants";
 import type { IJobProfile } from "../database/models/JobProfile";
 import { JOBS, JOB_MAP, JOB_RULES } from "./data";
-import { currentStreak, missingReqs, nextRankOf, type JobContext } from "./service";
+import { currentStreak, nextRankOf, type JobContext } from "./service";
 
 export const JOB_APPLY = "job_apply";
 export const JOB_WORK = "job_work";
@@ -28,7 +28,7 @@ export function fmtMs(ms: number): string {
 type View = BaseMessageOptions;
 
 /** !الوظائف: قائمة الوظائف المتاحة مع شروطها + قائمة التقديم */
-export function buildJobsList(owner: string, jp: IJobProfile, ctx: JobContext, note?: string): View {
+export function buildJobsList(owner: string, jp: IJobProfile, _ctx: JobContext, note?: string): View {
   const lines: string[] = [];
   if (jp.notice) lines.push(jp.notice, "");
   if (note) lines.push(note, "");
@@ -44,9 +44,8 @@ export function buildJobsList(owner: string, jp: IJobProfile, ctx: JobContext, n
   }
 
   for (const j of JOBS) {
-    const missing = missingReqs(j.req, ctx);
     const pay = j.kind === "career" ? `${j.ranks[0].pay}–${j.ranks[j.ranks.length - 1].pay} لكل دوام` : `${j.ranks[0].pay} للدوام الكامل (24 ساعة)`;
-    lines.push(`${missing.length ? "🔒" : j.icon} **${j.name}** — ${pay}`, `> ${j.desc}${missing.length ? `\n> الشروط الناقصة: ${missing.join("، ")}` : ""}`);
+    lines.push(`${j.icon} **${j.name}** — ${pay}`, `> ${j.desc}`);
   }
 
   const embed = new EmbedBuilder().setColor(0x3498db).setTitle("💼 الوظائف").setDescription(lines.join("\n"));
@@ -59,7 +58,7 @@ export function buildJobsList(owner: string, jp: IJobProfile, ctx: JobContext, n
       JOBS.map((j) => ({
         label: j.name,
         value: j.id,
-        emoji: missingReqs(j.req, ctx).length ? "🔒" : j.icon,
+        emoji: j.icon,
         description: j.kind === "career" ? "وظيفة مهنية بترقيات" : "دوام كامل 24 ساعة",
       })),
     );
@@ -97,7 +96,7 @@ export function buildMyJob(jp: IJobProfile, note?: string): View {
     if (next) {
       const need = JOB_RULES.promotionStreakDays;
       if ((jp.streakDays ?? 0) >= need) {
-        lines.push(`✅ مؤهّل للترقية إلى **${next.title}**${next.labDiscoveries ? ` (يحتاج ${next.labDiscoveries} اكتشافًا في المختبر)` : ""} — اكتب \`!ترقية\``);
+        lines.push(`✅ مؤهّل للترقية إلى **${next.title}** — اكتب \`!ترقية\``);
       } else {
         lines.push(`🔥 سلسلة الدوام: **${currentStreak(jp)}/${need}** يوم متتالي للترقية إلى **${next.title}**`, "_تفوّت يوم = تبدأ السلسلة من الصفر._");
       }
