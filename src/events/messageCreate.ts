@@ -1,3 +1,7 @@
+import { handleAiMessage } from "./ai/handler";
+// داخل الحدث
+await handleAiMessage(message);
+
 import { handleModerationText } from "../moderation/text";
 import { handleBankText } from "../bank/text";
 import { handleGiveMessage } from "../balance/give";
