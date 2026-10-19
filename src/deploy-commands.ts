@@ -1,11 +1,12 @@
 import { REST, Routes } from "discord.js";
+import { data as aiCommand } from "./ai/commands";
 import { config } from "./config";
 import { logger } from "./utils/logger";
 
 /** ينشر الأوامر لديسكورد (يُستدعى تلقائياً عند تشغيل البوت، أو يدوياً بـ npm run deploy) */
 export async function deployCommands(): Promise<void> {
-  // الأوامر صارت كتابية (بدون سلاش)، فننشر قائمة فاضية لحذف أوامر السلاش القديمة من ديسكورد
-  const commands: unknown[] = [];
+  // باقي الأوامر كتابية (بدون سلاش)، والسلاش الوحيد حالياً هو /ذكاء
+  const commands = [aiCommand.toJSON()];
   const rest = new REST().setToken(config.token);
 
   const route = config.guildId
@@ -13,7 +14,7 @@ export async function deployCommands(): Promise<void> {
     : Routes.applicationCommands(config.clientId);
 
   await rest.put(route, { body: commands });
-  logger.info(`تم حذف أوامر السلاش ${config.guildId ? "من سيرفر الاختبار" : "بشكل عام"} (الأوامر الآن كتابية)`);
+  logger.info(`تم نشر أمر /ذكاء ${config.guildId ? "في سيرفر الاختبار فقط" : "بشكل عام (كل السيرفرات)"}`);
 }
 
 // التشغيل اليدوي: npm run deploy
