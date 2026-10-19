@@ -1,6 +1,4 @@
-import { BANK_INTEREST_RATE, REWARDS } from "../constants";
 import { UserProfile, type IUserProfile } from "../database/models/UserProfile";
-import { logTransaction } from "./transactions";
 
 /** يجلب ملف العضو وينشئه إن لم يكن موجوداً */
 export async function getProfile(userId: string, guildId: string): Promise<IUserProfile> {
@@ -59,30 +57,4 @@ export async function grantReward(
   if (leveledUp) await UserProfile.updateOne({ userId, guildId }, { $set: { level, xp } });
 
   return { level, xp, leveledUp };
-}
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-export type DailyResult = { ok: true; amount: number; interest: number } | { ok: false; msLeft: number };
-
-export async function claimDaily(userId: string, guildId: string): Promise<DailyResult> {
-  const profile = await getProfile(userId, guildId);
-  const amount = REWARDS.dailyMin + Math.floor(Math.random() * (REWARDS.dailyMax - REWARDS.dailyMin + 1));
-  const interest = Math.floor((profile.bank ?? 0) * BANK_INTEREST_RATE);
-  const threshold = new Date(Date.now() - DAY_MS);
-
-  // تحديث ذري: يمنع المطالبة مرتين عند الضغط السريع
-  const updated = await UserProfile.findOneAndUpdate(
-    { userId, guildId, $or: [{ lastDaily: { $exists: false } }, { lastDaily: { $lte: threshold } }] },
-    { $inc: { coins: amount, bank: interest }, $set: { lastDaily: new Date() } },
-    { new: true },
-  );
-
-  if (updated) {
-    if (interest > 0) await logTransaction(guildId, userId, "interest", interest);
-    return { ok: true, amount, interest };
-  }
-
-  const last = profile.lastDaily?.getTime() ?? Date.now();
-  return { ok: false, msLeft: Math.max(0, DAY_MS - (Date.now() - last)) };
 }
