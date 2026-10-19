@@ -15,12 +15,10 @@ export const JOB_RULES = {
   promotionStreakDays: 30,
 } as const;
 
+/** (غير مستخدم: الوظائف العادية بدون شروط) */
 export interface JobReq {
-  /** مستوى العضو في السيرفر */
   level?: number;
-  /** مستوى المختبر */
   labLevel?: number;
-  /** يحتاج حساب بنكي */
   bank?: boolean;
 }
 
@@ -30,7 +28,7 @@ export interface JobRank {
   pay: number;
   /** (قديم، ما عاد يُستخدم للترقية — الترقية الآن بسلسلة 30 يوم) */
   shiftsNeeded: number;
-  /** شرط إضافي للترقية: عدد المركبات المكتشفة في المختبر */
+  /** (غير مستخدم) */
   labDiscoveries?: number;
 }
 
@@ -48,7 +46,7 @@ export interface JobDef {
 
 export const JOBS: JobDef[] = [
   {
-    id: "courier", name: "موصل طلبات", icon: "🛵", kind: "career", desc: "توصيل بسيط، مفتوح للجميع. ترقياته بطيئة.",
+    id: "courier", name: "موصل طلبات", icon: "🛵", kind: "career", desc: "توصيل بسيط. ترقياته بطيئة.",
     req: {},
     ranks: [
       { title: "موصل", pay: 60, shiftsNeeded: 0 },
@@ -58,17 +56,17 @@ export const JOBS: JobDef[] = [
     ],
   },
   {
-    id: "lab_assistant", name: "مساعد مختبر", icon: "🧪", kind: "career", desc: "اشتغل في الأبحاث. الرتبة الأخيرة تحتاج اكتشافات في المختبر.",
-    req: { labLevel: 2 },
+    id: "lab_assistant", name: "مساعد مختبر", icon: "🧪", kind: "career", desc: "اشتغل في الأبحاث.",
+    req: {},
     ranks: [
       { title: "مساعد مختبر", pay: 90, shiftsNeeded: 0 },
       { title: "كيميائي", pay: 140, shiftsNeeded: 30 },
-      { title: "رئيس أبحاث", pay: 220, shiftsNeeded: 80, labDiscoveries: 15 },
+      { title: "رئيس أبحاث", pay: 220, shiftsNeeded: 80 },
     ],
   },
   {
-    id: "bank_clerk", name: "موظف بنك", icon: "🏦", kind: "career", desc: "تحتاج حساب بنكي. رواتب جيدة وترقيات بطيئة.",
-    req: { level: 5, bank: true },
+    id: "bank_clerk", name: "موظف بنك", icon: "🏦", kind: "career", desc: "رواتب جيدة وترقيات بطيئة.",
+    req: {},
     ranks: [
       { title: "موظف", pay: 100, shiftsNeeded: 0 },
       { title: "محاسب", pay: 160, shiftsNeeded: 35 },
@@ -77,17 +75,17 @@ export const JOBS: JobDef[] = [
   },
   {
     id: "truck_driver", name: "سائق شاحنة", icon: "🚛", kind: "fullday", desc: "رحلة يوم كامل. راتب ثابت بدون ترقيات.",
-    req: { level: 5 },
+    req: {},
     ranks: [{ title: "سائق", pay: 700, shiftsNeeded: 0 }],
   },
   {
     id: "fisherman", name: "صياد سمك", icon: "🎣", kind: "fullday", desc: "يوم كامل في البحر. راتب أعلى بدون ترقيات.",
-    req: { level: 8 },
+    req: {},
     ranks: [{ title: "صياد", pay: 900, shiftsNeeded: 0 }],
   },
   {
     id: "miner", name: "عامل منجم", icon: "⛏️", kind: "fullday", desc: "أعلى راتب لكن فيه خطر إصابة (10%) تخسّرك 30% من الراتب.",
-    req: { level: 12 },
+    req: {},
     ranks: [{ title: "عامل منجم", pay: 1200, shiftsNeeded: 0 }],
     accident: { chance: 0.1, lossPct: 0.3 },
   },
