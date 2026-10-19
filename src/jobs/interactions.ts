@@ -30,7 +30,7 @@ async function panel(userId: string, guildId: string, note?: string) {
 function workText(r: WorkResult): string {
   if (!r.ok) {
     if (r.reason === "no_job") return "❌ ما عندك وظيفة. اكتب `!الوظائف` وقدّم على وحدة.";
-    if (r.reason === "cooldown") return `⏳ تعبت! الدوام القادم بعد ${fmtMs(r.msLeft)}.`;
+    if (r.reason === "cooldown") return `⏳ الدوام القادم بعد ${fmtMs(r.msLeft)}.`;
     return `⏳ دوامك مستمر، يخلص بعد ${fmtMs(r.msLeft)}.`;
   }
   if (r.kind === "started") return "🛠️ بدأت دوامك الكامل! ارجع بعد 24 ساعة واكتب `!دوام` لتستلم راتبك.";
