@@ -1,7 +1,4 @@
-import { handleAiMessage } from "./ai/handler";
-// داخل الحدث
-await handleAiMessage(message);
-
+import { handleAiMessage } from "../ai/handler";
 import { handleModerationText } from "../moderation/text";
 import { handleBankText } from "../bank/text";
 import { handleGiveMessage } from "../balance/give";
@@ -632,6 +629,9 @@ const event: BotEvent = {
         }
       }
     }
+
+    // --- الدردشة الذكية: تصل هنا فقط الرسائل اللي ما كانت أمراً ---
+    void handleAiMessage(message);
 
     const channel = toAnnouncer(message.channel);
     const content = rawContent;
