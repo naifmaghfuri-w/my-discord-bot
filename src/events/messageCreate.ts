@@ -17,6 +17,7 @@ import { config } from "../config";
 import { CURRENCY, jenny } from "../constants";
 import { getGender, type Gender } from "../family/gender";
 import { touchRoom } from "../chat/service";
+import { COMPANY_HUB_TRIGGER, COMPANY_MINE_TRIGGER, handleCompanyMessage, handleCompanyWorkMessage } from "../companies";
 import { JOBS_TRIGGER, PROMO_TRIGGER, RESIGN_TRIGGER, WORK_TRIGGER, handleJobMessage } from "../jobs/interactions";
 import { DUEL_TRIGGER, HUNTER_TRIGGER, handleDuelMessage, handleHunterMessage } from "../hunter/interactions";
 import { handleCountingMessage } from "../counting/service";
@@ -142,11 +143,16 @@ const event: BotEvent = {
       await handleStreakMessage(message);
       return;
     }
+    if (COMPANY_HUB_TRIGGER.test(rawContent.trim()) || COMPANY_MINE_TRIGGER.test(rawContent.trim())) {
+      await handleCompanyMessage(message);
+      return;
+    }
     if (JOBS_TRIGGER.test(rawContent.trim())) {
       await handleJobMessage(message, "panel");
       return;
     }
     if (WORK_TRIGGER.test(rawContent.trim())) {
+      if (await handleCompanyWorkMessage(message, "work")) return;
       await handleJobMessage(message, "work");
       return;
     }
@@ -155,6 +161,7 @@ const event: BotEvent = {
       return;
     }
     if (RESIGN_TRIGGER.test(rawContent.trim())) {
+      if (await handleCompanyWorkMessage(message, "resign")) return;
       await handleJobMessage(message, "resign");
       return;
     }
