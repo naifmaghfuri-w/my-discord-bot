@@ -9,6 +9,7 @@ import type { BotClient } from "../client";
 import { handleFamilyButton } from "../family/interactions";
 import { handleLabButton, handleLabSelect } from "../lab/interactions";
 import { handleHunterButton, handleHunterSelect } from "../hunter/interactions";
+import { handleCompanyInteraction } from "../companies";
 import { handleJobButton, handleJobSelect } from "../jobs/interactions";
 import { handleStreakButton, handleStreakSelect } from "../streak/interactions";
 import { handleGamesInteraction } from "../games";
@@ -26,6 +27,7 @@ const event: BotEvent = {
   name: Events.InteractionCreate,
   async execute(client: BotClient, interaction: Interaction) {
     if (await handleAdminSettingsInteraction(interaction)) return;
+    if (await handleCompanyInteraction(interaction)) return;
     if (await handleBotProfileInteraction(interaction)) return;
     if (await handleWhisperInteraction(interaction)) return;
     if (await handleGamesInteraction(interaction).catch((err) => (logger.error("خطأ في الألعاب", err), false))) return;
