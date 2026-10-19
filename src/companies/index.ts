@@ -101,7 +101,7 @@ async function companyShift(guildId: string, userId: string): Promise<string | n
   const upd = await CompanyMember.findOneAndUpdate({ _id: m._id, $or: [{ lastShiftAt: null }, { lastShiftAt: { $lte: cutoff } }] }, { $set: { lastShiftAt: new Date() } });
   if (!upd) {
     const last = m.lastShiftAt ? new Date(m.lastShiftAt).getTime() : 0;
-    return `⏳ تعبت! الدوام القادم بعد ${fmtMs(Math.max(60_000, COMPANY_RULES.shiftCooldownMs - (Date.now() - last)))}.`;
+    return `⏳ الدوام القادم بعد ${fmtMs(Math.max(60_000, COMPANY_RULES.shiftCooldownMs - (Date.now() - last)))}.`;
   }
   const gain = isBoss(m) ? COMPANY_RULES.shiftGainOfficial : COMPANY_RULES.shiftGainEmployee;
   const c = await Company.findOneAndUpdate({ _id: m.companyId }, { $inc: { budget: gain } }, { new: true });
@@ -210,8 +210,6 @@ async function buildCompanyPanel(guildId: string, userId: string, note?: string)
         `أنت: ${ROLE_NAME[m.role]} — **${m.title}** (${jenny(m.salary)} يوميًا)`,
         "",
         lines.join("\n"),
-        "",
-        "_الدوام (`!دوام`) يزيد الميزانية، والرواتب توزّع كل 24 ساعة لمن داوم._",
       ].filter((x, i) => x !== "" || i > 0).join("\n"),
     );
   const rows: ActionRowBuilder<ButtonBuilder>[] = [row(btn(`co|work|${cid}`, "دوام", ButtonStyle.Success, "🛠️"))];
