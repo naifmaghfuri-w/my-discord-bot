@@ -100,13 +100,9 @@ export async function loadContext(userId: string, guildId: string): Promise<JobC
   };
 }
 
-/** الشروط الناقصة (قائمة نصوص، فاضية = مؤهّل) */
-export function missingReqs(req: JobReq, ctx: JobContext): string[] {
-  const out: string[] = [];
-  if (req.level && ctx.level < req.level) out.push(`مستوى ${req.level}`);
-  if (req.labLevel && ctx.labLevel < req.labLevel) out.push(`مستوى مختبر ${req.labLevel}`);
-  if (req.bank && !ctx.hasBank) out.push("حساب بنكي");
-  return out;
+/** ما فيه شروط للوظائف العادية: أي أحد يقدر يقدّم */
+export function missingReqs(_req: JobReq, _ctx: JobContext): string[] {
+  return [];
 }
 
 export type ApplyResult =
@@ -234,11 +230,6 @@ export async function requestPromotion(userId: string, guildId: string): Promise
 
   const need = JOB_RULES.promotionStreakDays;
   if ((jp.streakDays ?? 0) < need) return { ok: false, reason: "not_ready", streak: currentStreak(jp), need };
-
-  if (next.labDiscoveries) {
-    const ctx = await loadContext(userId, guildId);
-    if (ctx.labDiscoveries < next.labDiscoveries) return { ok: false, reason: "discoveries", discoveriesLeft: next.labDiscoveries - ctx.labDiscoveries };
-  }
 
   const up = await JobProfile.findOneAndUpdate(
     { userId, guildId, jobId: job.id, rank: jp.rank, streakDays: { $gte: need } },
