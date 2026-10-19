@@ -128,9 +128,9 @@ export async function handleAiMessage(message: Message): Promise<void> {
       const speech = cleanForSpeech(reply);
       if (speech.length >= 2) {
         try {
-          const audio = await synthesize(speech, s.voice || DEFAULT_VOICE);
+          const { audio, ext } = await synthesize(speech, s.voice || DEFAULT_VOICE);
           await message.reply({
-            files: [{ attachment: audio, name: "voice.mp3" }],
+            files: [{ attachment: audio, name: `voice.${ext}` }],
             allowedMentions: { parse: [], repliedUser: false },
           });
           sent = true;
