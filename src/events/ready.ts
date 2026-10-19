@@ -9,6 +9,11 @@ import { loadTicketCache } from "../tickets/service";
 import { applyBotStatus } from "../botprofile/interactions";
 import { logger } from "../utils/logger";
 
+import { startCompanyPayroll } from "../companies";
+// داخل execute بعد تسجيل الدخول:
+startCompanyPayroll();
+
+
 const event: BotEvent = {
   name: Events.ClientReady,
   once: true,
