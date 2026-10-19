@@ -23,8 +23,6 @@ export function xp(amount: number): string {
 
 /** كل مبالغ المكافآت في مكان واحد لسهولة التعديل */
 export const REWARDS = {
-  dailyMin: 100,
-  dailyMax: 200,
   coinflipWin: 20,
   rpsWin: 50,
   xoWin: 100,
@@ -32,6 +30,3 @@ export const REWARDS = {
   birthdayJenny: 500,
   birthdayXp: 200,
 } as const;
-
-/** نسبة الفائدة اليومية على رصيد البنك (2% تُضاف تلقائياً مع كل /daily) */
-export const BANK_INTEREST_RATE = 0.02;
