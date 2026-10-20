@@ -26,6 +26,8 @@ export interface CompoundDef {
   engram?: string;
   /** ناتج جانبي: يطلع من تجربة "خاطئة" معروفة بدل النفايات (يصنع بأي حرارة وضغط) */
   byproduct?: boolean;
+  /** مركب بارد: يحتاج مبرّد المفاعل وحرارة تحت الصفر */
+  cold?: boolean;
 }
 
 export const COMPOUNDS: CompoundDef[] = [
@@ -115,11 +117,26 @@ export const COMPOUNDS: CompoundDef[] = [
   { id: "genesis_cell", name: "خلية التكوين", icon: "✦", rarity: "legendary", recipe: { silver_serum: 1, elixir_of_life: 1 }, tempRange: [40, 40], pressureRange: [1, 1], xp: 180, basePrice: 820 },
   { id: "nuclear_fuel", name: "وقود نووي", icon: "✦", rarity: "legendary", recipe: { plutonium: 1, steel: 1, water: 1 }, tempRange: [300, 400], pressureRange: [10, 14], xp: 200, basePrice: 900, hazard: 3, radioactive: true, engram: "nuclear" },
   { id: "atomic_battery", name: "بطارية ذرّية", icon: "✦", rarity: "legendary", recipe: { plutonium: 1, li_battery: 1 }, tempRange: [100, 200], pressureRange: [1, 2], xp: 200, basePrice: 950, hazard: 2, radioactive: true, engram: "nuclear" },
+  /* ───────────── مركبات التبريد (تحتاج مبرّد المفاعل وحرارة تحت الصفر) ───────────── */
+  { id: "ice", name: "ثلج", icon: "H₂O(s)", rarity: "uncommon", recipe: { water: 2 }, tempRange: [-40, -5], pressureRange: [1, 3], xp: 20, basePrice: 55, cold: true },
+  { id: "dry_ice", name: "ثلج جاف", icon: "CO₂(s)", rarity: "uncommon", recipe: { co2: 2 }, tempRange: [-100, -60], pressureRange: [1, 3], xp: 24, basePrice: 75, cold: true },
+  { id: "slush", name: "مزيج مثلّج", icon: "✦", rarity: "uncommon", recipe: { saline: 1, water: 1 }, tempRange: [-30, -10], pressureRange: [1, 2], xp: 24, basePrice: 70, cold: true },
+  { id: "liquid_nitrogen", name: "نيتروجين سائل", icon: "N₂(l)", rarity: "uncommon", recipe: { nitrogen: 2 }, tempRange: [-200, -150], pressureRange: [1, 3], xp: 26, basePrice: 85, hazard: 1, cold: true },
+  { id: "liquid_oxygen", name: "أكسجين سائل", icon: "O₂(l)", rarity: "uncommon", recipe: { oxygen: 2 }, tempRange: [-200, -150], pressureRange: [1, 3], xp: 26, basePrice: 85, hazard: 1, cold: true },
+  { id: "liquid_hydrogen", name: "هيدروجين سائل", icon: "H₂(l)", rarity: "rare", recipe: { hydrogen: 2 }, tempRange: [-200, -150], pressureRange: [2, 5], xp: 44, basePrice: 160, hazard: 2, cold: true },
+  { id: "liquid_methane", name: "ميثان مسال", icon: "CH₄(l)", rarity: "rare", recipe: { methane: 2 }, tempRange: [-200, -100], pressureRange: [1, 4], xp: 44, basePrice: 150, hazard: 1, cold: true },
+  { id: "liquid_helium", name: "هيليوم سائل", icon: "He(l)", rarity: "rare", recipe: { helium: 2 }, tempRange: [-200, -160], pressureRange: [1, 3], xp: 48, basePrice: 190, cold: true },
+  { id: "supercold_alloy", name: "سبيكة فائقة البرودة", icon: "✦", rarity: "epic", recipe: { steel: 1, liquid_nitrogen: 1 }, tempRange: [-200, -150], pressureRange: [1, 3], xp: 80, basePrice: 280, cold: true },
+  { id: "cryo_serum", name: "مصل التبريد", icon: "✦", rarity: "epic", recipe: { bio_serum: 1, ice: 2 }, tempRange: [-60, -20], pressureRange: [1, 2], xp: 85, basePrice: 290, cold: true },
+  { id: "superconductor", name: "موصل فائق", icon: "✦", rarity: "epic", recipe: { copper: 2, liquid_helium: 1 }, tempRange: [-200, -160], pressureRange: [1, 2], xp: 90, basePrice: 340, cold: true },
+  { id: "frost_crystal", name: "بلورة الصقيع", icon: "✦", rarity: "legendary", recipe: { superconductor: 1, supercold_alloy: 1 }, tempRange: [-200, -200], pressureRange: [1, 1], xp: 190, basePrice: 880, cold: true },
 ];
 
 export const COMPOUND_MAP = Object.fromEntries(COMPOUNDS.map((c) => [c.id, c]));
 
 export const TEMP = { min: 0, max: 500, step: 10, default: 20 } as const;
 export const PRESSURE = { min: 1, max: 15, step: 1, default: 1 } as const;
+/** نطاق حرارة المبرّد (تحت الصفر) */
+export const COLD = { min: -200, max: -5 } as const;
 /** مضاعف الخطوة: عادي (×1) أو سريع (×5) */
 export const STEP_MULTIPLIERS = [1, 5] as const;
