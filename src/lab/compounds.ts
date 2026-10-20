@@ -26,7 +26,7 @@ export interface CompoundDef {
   engram?: string;
   /** ناتج جانبي: يطلع من تجربة "خاطئة" معروفة بدل النفايات (يصنع بأي حرارة وضغط) */
   byproduct?: boolean;
-  /** مركب بارد: يحتاج مبرّد المفاعل وحرارة تحت الصفر */
+  /** يحتاج امتلاك مبرّد المفاعل (بعضها بحرارة تحت الصفر وبعضها مكثّف بحرارة عادية) */
   cold?: boolean;
 }
 
@@ -117,6 +117,14 @@ export const COMPOUNDS: CompoundDef[] = [
   { id: "genesis_cell", name: "خلية التكوين", icon: "✦", rarity: "legendary", recipe: { silver_serum: 1, elixir_of_life: 1 }, tempRange: [40, 40], pressureRange: [1, 1], xp: 180, basePrice: 820 },
   { id: "nuclear_fuel", name: "وقود نووي", icon: "✦", rarity: "legendary", recipe: { plutonium: 1, steel: 1, water: 1 }, tempRange: [300, 400], pressureRange: [10, 14], xp: 200, basePrice: 900, hazard: 3, radioactive: true, engram: "nuclear" },
   { id: "atomic_battery", name: "بطارية ذرّية", icon: "✦", rarity: "legendary", recipe: { plutonium: 1, li_battery: 1 }, tempRange: [100, 200], pressureRange: [1, 2], xp: 200, basePrice: 950, hazard: 2, radioactive: true, engram: "nuclear" },
+  /* ───────────── مركبات المكثّف (تحتاج امتلاك المبرّد، بحرارة عادية/عالية) ───────────── */
+  { id: "essential_oil", name: "زيت عطري", icon: "✦", rarity: "uncommon", recipe: { steam: 1, ethanol: 1 }, tempRange: [90, 110], pressureRange: [1, 1], xp: 24, basePrice: 85, cold: true },
+  { id: "methanol", name: "ميثانول", icon: "CH₃OH", rarity: "uncommon", recipe: { methane: 1, oxygen: 1 }, tempRange: [60, 70], pressureRange: [1, 2], xp: 24, basePrice: 80, hazard: 1, cold: true },
+  { id: "acetone", name: "أسيتون", icon: "C₃H₆O", rarity: "uncommon", recipe: { ethanol: 1, quicklime: 1 }, tempRange: [55, 65], pressureRange: [1, 2], xp: 24, basePrice: 82, hazard: 1, cold: true },
+  { id: "ethyl_acetate", name: "أسيتات الإيثيل", icon: "C₄H₈O₂", rarity: "rare", recipe: { ethanol: 2, sulfuric_acid: 1 }, tempRange: [70, 90], pressureRange: [1, 2], xp: 46, basePrice: 150, cold: true },
+  { id: "nitrobenzene", name: "نيتروبنزين", icon: "C₆H₅NO₂", rarity: "rare", recipe: { tar: 1, sulfuric_acid: 1, nitrogen: 1 }, tempRange: [50, 70], pressureRange: [1, 3], xp: 46, basePrice: 170, hazard: 2, cold: true },
+  { id: "benzoic_acid", name: "حمض البنزويك", icon: "C₇H₆O₂", rarity: "rare", recipe: { tar: 1, manganese: 1, potassium: 1 }, tempRange: [90, 110], pressureRange: [1, 2], xp: 46, basePrice: 175, cold: true },
+  { id: "aspirin", name: "الأسبرين", icon: "C₉H₈O₄", rarity: "rare", recipe: { ethanol: 1, tar: 1, sulfuric_acid: 1 }, tempRange: [50, 70], pressureRange: [1, 2], xp: 48, basePrice: 190, cold: true },
   /* ───────────── مركبات التبريد (تحتاج مبرّد المفاعل وحرارة تحت الصفر) ───────────── */
   { id: "ice", name: "ثلج", icon: "H₂O(s)", rarity: "uncommon", recipe: { water: 2 }, tempRange: [-40, -5], pressureRange: [1, 3], xp: 20, basePrice: 55, cold: true },
   { id: "dry_ice", name: "ثلج جاف", icon: "CO₂(s)", rarity: "uncommon", recipe: { co2: 2 }, tempRange: [-100, -60], pressureRange: [1, 3], xp: 24, basePrice: 75, cold: true },
