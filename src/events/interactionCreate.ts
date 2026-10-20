@@ -1,5 +1,4 @@
 import { Collection, Events, MessageFlags, type Interaction } from "discord.js";
-import { execute as executeAi } from "../ai/commands";
 import { handleAfkButton, handleAfkModal } from "../afk/interactions";
 import { handleBankButton, handleBankModal } from "../bank/interactions";
 import { handleBirthdayButton, handleBirthdayModal } from "../birthday/interactions";
@@ -11,6 +10,7 @@ import { handleFamilyButton } from "../family/interactions";
 import { handleLabButton, handleLabSelect } from "../lab/interactions";
 import { handleHunterButton, handleHunterSelect } from "../hunter/interactions";
 import { handleCompanyInteraction } from "../companies";
+import { handleTalkInteraction } from "../talk";
 import { handleJobButton, handleJobSelect } from "../jobs/interactions";
 import { handleStreakButton, handleStreakSelect } from "../streak/interactions";
 import { handleGamesInteraction } from "../games";
@@ -27,21 +27,9 @@ const cooldowns = new Collection<string, number>();
 const event: BotEvent = {
   name: Events.InteractionCreate,
   async execute(client: BotClient, interaction: Interaction) {
-    // --- أمر السلاش /ذكاء (إعداد الدردشة الذكية) ---
-    if (interaction.isChatInputCommand() && interaction.commandName === "ذكاء") {
-      try {
-        await executeAi(interaction);
-      } catch (err) {
-        logger.error("خطأ في أمر /ذكاء", err);
-        const payload = { content: "❌ حدث خطأ أثناء تنفيذ الأمر.", flags: MessageFlags.Ephemeral } as const;
-        if (interaction.replied || interaction.deferred) await interaction.followUp(payload).catch(() => undefined);
-        else await interaction.reply(payload).catch(() => undefined);
-      }
-      return;
-    }
-
     if (await handleAdminSettingsInteraction(interaction)) return;
     if (await handleCompanyInteraction(interaction)) return;
+    if (await handleTalkInteraction(interaction)) return;
     if (await handleBotProfileInteraction(interaction)) return;
     if (await handleWhisperInteraction(interaction)) return;
     if (await handleGamesInteraction(interaction).catch((err) => (logger.error("خطأ في الألعاب", err), false))) return;
