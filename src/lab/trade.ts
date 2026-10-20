@@ -17,7 +17,7 @@ import { getLabProfile } from "./service";
 export const TRADE_TRIGGER = /^عرض\s+<@!?(\d+)>\s+(\d{1,7})(?:\s+(\d{1,2}))?$/;
 
 /** قنوات التبادل المسموحة فقط */
-export const TRADE_CHANNELS = ["1522782977472462898", "1551169206400188538"];
+export const TRADE_CHANNELS = ["1522782977472462898", "1551169206400188538", "1519761843248300062"];
 
 export const MAX_PRICE = 1_000_000;
 export const OFFER_TTL_MS = 10 * 60 * 1000;
