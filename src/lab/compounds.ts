@@ -119,7 +119,7 @@ export const COMPOUNDS: CompoundDef[] = [
   { id: "atomic_battery", name: "بطارية ذرّية", icon: "✦", rarity: "legendary", recipe: { plutonium: 1, li_battery: 1 }, tempRange: [100, 200], pressureRange: [1, 2], xp: 200, basePrice: 950, hazard: 2, radioactive: true, engram: "nuclear" },
   /* ───────────── مواد وسيطة للمركبات العضوية (مصنّعة، بدون مبرّد) ───────────── */
   { id: "acetic_acid", name: "حمض الأستيك", icon: "CH₃COOH", rarity: "uncommon", recipe: { ethanol: 1, oxygen: 1 }, tempRange: [30, 50], pressureRange: [1, 2], xp: 24, basePrice: 70 },
-  { id: "benzene", name: "بنزين (البنزول)", icon: "C₆H₆", rarity: "uncommon", recipe: { carbon: 3, hydrogen: 3 }, tempRange: [60, 80], pressureRange: [1, 2], xp: 24, basePrice: 75, hazard: 1 },
+  { id: "benzene", name: "بنزين (البنزول)", icon: "C₆H₆", rarity: "uncommon", recipe: { carbon: 6, hydrogen: 6 }, tempRange: [60, 80], pressureRange: [1, 2], xp: 24, basePrice: 75, hazard: 1 },
   { id: "nitric_acid", name: "حمض النيتريك", icon: "HNO₃", rarity: "uncommon", recipe: { hydrogen: 1, nitrogen: 1, oxygen: 3 }, tempRange: [20, 40], pressureRange: [2, 4], xp: 24, basePrice: 70, hazard: 1 },
   { id: "toluene", name: "تولوين", icon: "C₇H₈", rarity: "rare", recipe: { benzene: 1, methane: 1 }, tempRange: [100, 120], pressureRange: [1, 3], xp: 44, basePrice: 130, hazard: 1 },
   { id: "nitrating_mix", name: "مزيج النيترة", icon: "HNO₃+H₂SO₄", rarity: "rare", recipe: { nitric_acid: 1, sulfuric_acid: 1 }, tempRange: [10, 30], pressureRange: [1, 2], xp: 46, basePrice: 140, hazard: 2 },
