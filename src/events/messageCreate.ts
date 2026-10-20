@@ -1,4 +1,3 @@
-import { handleAiMessage } from "../ai/handler";
 import { handleModerationText } from "../moderation/text";
 import { handleBankText } from "../bank/text";
 import { handleGiveMessage } from "../balance/give";
@@ -18,6 +17,7 @@ import { config } from "../config";
 import { CURRENCY, jenny } from "../constants";
 import { getGender, type Gender } from "../family/gender";
 import { touchRoom } from "../chat/service";
+import { handleTalkMessage, handleTalkReply } from "../talk";
 import { COMPANY_HUB_TRIGGER, COMPANY_MINE_TRIGGER, handleCompanyMessage, handleCompanyWorkMessage } from "../companies";
 import { JOBS_TRIGGER, PROMO_TRIGGER, RESIGN_TRIGGER, WORK_TRIGGER, handleJobMessage } from "../jobs/interactions";
 import { DUEL_TRIGGER, HUNTER_TRIGGER, handleDuelMessage, handleHunterMessage } from "../hunter/interactions";
@@ -103,6 +103,9 @@ const event: BotEvent = {
     // نشاط بالدردشات الخاصة (يمنع حذفها كخاملة)
     touchRoom(message.channelId);
 
+    // --- البوت المتحدث: يرد في غرفته أو عند منشنه (بدون ما يوقف باقي الأنظمة) ---
+    void handleTalkReply(message);
+
     // --- تفعيل AFK بكتابة "afk" أو "afk سبب" (بدون سلاش) ---
     const trigger = AFK_TRIGGER.exec(rawContent.trim());
     if (trigger) {
@@ -128,6 +131,7 @@ const event: BotEvent = {
 
     // --- لوحة تشغيل/إيقاف الأوامر الإدارية: "!إعدادات المسؤول" ---
     if (await handleAdminSettingsMessage(message)) return;
+    if (await handleTalkMessage(message)) return;
 
     // --- إدارة: !تحذير !تحذيرات !ميوت !نو ميوت !بان !نو بان ---
     if (await handleModerationText(message)) return;
@@ -629,9 +633,6 @@ const event: BotEvent = {
         }
       }
     }
-
-    // --- الدردشة الذكية: تصل هنا فقط الرسائل اللي ما كانت أمراً ---
-    void handleAiMessage(message);
 
     const channel = toAnnouncer(message.channel);
     const content = rawContent;
