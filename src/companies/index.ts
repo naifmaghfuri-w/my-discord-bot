@@ -1,6 +1,6 @@
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle,
-  type BaseMessageOptions, type ButtonInteraction, type Interaction, type Message, type ModalSubmitInteraction, type StringSelectMenuInteraction,
+  type BaseMessageOptions, type ButtonInteraction, type Client, type Interaction, type Message, type ModalSubmitInteraction, type StringSelectMenuInteraction,
 } from "discord.js";
 import { jenny } from "../constants";
 import { Company, CompanyApplication, CompanyMember, CompanyPosting, type ICompany, type ICompanyMember } from "../database/models/Company";
@@ -9,6 +9,7 @@ import { JOBS } from "../jobs/data";
 import { buildJobsPanel, fmtMs } from "../jobs/views";
 import { clearNotice, getJob, loadContext } from "../jobs/service";
 import { logTransaction } from "../services/transactions";
+import { renderCompanyCard } from "./card";
 
 /* ───────────── الثوابت ───────────── */
 
@@ -186,7 +187,14 @@ async function buildPostingsList(guildId: string): Promise<View> {
   return { embeds: [new EmbedBuilder().setColor(COLOR).setTitle("🏢 وظائف الشركات").setDescription(lines.join("\n") || "ما فيه وظائف مفتوحة الحين.")], components: [] };
 }
 
-async function buildCompanyPanel(guildId: string, userId: string, note?: string): Promise<View> {
+async function memberInfo(client: Client, guildId: string, id: string): Promise<{ name: string; avatar?: string }> {
+  const gm = await client.guilds.cache.get(guildId)?.members.fetch(id).catch(() => null);
+  if (gm) return { name: gm.displayName, avatar: gm.displayAvatarURL({ extension: "png", size: 128 }) };
+  const u = await client.users.fetch(id).catch(() => null);
+  return { name: u?.username ?? id, avatar: u?.displayAvatarURL({ extension: "png", size: 128 }) };
+}
+
+async function buildCompanyPanel(guildId: string, userId: string, client: Client, note?: string): Promise<View> {
   const m = await myMembership(guildId, userId);
   if (!m) {
     return { content: "ما عندك شركة. اكتب `!وظائف` ثم اضغط «فتح شركة»، أو قدّم على طلب توظيف.", embeds: [], components: [] };
@@ -197,6 +205,30 @@ async function buildCompanyPanel(guildId: string, userId: string, note?: string)
   const members = await CompanyMember.find({ companyId: cid }).sort({ salary: -1 });
   const payroll = members.reduce((s, x) => s + x.salary, 0);
   const lines = members.slice(0, 15).map((x) => `${ROLE_NAME[x.role]} ${mention(x.userId)} — ${x.title} • ${jenny(x.salary)}`);
+  const since = new Date(c.lastPayrollAt).getTime();
+  const shown = members.slice(0, 6);
+  const infos = await Promise.all(shown.map((x) => memberInfo(client, guildId, x.userId)));
+  const ownerIdx = shown.findIndex((x) => x.role === "owner");
+  const ownerName = ownerIdx >= 0 ? infos[ownerIdx].name : (await memberInfo(client, guildId, c.ownerId)).name;
+  const shiftLeft = m.lastShiftAt ? COMPANY_RULES.shiftCooldownMs - (Date.now() - new Date(m.lastShiftAt).getTime()) : 0;
+  const png = await renderCompanyCard({
+    name: c.name,
+    ownerName,
+    createdAt: new Date(c.createdAt).toLocaleDateString("en-GB"),
+    budget: c.budget,
+    payroll,
+    memberCount: members.length,
+    payrollIn: fmtMs(Math.max(60_000, since + COMPANY_RULES.payrollMs - Date.now())),
+    members: shown.map((x, idx) => ({
+      name: infos[idx].name,
+      avatar: infos[idx].avatar,
+      role: x.role,
+      title: x.title,
+      salary: x.salary,
+      active: Boolean(x.lastShiftAt && new Date(x.lastShiftAt).getTime() > since),
+    })),
+    me: { role: m.role, title: m.title, salary: m.salary, penalty: m.penalty ?? 0, shiftReady: shiftLeft <= 0, shiftIn: fmtMs(Math.max(60_000, shiftLeft)) },
+  });
   const embed = new EmbedBuilder()
     .setColor(COLOR)
     .setTitle(`🏢 ${c.name}`)
@@ -212,7 +244,12 @@ async function buildCompanyPanel(guildId: string, userId: string, note?: string)
         lines.join("\n"),
       ].filter((x, i) => x !== "" || i > 0).join("\n"),
     );
-  const first = [btn(`co|work|${cid}`, "دوام", ButtonStyle.Success)];
+  let files: { attachment: Buffer; name: string }[] = [];
+  if (png) {
+    embed.setTitle(null).setDescription(note ?? null).setImage("attachment://company.png");
+    files = [{ attachment: png, name: "company.png" }];
+  }
+  const first = [btn(`co|work|${cid}`, "دوام", ButtonStyle.Success), btn(`co|refresh|${cid}`, "تحديث", ButtonStyle.Secondary, "🔄")];
   if (m.role === "owner") first.push(btn(`co|self|${cid}`, "منصبي وراتبي", ButtonStyle.Secondary, "✏️"));
   const rows: ActionRowBuilder<ButtonBuilder>[] = [row(...first)];
   if (isBoss(m)) {
@@ -220,7 +257,7 @@ async function buildCompanyPanel(guildId: string, userId: string, note?: string)
   }
   if (m.role === "owner") rows.push(row(btn(`co|sell|${cid}`, "بيع الشركة", ButtonStyle.Secondary, "🤝"), btn(`co|close|${cid}`, "إغلاق الشركة", ButtonStyle.Danger, "🔒")));
   else rows.push(row(btn(`co|leave|${cid}`, "استقالة من الشركة", ButtonStyle.Danger, "🚪")));
-  return { embeds: [embed], components: rows };
+  return { embeds: [embed], components: rows, files };
 }
 
 function memberCard(c: ICompany, t: ICompanyMember, actor: ICompanyMember, cid: string, note?: string): View {
@@ -262,7 +299,9 @@ const modal = (id: string, title: string, ...rows: ActionRowBuilder<TextInputBui
 export async function handleCompanyMessage(message: Message): Promise<void> {
   if (!message.inGuild()) return;
   const text = message.content.trim();
-  const view = COMPANY_MINE_TRIGGER.test(text) ? await buildCompanyPanel(message.guildId, message.author.id) : await buildHub(message.guildId);
+  const mine = COMPANY_MINE_TRIGGER.test(text);
+  if (mine) await message.channel.sendTyping().catch(() => undefined);
+  const view = mine ? await buildCompanyPanel(message.guildId, message.author.id, message.client) : await buildHub(message.guildId);
   await message.channel.send(view).catch(() => undefined);
 }
 
@@ -323,7 +362,17 @@ async function route(i: AnyI): Promise<void> {
     return;
   }
   if (act === "list" && i.isButton()) return void (await i.reply({ ...(await buildPostingsList(guildId)), ...eph }));
-  if (act === "mine" && i.isButton()) return void (await i.reply({ ...(await buildCompanyPanel(guildId, uid)), ...eph }));
+  if (act === "mine" && i.isButton()) {
+    await i.deferReply(eph);
+    return void (await i.editReply(await buildCompanyPanel(guildId, uid, i.client)));
+  }
+  if (act === "refresh" && i.isButton()) {
+    const mine = await myMembership(guildId, uid);
+    if (!mine || String(mine.companyId) !== a) return void (await say("❌ هذي مو شركتك."));
+    await i.deferUpdate();
+    const view = await buildCompanyPanel(guildId, uid, i.client);
+    return void (await i.editReply({ ...view, attachments: [] }));
+  }
   if (act === "open" && i.isButton()) {
     await i.showModal(modal("co|openm", "فتح شركة", input("name", `اسم الشركة (الكلفة ${COMPANY_RULES.openCost})`, "مثال: شركة النجوم", TextInputStyle.Short, true, 40)));
     return;
@@ -333,7 +382,8 @@ async function route(i: AnyI): Promise<void> {
     if (!name) return void (await say("❌ اكتب اسم الشركة."));
     const r = await openCompany(guildId, uid, name);
     if (r.ok === false) return void (await say(r.msg));
-    await i.reply({ ...(await buildCompanyPanel(guildId, uid, `🎉 تم فتح **${name}** (خصمنا ${jenny(COMPANY_RULES.openCost)}). ابدأ بنشر طلب توظيف.`)), ...eph });
+    await i.deferReply(eph);
+    await i.editReply(await buildCompanyPanel(guildId, uid, i.client, `🎉 تم فتح **${name}** (خصمنا ${jenny(COMPANY_RULES.openCost)}). ابدأ بنشر طلب توظيف.`));
     return;
   }
 
@@ -427,7 +477,8 @@ async function route(i: AnyI): Promise<void> {
     const salary = num(i.fields.getTextInputValue("salary"));
     if (!title || !(salary >= 0 && salary <= COMPANY_RULES.maxSalary)) return void (await say(`❌ الراتب لازم بين 0 و ${COMPANY_RULES.maxSalary}.`));
     await CompanyMember.updateOne({ _id: me._id }, { $set: { title, salary } });
-    await i.reply({ ...(await buildCompanyPanel(guildId, uid, `✏️ صار منصبك **${title}** وراتبك ${jenny(salary)} يوميًا (يُدفع من ميزانية الشركة).`)), ...eph });
+    await i.deferReply(eph);
+    await i.editReply(await buildCompanyPanel(guildId, uid, i.client, `✏️ صار منصبك **${title}** وراتبك ${jenny(salary)} يوميًا (يُدفع من ميزانية الشركة).`));
     return;
   }
 
