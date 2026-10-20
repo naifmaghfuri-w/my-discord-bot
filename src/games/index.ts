@@ -2,7 +2,7 @@ import { MessageFlags, type Interaction, type Message } from "discord.js";
 import { createLobby, createLobbyFromMessage, handleCodenamesButton, handleCodenamesModal } from "./codenames";
 import { GAMES_TRIGGER, buildGamesList } from "./menu";
 import { RPS_TRIGGER, startRps } from "./rps";
-import { SALFA_TRIGGER, createSalfa, handleSalfaButton, handleSalfaSelect } from "./salfa";
+import { SALFA_TRIGGER, createSalfa, handleSalfaButton, handleSalfaModal, handleSalfaSelect } from "./salfa";
 import { XO_TRIGGER, startXo } from "./xo";
 
 const CODENAMES_TRIGGER = /^!\s*كود\s*-?\s*نايمز$/;
@@ -46,6 +46,8 @@ export async function handleGamesInteraction(interaction: Interaction): Promise<
     if (head === "sf") return handleSalfaButton(interaction);
     if (head === "cn") return handleCodenamesButton(interaction);
   }
+
+  if (interaction.isModalSubmit() && interaction.customId.startsWith("sf|")) return handleSalfaModal(interaction);
 
   if (interaction.isModalSubmit() && interaction.customId.startsWith("cn|")) {
     return handleCodenamesModal(interaction);
