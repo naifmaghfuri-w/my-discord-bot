@@ -1,60 +1,20 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, StringSelectMenuBuilder } from "discord.js";
+import { EmbedBuilder } from "discord.js";
 
-/** يفتح قائمة الألعاب بكتابة !العاب */
+/** !العاب → قائمة أوامر الألعاب (نص) */
 export const GAMES_TRIGGER = /^!\s*[اأ]لعاب$/;
-
-export const MENU_SELECT = "gm_menu";
-export const MENU_BACK = "gm_back";
-export const MENU_CODENAMES = "gm_cn";
 
 const COLOR = 0x8b5cf6;
 
-export type Category = "solo" | "duo" | "group";
+/** عدّل الأسماء هنا لو غيّرت أمر لعبة أو أضفت لعبة جديدة */
+const GROUPS: { title: string; icon: string; games: string[] }[] = [
+  { title: "الجماعية", icon: "👥", games: ["!كود نايمز", "!سالفة"] },
+  { title: "الثنائية", icon: "⚔️", games: ["!اكس-او", "!عملة", "!حجرة"] },
+  { title: "الفردية", icon: "👤", games: ["!اسرع"] },
+];
 
-export function buildGamesMenu(owner: string) {
-  const embed = new EmbedBuilder()
-    .setColor(COLOR)
-    .setTitle("الألعاب")
-    .setDescription("اختر نوع الألعاب من القائمة بالأسفل.");
-
-  const select = new StringSelectMenuBuilder()
-    .setCustomId(`${MENU_SELECT}|${owner}`)
-    .setPlaceholder("اختر القائمة المطلوبة")
-    .addOptions(
-      { label: "الألعاب الفردية", value: "solo", emoji: "🎮" },
-      { label: "الألعاب الثنائية", value: "duo", emoji: "⚔️" },
-      { label: "الألعاب الجماعية", value: "group", emoji: "👥" },
-    );
-
-  return { embeds: [embed], components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)] };
-}
-
-const BODY: Record<Category, { title: string; lines: string[] }> = {
-  solo: { title: "الألعاب الفردية", lines: ["`!عملة` ← صورة أو كتابة"] },
-  duo: {
-    title: "الألعاب الثنائية",
-    lines: [
-      "`!عملة @شخص مبلغ` ← تحدي عملة: كل لاعب يختار صورة أو كتابة، واللي تطلع عليه يفوز",
-      "`rps` ← حجرة ورقة مقص",
-      "`xo` ← إكس أو ضد عضو",
-    ],
-  },
-  group: {
-    title: "الألعاب الجماعية",
-    lines: ["**Code Names** ← فريقان (أحمر وأزرق)، قائد ومخمنون لكل فريق. الأفضل 4 لاعبين فأكثر."],
-  },
-};
-
-export function buildCategory(cat: Category, owner: string) {
-  const b = BODY[cat];
-  const embed = new EmbedBuilder().setColor(COLOR).setTitle(b.title).setDescription(b.lines.join("\n"));
-
-  const row = new ActionRowBuilder<ButtonBuilder>();
-  if (cat === "group") {
-    row.addComponents(
-      new ButtonBuilder().setCustomId(`${MENU_CODENAMES}|${owner}`).setLabel("Code Names").setStyle(ButtonStyle.Success),
-    );
-  }
-  row.addComponents(new ButtonBuilder().setCustomId(`${MENU_BACK}|${owner}`).setLabel("رجوع").setStyle(ButtonStyle.Secondary));
-  return { embeds: [embed], components: [row] };
+export function buildGamesList() {
+  const lines: string[] = [];
+  for (const g of GROUPS) lines.push(`**${g.icon} ${g.title}**`, ...g.games.map((x) => `\`${x}\``), "");
+  lines.push("ℹ️ شرح الألعاب الجماعية يظهر بزر **الشرح** داخل اللعبة.");
+  return { embeds: [new EmbedBuilder().setColor(COLOR).setTitle("👥 Games Commands").setDescription(lines.join("\n"))] };
 }
