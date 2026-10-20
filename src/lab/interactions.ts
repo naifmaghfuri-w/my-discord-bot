@@ -38,6 +38,7 @@ import {
   TRADE_PICK,
   OPEN_EXTRA,
   OPEN_LAB,
+  OPEN_COOLER,
   MARKET_SELL_SELECT,
   MARKET_SELLALL_SELECT,
   OPEN_CODEX,
@@ -65,7 +66,7 @@ import { sellAllCompound, sellCompound } from "./market";
 import { recordEvent } from "./progress";
 import { renderReactionGif } from "./render";
 import { OFFER_TTL_MS, buildOffer, executeTrade } from "./trade";
-import { buyConsumable, buyEquipment, collectExpedition, collectRobot, deliverOrder, lootLines, runCentrifuge, startExpedition, startRobot, useAntirad } from "./workshop";
+import { buyConsumable, buyEquipment, collectExpedition, collectRobot, deliverOrder, lootLines, runCentrifuge, startExpedition, startRobot, useAntirad, hasGear } from "./workshop";
 import { COMPOUND_MAP } from "./compounds";
 import { RARITY_INFO } from "./compounds";
 import {
@@ -175,18 +176,35 @@ export async function handleLabButton(interaction: ButtonInteraction): Promise<b
         await interaction.update(asUpdate(await renderMain(userId, guildId)));
         return true;
 
-      case RESET:
+      case RESET: {
+        const wasCold = (await getSession(userId, guildId)).temp < 0;
         await resetSession(userId, guildId);
+        if (wasCold) await setTemp(userId, guildId, -20);
         await interaction.update(asUpdate(await renderMain(userId, guildId)));
         return true;
+      }
 
       case BACK:
         await interaction.update(asUpdate(await buildLabHub(userId, guildId, nameOf(interaction), interaction.user.displayAvatarURL())));
         return true;
 
-      case OPEN_LAB:
+      case OPEN_LAB: {
+        // الخروج من وضع التبريد يرجّع الحرارة للوضع العادي
+        if ((await getSession(userId, guildId)).temp < 0) await setTemp(userId, guildId, 20);
         await interaction.update(asUpdate(await renderMain(userId, guildId)));
         return true;
+      }
+
+      case OPEN_COOLER: {
+        if (!hasGear(await getLabProfile(userId, guildId), "cooler")) {
+          await interaction.reply({ content: "🧊 ما تملك مبرّد المفاعل. اشتره من 🛠️ الأجهزة (1000).", flags: MessageFlags.Ephemeral });
+          return true;
+        }
+        await resetSession(userId, guildId);
+        await setTemp(userId, guildId, -20);
+        await interaction.update(asUpdate(await renderMain(userId, guildId)));
+        return true;
+      }
 
       case OPEN_EXTRA:
         await interaction.update(asUpdate(buildExtraPanel(userId)));
@@ -361,6 +379,8 @@ export async function handleLabButton(interaction: ButtonInteraction): Promise<b
             await interaction.editReply(asUpdate(await renderMain(userId, guildId, `🤒 أنت مصاب بالإشعاع، المختبر معطّل **${result.minutes}** دقيقة. بدلة الحماية تمنع هذا مستقبلاً.`)));
           } else if (result.reason === "locked_recipe") {
             await interaction.editReply(asUpdate(await renderMain(userId, guildId, `🔐 خليطك يطابق وصفة لكنها مقفلة. افتح إنجرام **${result.engram}** من 🎚️ المستويات (ما انصرف شيء من مكوناتك).`)));
+          } else if (result.reason === "no_cooler") {
+            await interaction.editReply(asUpdate(await renderMain(userId, guildId, "🧊 هذا مركب بارد، تحتاج **مبرّد المفاعل** من 🛠️ الأجهزة (ما انصرف شيء).")));
           } else if (result.reason === "missing") {
             await interaction.editReply(asUpdate(await renderMain(userId, guildId, "❌ مكونات الخليط ما تكفي، جرب تصفير الخليط.")));
           } else {
