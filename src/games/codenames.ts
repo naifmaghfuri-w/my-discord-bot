@@ -12,6 +12,7 @@ import {
   type ModalSubmitInteraction,
 } from "discord.js";
 import { logger } from "../utils/logger";
+import { guideEmbed } from "./guides";
 import { WORDS } from "./words";
 
 type Team = "red" | "blue";
@@ -188,6 +189,7 @@ function lobbyView(g: Game) {
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`cn|${id}|leave`).setLabel("انسحاب").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId(`cn|${id}|start`).setLabel("بدء اللعبة").setStyle(ButtonStyle.Success).setDisabled(!ready(g)),
+      new ButtonBuilder().setCustomId(`cn|${id}|help`).setLabel("الشرح").setEmoji("ℹ️").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId(`cn|${id}|cancel`).setLabel("إلغاء").setStyle(ButtonStyle.Secondary),
     ),
   ];
@@ -344,6 +346,38 @@ export async function createLobby(interaction: ButtonInteraction): Promise<void>
   await interaction.reply(lobbyView(g));
 }
 
+/** إنشاء لوبي من أمر نصي: !كود نايمز */
+export async function createLobbyFromMessage(message: Message<true>): Promise<void> {
+  const channelId = message.channelId;
+  const existing = byChannel.get(channelId);
+  if (existing && games.has(existing)) {
+    await message.reply({ content: "فيه لعبة Code Names شغّالة في هذا الروم بالفعل.", allowedMentions: { repliedUser: false } }).catch(() => undefined);
+    return;
+  }
+  const id = Math.random().toString(36).slice(2, 8);
+  const g: Game = {
+    id,
+    channelId,
+    hostId: message.author.id,
+    phase: "lobby",
+    players: new Map(),
+    cards: [],
+    starting: "red",
+    turn: "red",
+    step: "clue",
+    guessesLeft: 0,
+    history: [],
+    deadline: 0,
+    updated: Date.now(),
+  };
+  games.set(id, g);
+  byChannel.set(channelId, id);
+  await message.channel.send(lobbyView(g)).catch((err: unknown) => {
+    logger.error("Code Names: فشل إرسال اللوبي", err);
+    drop(g);
+  });
+}
+
 function armTimer(g: Game): void {
   g.deadline = Date.now() + STEP_MS;
 }
@@ -391,6 +425,11 @@ export async function handleCodenamesButton(interaction: ButtonInteraction): Pro
   g.updated = Date.now();
 
   switch (action) {
+    case "help": {
+      await interaction.reply({ embeds: [guideEmbed("كود نايمز")], flags: MessageFlags.Ephemeral });
+      return true;
+    }
+
     case "j": {
       if (g.phase !== "lobby") return deny(interaction, "اللعبة بدأت بالفعل.");
       const [team, role] = arg.split("-") as [Team, Role];
