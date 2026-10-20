@@ -1,4 +1,4 @@
-import { COMPOUND_MAP, COMPOUNDS, PRESSURE, STEP_MULTIPLIERS, TEMP, type CompoundDef } from "./compounds";
+import { COLD, COMPOUND_MAP, COMPOUNDS, PRESSURE, STEP_MULTIPLIERS, TEMP, type CompoundDef } from "./compounds";
 import { ELEMENT_MAP } from "./elements";
 import { LabProfile, type ILabProfile } from "../database/models/LabProfile";
 import { LabSession, type ILabSession } from "../database/models/LabSession";
@@ -77,7 +77,7 @@ export async function adjustPressure(userId: string, guildId: string, direction:
 }
 
 export async function setTemp(userId: string, guildId: string, value: number): Promise<void> {
-  const v = Math.min(TEMP.max, Math.max(TEMP.min, Math.round(value)));
+  const v = Math.min(TEMP.max, Math.max(COLD.min, Math.round(value)));
   await getSession(userId, guildId);
   await LabSession.updateOne({ userId, guildId }, { $set: { temp: v, updatedAt: new Date() } });
 }
@@ -196,7 +196,7 @@ export type ReactResult =
   | { ok: true; success: false; kind: "near"; compound: CompoundDef; hints: string[] }
   | { ok: true; success: false; kind: "fail"; xp: number; waste: number; snapshot: ReactionSnapshot; notes: string[] }
   | { ok: true; success: false; kind: "accident"; compound: CompoundDef; xp: number; waste: number; snapshot: ReactionSnapshot; notes: string[] }
-  | { ok: false; reason: "empty_mix" | "missing" | "sick" | "locked_recipe"; minutes?: number; engram?: string };
+  | { ok: false; reason: "empty_mix" | "missing" | "sick" | "locked_recipe" | "no_cooler"; minutes?: number; engram?: string };
 
 const CATALYST_TEMP = 20;
 const CATALYST_PRESSURE = 3;
@@ -250,6 +250,9 @@ export async function attemptReaction(userId: string, guildId: string): Promise<
   if (candidate?.engram && !hasEngram(gear, candidate.engram)) {
     return { ok: false, reason: "locked_recipe", engram: engramName(candidate.engram) };
   }
+
+  // مركب بارد: لازم مبرّد المفاعل (ما نستهلك شيئاً)
+  if (candidate?.cold && !hasGear(gear, "cooler")) return { ok: false, reason: "no_cooler" };
 
   // المكونات صح لكن الحرارة/الضغط غلط: نعطي تلميحاً ولا نستهلك شيئاً (إلا لو المحفّز ينقذ التفاعل)
   if (candidate && !candidate.byproduct) {
