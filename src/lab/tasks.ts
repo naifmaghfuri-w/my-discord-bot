@@ -3,14 +3,17 @@ import { getProfile } from "../services/economy";
 import { getLabProfile } from "./service";
 import { buildCodexView, buildLevelsView, buildQuestsView, buildWarehouseView } from "./views";
 
-/** $LT = Lab Tasks (المهام) • $LS = Lab Stock (المخزون) • $LL = Lab Library (المكتبة) • $LTREE = Lab Tree (شجرة الفتح) — يشتغلون فقط في الروم المخصص */
+/** $LT = Lab Tasks (المهام) • $LS = Lab Stock (المخزون) • $LL = Lab Library (المكتبة) • $LTREE = Lab Tree (شجرة الفتح) — يشتغلون فقط في الرومات المخصصة */
 export const TASKS_TRIGGER = /^\$lt$/i;
 export const STOCK_TRIGGER = /^\$ls$/i;
 export const LIBRARY_TRIGGER = /^\$ll$/i;
 export const TREE_TRIGGER = /^\$ltree$/i;
-export const TASKS_CHANNEL = "1551169206400188538";
+/** الرومات المسموحة لأوامر المختبر ($lt $ls $ll $ltree) */
+export const TASKS_CHANNELS: string[] = ["1551169206400188538", "1519761843248300062"];
+/** للتوافق مع أي ملف قديم يستورده */
+export const TASKS_CHANNEL = TASKS_CHANNELS[0];
 
-/** يرجع true لو الرسالة كانت أحد الأمرين (حتى لو بروم غلط، عشان ما تمشي لباقي الأوامر) */
+/** يرجع true لو الرسالة كانت أحد الأوامر (حتى لو بروم غلط، عشان ما تمشي لباقي الأوامر) */
 export async function handleLabTasksMessage(message: Message<true>): Promise<boolean> {
   const text = message.content.trim();
   const isTasks = TASKS_TRIGGER.test(text);
@@ -18,7 +21,7 @@ export async function handleLabTasksMessage(message: Message<true>): Promise<boo
   const isLibrary = LIBRARY_TRIGGER.test(text);
   const isTree = TREE_TRIGGER.test(text);
   if (!isTasks && !isStock && !isLibrary && !isTree) return false;
-  if (message.channelId !== TASKS_CHANNEL) return true; // روم ثاني: ما يصير شيء
+  if (!TASKS_CHANNELS.includes(message.channelId)) return true; // روم ثاني: ما يصير شيء
 
   const profile = await getLabProfile(message.author.id, message.guildId);
   if (isTasks) {
