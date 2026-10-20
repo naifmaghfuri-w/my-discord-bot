@@ -118,13 +118,13 @@ export const COMPOUNDS: CompoundDef[] = [
   { id: "nuclear_fuel", name: "وقود نووي", icon: "✦", rarity: "legendary", recipe: { plutonium: 1, steel: 1, water: 1 }, tempRange: [300, 400], pressureRange: [10, 14], xp: 200, basePrice: 900, hazard: 3, radioactive: true, engram: "nuclear" },
   { id: "atomic_battery", name: "بطارية ذرّية", icon: "✦", rarity: "legendary", recipe: { plutonium: 1, li_battery: 1 }, tempRange: [100, 200], pressureRange: [1, 2], xp: 200, basePrice: 950, hazard: 2, radioactive: true, engram: "nuclear" },
   /* ───────────── مواد وسيطة للمركبات العضوية (مصنّعة، بدون مبرّد) ───────────── */
-  { id: "acetic_acid", name: "حمض الأستيك", icon: "CH₃COOH", rarity: "uncommon", recipe: { ethanol: 1, oxygen: 1 }, tempRange: [30, 50], pressureRange: [1, 2], xp: 24, basePrice: 70 },
+  { id: "acetic_acid", name: "حمض الأستيك", icon: "CH₃COOH", rarity: "uncommon", recipe: { carbon: 2, hydrogen: 4, oxygen: 2 }, tempRange: [30, 50], pressureRange: [1, 2], xp: 24, basePrice: 70 },
   { id: "benzene", name: "بنزين (البنزول)", icon: "C₆H₆", rarity: "uncommon", recipe: { carbon: 6, hydrogen: 6 }, tempRange: [60, 80], pressureRange: [1, 2], xp: 24, basePrice: 75, hazard: 1 },
   { id: "nitric_acid", name: "حمض النيتريك", icon: "HNO₃", rarity: "uncommon", recipe: { hydrogen: 1, nitrogen: 1, oxygen: 3 }, tempRange: [20, 40], pressureRange: [2, 4], xp: 24, basePrice: 70, hazard: 1 },
-  { id: "toluene", name: "تولوين", icon: "C₇H₈", rarity: "rare", recipe: { benzene: 1, methane: 1 }, tempRange: [100, 120], pressureRange: [1, 3], xp: 44, basePrice: 130, hazard: 1 },
+  { id: "toluene", name: "تولوين", icon: "C₇H₈", rarity: "rare", recipe: { carbon: 7, hydrogen: 8 }, tempRange: [100, 120], pressureRange: [1, 3], xp: 44, basePrice: 130, hazard: 1 },
   { id: "nitrating_mix", name: "مزيج النيترة", icon: "HNO₃+H₂SO₄", rarity: "rare", recipe: { nitric_acid: 1, sulfuric_acid: 1 }, tempRange: [10, 30], pressureRange: [1, 2], xp: 46, basePrice: 140, hazard: 2 },
-  { id: "acetic_anhydride", name: "أنهيدريد الأستيك", icon: "(CH₃CO)₂O", rarity: "rare", recipe: { acetic_acid: 2, phosphorus: 1 }, tempRange: [120, 140], pressureRange: [1, 2], xp: 46, basePrice: 140, hazard: 1 },
-  { id: "salicylic_acid", name: "حمض الساليسيليك", icon: "C₇H₆O₃", rarity: "rare", recipe: { benzene: 1, co2: 1, caustic: 1 }, tempRange: [120, 140], pressureRange: [3, 5], xp: 46, basePrice: 160 },
+  { id: "acetic_anhydride", name: "أنهيدريد الأستيك", icon: "(CH₃CO)₂O", rarity: "rare", recipe: { carbon: 4, hydrogen: 6, oxygen: 3 }, tempRange: [120, 140], pressureRange: [1, 2], xp: 46, basePrice: 140, hazard: 1 },
+  { id: "salicylic_acid", name: "حمض الساليسيليك", icon: "C₇H₆O₃", rarity: "rare", recipe: { carbon: 7, hydrogen: 6, oxygen: 3 }, tempRange: [120, 140], pressureRange: [3, 5], xp: 46, basePrice: 160 },
   { id: "kmno4", name: "برمنغنات البوتاسيوم", icon: "KMnO₄", rarity: "rare", recipe: { potassium: 1, manganese: 1, oxygen: 4 }, tempRange: [20, 60], pressureRange: [1, 2], xp: 46, basePrice: 150, hazard: 1 },
 
   /* ───────────── مركبات المكثّف (تحتاج امتلاك المبرّد، بحرارة عادية/عالية) ───────────── */
