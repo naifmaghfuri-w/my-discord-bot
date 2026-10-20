@@ -34,6 +34,7 @@ import {
   robotEligible,
   robotState,
   isDevice,
+  deviceUnlocked,
   UPGRADE_COST,
   currentRadiation,
   doneOrders,
@@ -74,6 +75,7 @@ import {
   EXPED_COLLECT,
   OPEN_EXTRA,
   OPEN_LAB,
+  OPEN_COOLER,
   MARKET_SELL_SELECT,
   MARKET_SELLALL_SELECT,
   OPEN_CODEX,
@@ -110,6 +112,8 @@ export interface PanelResult {
 
 /** خيارات الحرارة والضغط في القوائم (الحد 25 خيار بالقائمة) */
 export const TEMP_CHOICES = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 120, 150, 180, 200, 250, 300, 350, 400, 450, 500];
+/** خيارات حرارة المبرّد (تحت الصفر) */
+export const COLD_TEMP_CHOICES = [-200, -180, -160, -150, -120, -100, -80, -60, -40, -30, -20, -10, -5];
 export const PRESSURE_CHOICES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
 
 const RARITY_ORDER: Rarity[] = ["common", "uncommon", "rare", "epic", "legendary"];
@@ -159,6 +163,7 @@ function statusLine(profile: ILabProfile): string {
 
 export async function buildMainPanel(profile: ILabProfile, session: ILabSession, note?: string): Promise<PanelResult> {
   const owner = profile.userId;
+  const cold = session.temp < 0;
   const buffer = await renderFlask(session.mix, session.temp, session.pressure);
   const files = buffer ? [{ attachment: buffer, name: "flask.png" }] : [];
 
@@ -169,13 +174,14 @@ export async function buildMainPanel(profile: ILabProfile, session: ILabSession,
   const need = xpNeeded(profile.labLevel);
   const embed = new EmbedBuilder()
     .setColor(0x0ea5e9)
-    .setTitle("🧪 المختبر")
+    .setTitle(cold ? "🧊 مبرّد المفاعل" : "🧪 المختبر")
     .setDescription(
       [
         `**المستوى ${profile.labLevel}** \`${bar(profile.labXp, need)}\` ${profile.labXp}/${need}`,
         `🔬 نقاط الفتح: **${profile.labTokens}** • ✨ سمعة: **${profile.reputation}**`,
         `🌡️ **${session.temp}°** • 💨 **${session.pressure}**`,
         statusLine(profile),
+        cold ? "🧊 **وضع التبريد** — اختر حرارة تحت الصفر للمركبات الباردة" : "",
         "",
         `**الخليط:** ${mixLines.length ? mixLines.join("، ") : "فاضي، أضف مكونات من القوائم بالأسفل"}`,
       ].join("\n"),
@@ -227,7 +233,7 @@ export async function buildMainPanel(profile: ILabProfile, session: ILabSession,
       new StringSelectMenuBuilder()
         .setCustomId(cid(TEMP_SELECT, owner))
         .setPlaceholder(`🌡️ الحرارة: ${session.temp}°C`)
-        .addOptions(TEMP_CHOICES.map((t) => ({ label: `${t}°C`, value: String(t), emoji: "🌡️", default: t === session.temp }))),
+        .addOptions((cold ? COLD_TEMP_CHOICES : TEMP_CHOICES).map((t) => ({ label: `${t}°C`, value: String(t), emoji: "🌡️", default: t === session.temp }))),
     ),
     new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
       new StringSelectMenuBuilder()
@@ -239,6 +245,11 @@ export async function buildMainPanel(profile: ILabProfile, session: ILabSession,
       new ButtonBuilder().setCustomId(cid(REACT, owner)).setLabel("تفاعل").setEmoji("⚗️").setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId(cid(RESET, owner)).setLabel("تصفير").setEmoji("🔄").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId(cid(BACK, owner)).setLabel("القائمة الرئيسية").setEmoji("🏠").setStyle(ButtonStyle.Secondary),
+      ...(cold
+        ? [new ButtonBuilder().setCustomId(cid(OPEN_LAB, owner)).setLabel("المعمل العادي").setEmoji("🧪").setStyle(ButtonStyle.Primary)]
+        : hasGear(profile, "cooler")
+          ? [new ButtonBuilder().setCustomId(cid(OPEN_COOLER, owner)).setLabel("تفاعلات التبريد").setEmoji("🧊").setStyle(ButtonStyle.Primary)]
+          : []),
       ...(pages > 1
         ? [new ButtonBuilder().setCustomId(cid(PAGE_CYCLE, owner)).setLabel(`صفحة ${page + 1}/${pages}`).setEmoji("📑").setStyle(ButtonStyle.Secondary)]
         : []),
@@ -695,8 +706,8 @@ export function buildEquipView(profile: ILabProfile, coins: number, note?: strin
   const deviceLines = deviceKeys.map((k) => {
     const d = DEVICES[k];
     const owned = hasGear(profile, k);
-    const unlocked = ENGRAMS.some((e) => e.id === k && engramState(profile, e) === "unlocked");
-    return `${d.icon} **${d.name}** — ${owned ? "✅ مملوك" : unlocked ? jenny(d.price) : "🔒 افتحه من شجرة الفتح"}\n┗ ${d.desc}`;
+    const unlocked = deviceUnlocked(profile, k);
+    return `${d.icon} **${d.name}** — ${owned ? "✅ مملوك" : unlocked ? jenny(d.price) : k === "cooler" ? "🔒 افتح المستوى 1 من الشجرة" : "🔒 افتحه من شجرة الفتح"}\n┗ ${d.desc}`;
   });
   const robotLv = profile.equipment?.robot ?? 0;
   const robotLine = `🤖 **الروبوت الآلي** — ${robotLv > 0 ? `✅ مستوى ${robotLv}/${MAX_LEVEL} (ترقية: ${upCost(robotLv)})` : ENGRAMS.some((e) => e.id === "robot" && engramState(profile, e) === "unlocked") ? jenny(DEVICES.robot.price) : "🔒 افتحه من شجرة الفتح"}\n┗ ${DEVICES.robot.desc}`;
@@ -732,7 +743,7 @@ export function buildEquipView(profile: ILabProfile, coins: number, note?: strin
     if (!hasGear(profile, k)) options.push({ label: GEAR[k].name, value: k, emoji: GEAR[k].icon, description: `${GEAR[k].price} ${CURRENCY.name}` });
   }
   for (const k of deviceKeys) {
-    if (!hasGear(profile, k) && ENGRAMS.some((e) => e.id === k && engramState(profile, e) === "unlocked")) {
+    if (!hasGear(profile, k) && deviceUnlocked(profile, k)) {
       options.push({ label: DEVICES[k].name, value: k, emoji: DEVICES[k].icon, description: `${DEVICES[k].price} ${CURRENCY.name}` });
     }
   }
