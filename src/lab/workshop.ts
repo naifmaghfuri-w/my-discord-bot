@@ -5,7 +5,7 @@ import { todayKey } from "../quests/time";
 import { logTransaction } from "../services/transactions";
 import { COMPOUND_MAP, COMPOUNDS, type CompoundDef } from "./compounds";
 import { hasEngram, engramName } from "./engrams";
-import { passive } from "./tree";
+import { pageUnlocked, passive } from "./tree";
 import { ELEMENT_MAP, ELEMENTS } from "./elements";
 import { getLabProfile, grantLabXp } from "./service";
 
@@ -21,8 +21,13 @@ export const DEVICES: Record<DeviceKey, { name: string; icon: string; price: num
   centrifuge: { name: "الطرد المركزي", icon: "🌀", price: 2500, desc: "يحوّل النفايات الكيميائية لعناصر" },
   distiller: { name: "وحدة التقطير", icon: "⚗️", price: 3500, desc: "25% فرصة لمضاعفة الناتج" },
   robot: { name: "الروبوت الآلي", icon: "🤖", price: 4000, desc: "يصنّع لك وأنت غايب (يترقى مثل الفرن)" },
-  cooler: { name: "مبرّد المفاعل", icon: "🧊", price: 4000, desc: "إشعاع أبطأ وإصابة أقصر (30 دقيقة)" },
+  cooler: { name: "مبرّد المفاعل", icon: "🧊", price: 1000, desc: "يفتح تفاعلات التبريد (تحت الصفر) + إشعاع أبطأ وإصابة أقصر (30 دقيقة)" },
 };
+
+/** هل الجهاز مفتوح للشراء؟ المبرّد يفتح من أول مستوى بالشجرة، والباقي من إنجرامه */
+export function deviceUnlocked(p: { engrams?: string[]; unlockedElements?: string[] }, key: string): boolean {
+  return key === "cooler" ? pageUnlocked(p, 1) : hasEngram(p, key);
+}
 
 export const isDevice = (k: string): k is DeviceKey => k in DEVICES;
 
@@ -113,7 +118,7 @@ export async function buyEquipment(userId: string, guildId: string, key: string)
     }
   } else if (isDevice(key)) {
     if (hasGear(profile, key)) return { ok: false, reason: "owned" };
-    if (!hasEngram(profile, key)) return { ok: false, reason: "engram", engram: engramName(key) };
+    if (!deviceUnlocked(profile, key)) return { ok: false, reason: "engram", engram: key === "cooler" ? "المستوى 1" : engramName(key) };
     cost = DEVICES[key].price;
     newValue = 1;
     label = `${DEVICES[key].icon} ${DEVICES[key].name}`;
@@ -212,7 +217,7 @@ export interface OrderDef {
 }
 
 const ORDER_COUNT = 3;
-const ORDER_POOL = COMPOUNDS.filter((c) => ["common", "uncommon", "rare"].includes(c.rarity) && !c.radioactive && !c.engram && (c.hazard ?? 0) < 3);
+const ORDER_POOL = COMPOUNDS.filter((c) => ["common", "uncommon", "rare"].includes(c.rarity) && !c.radioactive && !c.engram && !c.cold && (c.hazard ?? 0) < 3);
 const ORDER_QTY: Record<string, [number, number]> = { common: [2, 3], uncommon: [1, 2], rare: [1, 2] };
 const ORDER_XP: Record<string, number> = { common: 10, uncommon: 20, rare: 35 };
 
