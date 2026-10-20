@@ -380,7 +380,7 @@ export async function handleLabButton(interaction: ButtonInteraction): Promise<b
           } else if (result.reason === "locked_recipe") {
             await interaction.editReply(asUpdate(await renderMain(userId, guildId, `🔐 خليطك يطابق وصفة لكنها مقفلة. افتح إنجرام **${result.engram}** من 🎚️ المستويات (ما انصرف شيء من مكوناتك).`)));
           } else if (result.reason === "no_cooler") {
-            await interaction.editReply(asUpdate(await renderMain(userId, guildId, "🧊 هذا مركب بارد، تحتاج **مبرّد المفاعل** من 🛠️ الأجهزة (ما انصرف شيء).")));
+            await interaction.editReply(asUpdate(await renderMain(userId, guildId, "🧊 هذا مركب يحتاج مبرّداً، تحتاج **مبرّد المفاعل** من 🛠️ الأجهزة (ما انصرف شيء).")));
           } else if (result.reason === "missing") {
             await interaction.editReply(asUpdate(await renderMain(userId, guildId, "❌ مكونات الخليط ما تكفي، جرب تصفير الخليط.")));
           } else {
