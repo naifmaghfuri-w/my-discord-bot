@@ -36,7 +36,7 @@ export interface JobDef {
   id: string;
   name: string;
   icon: string;
-  kind: "career" | "fullday";
+  kind: "career" | "fullday" | "thief";
   desc: string;
   req: JobReq;
   ranks: JobRank[];
@@ -90,5 +90,12 @@ export const JOBS: JobDef[] = [
     accident: { chance: 0.1, lossPct: 0.3 },
   },
 ];
+
+JOBS.push({
+  id: "thief", name: "حرامي", icon: "🦹", kind: "thief",
+  desc: "اكتب `!سرقة` كل ساعة: تسرق 150 من لاعب عشوائي، و100 من شركة ما عندها حارس بوابة.",
+  req: {},
+  ranks: [{ title: "حرامي", pay: 150, shiftsNeeded: 0 }],
+});
 
 export const JOB_MAP: Record<string, JobDef> = Object.fromEntries(JOBS.map((j) => [j.id, j]));
