@@ -102,3 +102,20 @@ const applicationSchema = new Schema<ICompanyApplication>({
 applicationSchema.index({ postingId: 1, userId: 1 }, { unique: true });
 
 export const CompanyApplication = model<ICompanyApplication>("CompanyApplication", applicationSchema);
+
+/** سجلات الشركة (دعم، توظيف، فصل، سرقات...) تظهر للإدارة العليا فقط */
+export interface ICompanyLog {
+  guildId: string;
+  companyId: string;
+  text: string;
+  createdAt: Date;
+}
+
+const logSchema = new Schema<ICompanyLog>({
+  guildId: { type: String, required: true },
+  companyId: { type: String, required: true, index: true },
+  text: { type: String, required: true },
+  createdAt: { type: Date, default: () => new Date(), expires: 60 * 60 * 24 * 30 },
+});
+
+export const CompanyLog = model<ICompanyLog>("CompanyLog", logSchema);
