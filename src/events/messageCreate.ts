@@ -19,6 +19,7 @@ import { getGender, type Gender } from "../family/gender";
 import { touchRoom } from "../chat/service";
 import { handleTalkMessage, handleTalkReply } from "../talk";
 import { COMPANY_HUB_TRIGGER, COMPANY_MINE_TRIGGER, handleCompanyMessage, handleCompanyWorkMessage } from "../companies";
+import { JOBS_GUIDE_TRIGGER, buildJobsGuide } from "../jobs/guide";
 import { JOBS_TRIGGER, PROMO_TRIGGER, RESIGN_TRIGGER, WORK_TRIGGER, handleJobMessage } from "../jobs/interactions";
 import { DUEL_TRIGGER, HUNTER_TRIGGER, handleDuelMessage, handleHunterMessage } from "../hunter/interactions";
 import { handleCountingMessage } from "../counting/service";
@@ -146,6 +147,10 @@ const event: BotEvent = {
     // --- الوظائف: "وظائف" / "دوام" / "استقالة" ---
     if (STREAK_TRIGGER.test(rawContent.trim())) {
       await handleStreakMessage(message);
+      return;
+    }
+    if (JOBS_GUIDE_TRIGGER.test(rawContent.trim())) {
+      await message.channel.send({ embeds: [buildJobsGuide()] }).catch(() => undefined);
       return;
     }
     if (COMPANY_HUB_TRIGGER.test(rawContent.trim()) || COMPANY_MINE_TRIGGER.test(rawContent.trim())) {
