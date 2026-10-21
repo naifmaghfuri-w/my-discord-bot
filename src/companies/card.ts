@@ -1,12 +1,12 @@
 import { createCanvas, loadImage, type Image, type SKRSContext2D } from "@napi-rs/canvas";
 import { ensureFontsRegistered, FONT_BOLD } from "../quests/render/fonts";
 
-type Role = "owner" | "official" | "employee";
+type Badge = { label: string; color: string };
 
 export interface CardMember {
   name: string;
   avatar?: string;
-  role: Role;
+  badge: Badge;
   title: string;
   salary: number;
   active: boolean;
@@ -21,16 +21,11 @@ export interface CompanyCardData {
   memberCount: number;
   payrollIn: string;
   members: CardMember[];
-  me: { role: Role; title: string; salary: number; penalty: number; shiftReady: boolean; shiftIn: string };
+  me: { badge: Badge; title: string; salary: number; penalty: number; shiftReady: boolean; shiftIn: string };
 }
 
 const W = 1000;
 const PAD = 36;
-const ROLE: Record<Role, { label: string; color: string }> = {
-  owner: { label: "المالك", color: "#f59e0b" },
-  official: { label: "مسؤول", color: "#3b82f6" },
-  employee: { label: "موظف", color: "#64748b" },
-};
 
 const fmt = (n: number): string => Math.round(n).toLocaleString("en-US");
 
@@ -117,7 +112,7 @@ export async function renderCompanyCard(d: CompanyCardData): Promise<Buffer | nu
     ctx.font = `700 22px "${family}"`;
     ctx.fillText(`المالك: ${d.ownerName}  •  تأسست ${d.createdAt}`, W - PAD - 132, 120);
 
-    const role = ROLE[d.me.role];
+    const role = d.me.badge;
     ctx.fillStyle = role.color;
     rr(ctx, PAD, 62, 170, 46, 23);
     ctx.fill();
@@ -199,7 +194,7 @@ export async function renderCompanyCard(d: CompanyCardData): Promise<Buffer | nu
       ctx.fillStyle = i % 2 === 0 ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.02)";
       rr(ctx, PAD, y, W - PAD * 2, 64, 16);
       ctx.fill();
-      const r = ROLE[m.role];
+      const r = m.badge;
       drawAvatar(ctx, imgs[i], W - PAD - 40, y + 32, 24, r.color, [...m.name][0] ?? "؟", family);
       ctx.textBaseline = "middle";
       ctx.textAlign = "right";
