@@ -5,3 +5,6 @@ export const MARRY_FATHER_ACCEPT_PREFIX = "family_marry_fa_accept_";
 export const MARRY_FATHER_DECLINE_PREFIX = "family_marry_fa_decline_";
 export const ADOPT_ACCEPT_PREFIX = "family_adopt_accept_";
 export const ADOPT_DECLINE_PREFIX = "family_adopt_decline_";
+// طلب أخ/أخت
+export const SIB_ACCEPT_PREFIX = "family_sib_accept_";
+export const SIB_DECLINE_PREFIX = "family_sib_decline_";
