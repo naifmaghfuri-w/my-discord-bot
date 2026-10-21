@@ -1,7 +1,7 @@
 import type { Message } from "discord.js";
 import { logger } from "../utils/logger";
 import { getGender, type Gender } from "./gender";
-import { cleanName, inLawLabel, renderFamilyTree, roleLabel, toFamilyMember, type FamilyMember, type Role } from "./render";
+import { cleanName, grandchildSpouseLabel, inLawLabel, renderFamilyTree, roleLabel, toFamilyMember, type FamilyMember, type Role } from "./render";
 import { getFamilyView } from "./service";
 
 /**
@@ -28,11 +28,12 @@ export async function sendFamilyTree(message: Message<true>, targetId: string): 
 
   const alone =
     view.parents.length + view.siblings.length + view.spouses.length + view.children.length +
-      view.grandparents.length + view.grandchildren.length + view.childSpouses.length === 0;
+      view.grandparents.length + view.grandchildren.length + view.childSpouses.length + view.spouseParents.length + view.grandchildSpouses.length === 0;
 
   /** علاقة الشخص بصاحب الشجرة (الأب، الابنة، الصهر...) وليس بمن يشاهدها */
   const relationLabel = (id: string, gender: Gender, role: Role | null): string => {
     if (id === viewerId) return alone ? "" : "أنت";
+    if (role === "inlaw" && ownTree) return gender === "male" ? "حماك" : gender === "female" ? "حماتك" : "حماك/حماتك";
     if (role) return roleLabel(role, gender);
     // صاحب الشجرة نفسه: لو ما عنده أحد ما نكتب تحت اسمه شيء
     if (alone) return "";
@@ -55,7 +56,7 @@ export async function sendFamilyTree(message: Message<true>, targetId: string): 
 
   const childGender = new Map<string, Gender>();
 
-  const [ego, parents, siblings, spouses, children, grandparents, grandchildren, childSpouses] = await Promise.all([
+  const [ego, parents, siblings, spouses, children, grandparents, grandchildren, childSpouses, inLaws, gcSpouses] = await Promise.all([
     build(targetId, null),
     Promise.all(view.parents.map((p) => build(p.userId, "parent"))),
     Promise.all(view.siblings.map((s) => build(s.userId, "sibling"))),
@@ -81,6 +82,14 @@ export async function sendFamilyTree(message: Message<true>, targetId: string): 
         return { member, viaId: cs.viaId };
       }),
     ),
+    Promise.all(view.spouseParents.map(async (sp) => ({ member: await build(sp.profile.userId, "inlaw"), viaId: sp.viaId }))),
+    Promise.all(
+      view.grandchildSpouses.map(async (gs) => {
+        const member = await build(gs.profile.userId, "spouse");
+        if (member && member.userId !== viewerId) member.relation = grandchildSpouseLabel(member.gender);
+        return { member, viaId: gs.viaId };
+      }),
+    ),
   ]);
 
   if (!ego) {
@@ -89,6 +98,8 @@ export async function sendFamilyTree(message: Message<true>, targetId: string): 
   }
   const keep = (list: (FamilyMember | null)[]) => list.filter((m): m is FamilyMember => m !== null);
 
+  // لو حما الشخص هو نفسه والده/أخوه... ما نكرره في الشجرة
+  const shown = new Set<string>([ego.userId, ...keep(parents).map((m) => m.userId), ...keep(siblings).map((m) => m.userId), ...keep(spouses).map((m) => m.userId)]);
   const buffer = await renderFamilyTree({
     title: ownTree ? "شجرة العائلة" : `شجرة عائلة ${ego.username}`,
     ego,
@@ -99,6 +110,8 @@ export async function sendFamilyTree(message: Message<true>, targetId: string): 
     grandparents: grandparents.flatMap((g) => (g.member ? [{ member: g.member, viaId: g.viaId }] : [])),
     childSpouses: childSpouses.flatMap((c) => (c.member ? [{ member: c.member, viaId: c.viaId }] : [])),
     grandchildren: grandchildren.flatMap((g) => (g.member ? [{ member: g.member, viaIds: g.parentIds }] : [])),
+    inLaws: inLaws.flatMap((x) => (x.member && !shown.has(x.member.userId) ? [{ member: x.member, viaId: x.viaId }] : [])),
+    grandchildSpouses: gcSpouses.flatMap((x) => (x.member ? [{ member: x.member, viaId: x.viaId }] : [])),
   }).catch((err) => {
     logger.error("فشل توليد صورة شجرة العائلة", err);
     return null;
