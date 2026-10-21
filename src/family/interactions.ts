@@ -8,8 +8,10 @@ import {
   MARRY_DECLINE_PREFIX,
   MARRY_FATHER_ACCEPT_PREFIX,
   MARRY_FATHER_DECLINE_PREFIX,
+  SIB_ACCEPT_PREFIX,
+  SIB_DECLINE_PREFIX,
 } from "./ids";
-import { adopt, getParents, marry } from "./service";
+import { adopt, getParents, makeSiblings, marry } from "./service";
 import { pickMarriageGif } from "./marriageGif";
 import { logger } from "../utils/logger";
 
@@ -30,6 +32,12 @@ const ADOPT_REASON_TEXT: Record<string, string> = {
   same_gender_parent: "❌ عنده والد من نفس جنسك مسجّل بالفعل.",
   child_has_two_parents: "❌ عنده والدان مسجّلان بالفعل.",
   not_stepparent: "❌ لازم تكون متزوج من والده الحالي عشان تصير الوالد الثاني.",
+};
+
+const SIB_REASON_TEXT: Record<string, string> = {
+  self: "❌ ما تقدر تسوي هذا مع نفسك.",
+  already_siblings: "❌ أنتما إخوة بالفعل.",
+  related: "❌ ما تصير إخوة وبينكم قرابة مباشرة (زواج أو أبوة).",
 };
 
 /** يلاقي أب الشخص (الوالد اللي عنده رتبة ذكر) إن وجد، يحتاج Guild عشان يفحص الرتب */
@@ -154,6 +162,34 @@ export async function handleFamilyButton(interaction: ButtonInteraction): Promis
     return true;
   }
 
+  if (customId.startsWith(SIB_ACCEPT_PREFIX) || customId.startsWith(SIB_DECLINE_PREFIX)) {
+    const isAccept = customId.startsWith(SIB_ACCEPT_PREFIX);
+    const rest = customId.slice((isAccept ? SIB_ACCEPT_PREFIX : SIB_DECLINE_PREFIX).length);
+    const [fromId, toId] = rest.split("_");
+
+    if (interaction.user.id !== toId) {
+      await interaction.reply({ content: "🔒 هذا الطلب موجّه لشخص ثاني.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    if (!isAccept) {
+      await interaction.update({ content: `❌ <@${toId}> رفض طلب الأخوّة من <@${fromId}>.`, embeds: [], components: [] });
+      return true;
+    }
+
+    const result = await makeSiblings(fromId, toId, guildId).catch((err) => {
+      logger.error("فشل تنفيذ الأخوّة", err);
+      return { ok: false as const, reason: "related" as const };
+    });
+    if (!result.ok) {
+      await interaction.update({ content: SIB_REASON_TEXT[result.reason] ?? "❌ تعذّر إتمام الطلب.", embeds: [], components: [] });
+      return true;
+    }
+    const toMember = await guild.members.fetch(toId).catch(() => null);
+    const label = toMember && getGender(toMember) === "female" ? "أخت" : "أخو";
+    await interaction.update({ content: `🤝 تم! <@${toId}> صار ${label} <@${fromId}>.`, embeds: [], components: [] });
+    return true;
+  }
+
   if (customId.startsWith(ADOPT_ACCEPT_PREFIX) || customId.startsWith(ADOPT_DECLINE_PREFIX)) {
     const isAccept = customId.startsWith(ADOPT_ACCEPT_PREFIX);
     const rest = customId.slice((isAccept ? ADOPT_ACCEPT_PREFIX : ADOPT_DECLINE_PREFIX).length);
@@ -191,7 +227,7 @@ export async function handleFamilyButton(interaction: ButtonInteraction): Promis
     }
 
     const label = parentGender === "female" ? "والدة" : "والد";
-    await interaction.update({ content: `👶 تم! <@${parentId}> صار ${label} <@${childId}>.`, embeds: [], components: [] });
+    await interaction.update({ content: ` تم! <@${parentId}> صار ${label} <@${childId}>.`, embeds: [], components: [] });
     return true;
   }
 
