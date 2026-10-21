@@ -3,13 +3,15 @@ import {
   type BaseMessageOptions, type ButtonInteraction, type Client, type Interaction, type Message, type ModalSubmitInteraction, type StringSelectMenuInteraction,
 } from "discord.js";
 import { jenny } from "../constants";
-import { Company, CompanyApplication, CompanyMember, CompanyPosting, type ICompany, type ICompanyMember } from "../database/models/Company";
+import { Company, CompanyApplication, CompanyLog, CompanyMember, CompanyPosting, type ICompany, type ICompanyMember } from "../database/models/Company";
 import { UserProfile } from "../database/models/UserProfile";
 import { JOBS } from "../jobs/data";
 import { buildJobsPanel, fmtMs } from "../jobs/views";
 import { clearNotice, getJob, loadContext } from "../jobs/service";
 import { logTransaction } from "../services/transactions";
 import { renderCompanyCard } from "./card";
+import { BOARD_TITLE, assignable, badgeOf, canControl, levelOf, titleByKey, titleLevel } from "./titles";
+import { handleThiefMessage } from "../jobs/thief";
 
 /* ───────────── الثوابت ───────────── */
 
@@ -24,12 +26,14 @@ export const COMPANY_RULES = {
 } as const;
 
 /** !وظائف / !الوظائف */
-export const COMPANY_HUB_TRIGGER = /^!\s*(?:ال)?وظائف$/;
-/** !شركتي */
-export const COMPANY_MINE_TRIGGER = /^!\s*شركتي$/;
+/** !وظائف + !دعم اسم مبلغ + !سرقة (كلها تمر من handleCompanyMessage) */
+export const COMPANY_HUB_TRIGGER = /^!\s*(?:(?:ال)?وظائف|سرقة|دعم(?:\s+.+)?)$/;
+/** !شركتي (الإدارة العليا) / !شركة (باقي الموظفين) */
+export const COMPANY_MINE_TRIGGER = /^!\s*(?:شركتي|شركة)$/;
 
 const COLOR = 0x3498db;
-const ROLE_NAME = { owner: "👑 المالك", official: "🛡️ مسؤول", employee: "👷 موظف" } as const;
+const roleLabel = (m: { role: string; title: string }): string => (m.role === "owner" ? "👑 المالك" : m.role === "official" ? "🏛️ مجلس الإدارة" : `👷 ${m.title}`);
+const addLog = (guildId: string, companyId: string, text: string) => CompanyLog.create({ guildId, companyId, text }).catch(() => undefined);
 type View = BaseMessageOptions;
 
 const eph = { flags: MessageFlags.Ephemeral } as const;
@@ -50,13 +54,8 @@ async function payrollTotal(companyId: string): Promise<number> {
   const rows = await CompanyMember.find({ companyId }, { salary: 1 });
   return rows.reduce((s, m) => s + (m.salary ?? 0), 0);
 }
-const isBoss = (m: { role: string } | null | undefined): boolean => m?.role === "owner" || m?.role === "official";
-
-function canManage(actor: ICompanyMember, target: ICompanyMember): boolean {
-  if (actor.userId === target.userId || target.role === "owner") return false;
-  if (actor.role === "owner") return true;
-  return actor.role === "official" && target.role === "employee";
-}
+/** من يقدر يوظف ويدير: مجلس الإدارة والمالك، المدير التنفيذي، ومدير الفرع */
+const isBoss = (m: { role: string; title?: string } | null | undefined): boolean => Boolean(m) && levelOf(m as { role: string; title?: string }) <= 2;
 
 async function hasRegularJob(guildId: string, userId: string): Promise<boolean> {
   const jp = await getJob(userId, guildId);
@@ -155,7 +154,7 @@ const row = (...b: ButtonBuilder[]) => new ActionRowBuilder<ButtonBuilder>().add
 async function buildHub(guildId: string): Promise<View> {
   const postings = await CompanyPosting.find({ guildId, open: true }).limit(40);
   const companies = await Company.countDocuments({ guildId });
-  const regular = JOBS.map((j) => `${j.icon} **${j.name}** — ${j.kind === "career" ? `${j.ranks[0].pay}–${j.ranks[j.ranks.length - 1].pay} لكل دوام` : `${j.ranks[0].pay} للدوام الكامل`}`);
+  const regular = JOBS.map((j) => `${j.icon} **${j.name}** — ${j.kind === "thief" ? "150 كل ساعة (!سرقة)" : j.kind === "career" ? `${j.ranks[0].pay}–${j.ranks[j.ranks.length - 1].pay} لكل دوام` : `${j.ranks[0].pay} للدوام الكامل`}`);
   const corp = postings.length
     ? postings.slice(0, 8).map((p) => `🏢 **${p.title}** — ${jenny(p.salary)} يوميًا (${p.slots - p.filled}/${p.slots} متاح)`)
     : ["ما فيه وظائف شركات مفتوحة الحين."];
@@ -204,7 +203,7 @@ async function buildCompanyPanel(guildId: string, userId: string, client: Client
   const cid = idOf(c);
   const members = await CompanyMember.find({ companyId: cid }).sort({ salary: -1 });
   const payroll = members.reduce((s, x) => s + x.salary, 0);
-  const lines = members.slice(0, 15).map((x) => `${ROLE_NAME[x.role]} ${mention(x.userId)} — ${x.title} • ${jenny(x.salary)}`);
+  const lines = members.slice(0, 15).map((x) => `${roleLabel(x)} ${mention(x.userId)} — ${x.title} • ${jenny(x.salary)}`);
   const since = new Date(c.lastPayrollAt).getTime();
   const shown = members.slice(0, 6);
   const infos = await Promise.all(shown.map((x) => memberInfo(client, guildId, x.userId)));
@@ -222,12 +221,12 @@ async function buildCompanyPanel(guildId: string, userId: string, client: Client
     members: shown.map((x, idx) => ({
       name: infos[idx].name,
       avatar: infos[idx].avatar,
-      role: x.role,
+      badge: badgeOf(x),
       title: x.title,
       salary: x.salary,
       active: Boolean(x.lastShiftAt && new Date(x.lastShiftAt).getTime() > since),
     })),
-    me: { role: m.role, title: m.title, salary: m.salary, penalty: m.penalty ?? 0, shiftReady: shiftLeft <= 0, shiftIn: fmtMs(Math.max(60_000, shiftLeft)) },
+    me: { badge: badgeOf(m), title: m.title, salary: m.salary, penalty: m.penalty ?? 0, shiftReady: shiftLeft <= 0, shiftIn: fmtMs(Math.max(60_000, shiftLeft)) },
   });
   const embed = new EmbedBuilder()
     .setColor(COLOR)
@@ -239,7 +238,7 @@ async function buildCompanyPanel(guildId: string, userId: string, client: Client
         `🧾 رواتب اليوم الكاملة: ${jenny(payroll)}`,
         `👥 الأعضاء: **${members.length}**`,
         "",
-        `أنت: ${ROLE_NAME[m.role]} — **${m.title}** (${jenny(m.salary)} يوميًا)`,
+        `أنت: ${roleLabel(m)} — **${m.title}** (${jenny(m.salary)} يوميًا)`,
         "",
         lines.join("\n"),
       ].filter((x, i) => x !== "" || i > 0).join("\n"),
@@ -250,7 +249,8 @@ async function buildCompanyPanel(guildId: string, userId: string, client: Client
     files = [{ attachment: png, name: "company.png" }];
   }
   const first = [btn(`co|work|${cid}`, "دوام", ButtonStyle.Success), btn(`co|refresh|${cid}`, "تحديث", ButtonStyle.Secondary, "🔄")];
-  if (m.role === "owner") first.push(btn(`co|self|${cid}`, "منصبي وراتبي", ButtonStyle.Secondary, "✏️"));
+  if (m.role === "owner") first.push(btn(`co|self|${cid}`, "راتبي", ButtonStyle.Secondary, "✏️"));
+  if (levelOf(m) === 0) first.push(btn(`co|logs|${cid}`, "السجلات", ButtonStyle.Secondary, "📜"));
   const rows: ActionRowBuilder<ButtonBuilder>[] = [row(...first)];
   if (isBoss(m)) {
     rows.push(row(btn(`co|post|${cid}`, "طلب توظيف", ButtonStyle.Primary, "📢"), btn(`co|mng|${cid}`, "إدارة الموظفين", ButtonStyle.Secondary, "👥")));
@@ -264,16 +264,19 @@ function memberCard(c: ICompany, t: ICompanyMember, actor: ICompanyMember, cid: 
   const embed = new EmbedBuilder()
     .setColor(COLOR)
     .setTitle(`👤 ${t.title}`)
-    .setDescription([note ?? "", `${ROLE_NAME[t.role]} ${mention(t.userId)}`, `الراتب اليومي: ${jenny(t.salary)}`, `خصم قادم: ${jenny(t.penalty ?? 0)}`, `ميزانية الشركة: ${jenny(c.budget)}`].filter(Boolean).join("\n"));
-  const rows = [
-    row(
-      btn(`co|pen|${cid}|${t.userId}`, "خصم", ButtonStyle.Secondary, "➖"),
-      btn(`co|raise|${cid}|${t.userId}`, "زيادة راتب", ButtonStyle.Secondary, "➕"),
-      btn(`co|promo|${cid}|${t.userId}`, "ترقية", ButtonStyle.Primary, "📈"),
-      btn(`co|fire|${cid}|${t.userId}`, "فصل", ButtonStyle.Danger, "🥾"),
-    ),
-  ];
-  if (actor.role === "owner") rows.push(row(btn(`co|offc|${cid}|${t.userId}`, t.role === "official" ? "سحب المسؤولية" : "تعيين مسؤول", ButtonStyle.Secondary, "🛡️")));
+    .setDescription([note ?? "", `${roleLabel(t)} ${mention(t.userId)}`, `الراتب اليومي: ${jenny(t.salary)}`, `خصم قادم: ${jenny(t.penalty ?? 0)}`, `ميزانية الشركة: ${jenny(c.budget)}`].filter(Boolean).join("\n"));
+  const rows: ActionRowBuilder<ButtonBuilder>[] = [];
+  if (canControl(actor, t)) {
+    rows.push(
+      row(
+        btn(`co|pen|${cid}|${t.userId}`, "خصم", ButtonStyle.Secondary, "➖"),
+        btn(`co|raise|${cid}|${t.userId}`, "زيادة راتب", ButtonStyle.Secondary, "➕"),
+        btn(`co|promo|${cid}|${t.userId}`, "تغيير المنصب", ButtonStyle.Primary, "🔁"),
+        btn(`co|fire|${cid}|${t.userId}`, "فصل", ButtonStyle.Danger, "🥾"),
+      ),
+    );
+  }
+  if (actor.role === "owner" && t.role !== "owner") rows.push(row(btn(`co|offc|${cid}|${t.userId}`, t.role === "official" ? "سحب عضوية المجلس" : "تعيين في مجلس الإدارة", ButtonStyle.Secondary, "🏛️")));
   return { embeds: [embed], components: rows };
 }
 
@@ -295,12 +298,40 @@ const modal = (id: string, title: string, ...rows: ActionRowBuilder<TextInputBui
 
 /* ───────────── الرسائل النصية ───────────── */
 
-/** !وظائف / !شركتي */
+/** !وظائف / !شركتي / !شركة / !دعم / !سرقة */
 export async function handleCompanyMessage(message: Message): Promise<void> {
   if (!message.inGuild()) return;
   const text = message.content.trim();
+  const reply = (content: string) => message.reply({ content, allowedMentions: { repliedUser: false } }).catch(() => undefined);
+
+  if (/^!\s*سرقة$/.test(text)) return void (await handleThiefMessage(message));
+
+  if (/^!\s*دعم(?:\s|$)/.test(text)) {
+    const sup = /^!\s*دعم\s+(.+?)\s+([\d٠-٩,،]+)$/.exec(text);
+    if (!sup) return void (await reply("الصيغة: `!دعم اسم_الشركة المبلغ` مثل `!دعم شركة النجوم 500`"));
+    const amount = num(sup[2]);
+    if (!(amount >= 1 && amount <= 1_000_000)) return void (await reply("❌ المبلغ لازم بين 1 و 1,000,000."));
+    const company = await Company.findOne({ guildId: message.guildId, name: sup[1].trim() });
+    if (!company) return void (await reply("❌ ما لقيت شركة بهذا الاسم."));
+    const paid = await UserProfile.findOneAndUpdate({ userId: message.author.id, guildId: message.guildId, coins: { $gte: amount } }, { $inc: { coins: -amount } });
+    if (!paid) return void (await reply(`❌ ما تكفي محفظتك لدعم بمبلغ ${jenny(amount)}.`));
+    await Company.updateOne({ _id: company._id }, { $inc: { budget: amount } });
+    await logTransaction(message.guildId, message.author.id, "job_fee", amount);
+    await addLog(message.guildId, idOf(company), `💝 ${mention(message.author.id)} دعم الشركة بمبلغ ${jenny(amount)}`);
+    return void (await reply(`💝 دعمت **${company.name}** بمبلغ ${jenny(amount)}. شكرًا! الإدارة العليا شافت ذلك في السجلات.`));
+  }
+
   const mine = COMPANY_MINE_TRIGGER.test(text);
-  if (mine) await message.channel.sendTyping().catch(() => undefined);
+  if (mine) {
+    const m = await myMembership(message.guildId, message.author.id);
+    if (m) {
+      const top = levelOf(m) === 0;
+      const wantsTop = text.includes("شركتي");
+      if (top && !wantsTop) return void (await reply("🏛️ أنت من الإدارة العليا، اكتب `!شركتي`."));
+      if (!top && wantsTop) return void (await reply("اكتب `!شركة` (أمر `!شركتي` للمالك ومجلس الإدارة فقط)."));
+    }
+    await message.channel.sendTyping().catch(() => undefined);
+  }
   const view = mine ? await buildCompanyPanel(message.guildId, message.author.id, message.client) : await buildHub(message.guildId);
   await message.channel.send(view).catch(() => undefined);
 }
@@ -425,7 +456,8 @@ async function route(i: AnyI): Promise<void> {
     const app = await CompanyApplication.findById(a);
     if (!app) return void (await i.update({ content: "تمت معالجة هذا الطلب.", embeds: [], components: [] }));
     const boss = await CompanyMember.findOne({ companyId: app.companyId, userId: uid });
-    if (!isBoss(boss)) return void (await say("❌ فقط المالك أو مسؤولو الشركة يقررون."));
+    const appPosting = await CompanyPosting.findById(app.postingId);
+    if (!boss || !isBoss(boss) || (appPosting && titleLevel(appPosting.title) <= levelOf(boss))) return void (await say("❌ ما عندك صلاحية تقرر في هذي الوظيفة."));
     const claimed = await CompanyApplication.findOneAndDelete({ _id: app._id });
     if (!claimed) return void (await i.update({ content: "تمت معالجة هذا الطلب.", embeds: [], components: [] }));
     if (act === "rej") {
@@ -440,6 +472,7 @@ async function route(i: AnyI): Promise<void> {
       await CompanyPosting.updateOne({ _id: p._id }, { $inc: { filled: -1 } });
       return void (await i.update({ content: `⚠️ ${mention(app.userId)} صار عضو في شركة ثانية.`, embeds: [], components: [], allowedMentions: { users: [] } }));
     }
+    await addLog(guildId, app.companyId, `✅ ${mention(app.userId)} انقبل كـ **${p.title}** بواسطة ${mention(uid)}`);
     if (p.filled >= p.slots) await closePosting(i, p);
     await i.update({ content: `✅ ${mention(uid)} قبل ${mention(app.userId)} في وظيفة **${p.title}** (${jenny(p.salary)} يوميًا). مبروك!`, embeds: [], components: [], allowedMentions: { users: [app.userId] } });
     return;
@@ -461,75 +494,85 @@ async function route(i: AnyI): Promise<void> {
     return void (await i.update({ content: "🚪 استقلت من الشركة.", components: [] }));
   }
 
-  /* --- المالك يعدّل منصبه وراتبه --- */
+  /* --- المالك يعدّل راتبه --- */
   if (act === "self" && i.isButton()) {
     const { me } = await ctxOf(i, a);
     if (me?.role !== "owner") return void (await say("❌ فقط المالك."));
-    const t1 = input("title", "اسم منصبك", "المالك", TextInputStyle.Short, true, 40).components[0].setValue(me.title);
     const t2 = input("salary", "راتبك اليومي", "0", TextInputStyle.Short, true, 6).components[0].setValue(String(me.salary));
-    await i.showModal(new ModalBuilder().setCustomId(`co|selfm|${a}`).setTitle("منصبي وراتبي").addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(t1), new ActionRowBuilder<TextInputBuilder>().addComponents(t2)));
+    await i.showModal(new ModalBuilder().setCustomId(`co|selfm|${a}`).setTitle("راتبي").addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(t2)));
     return;
   }
   if (act === "selfm" && i.isModalSubmit()) {
     const { me } = await ctxOf(i, a);
     if (!me || me.role !== "owner") return void (await say("❌ فقط المالك."));
-    const title = i.fields.getTextInputValue("title").trim();
     const salary = num(i.fields.getTextInputValue("salary"));
-    if (!title || !(salary >= 0 && salary <= COMPANY_RULES.maxSalary)) return void (await say(`❌ الراتب لازم بين 0 و ${COMPANY_RULES.maxSalary}.`));
-    await CompanyMember.updateOne({ _id: me._id }, { $set: { title, salary } });
+    if (!(salary >= 0 && salary <= COMPANY_RULES.maxSalary)) return void (await say(`❌ الراتب لازم بين 0 و ${COMPANY_RULES.maxSalary}.`));
+    await CompanyMember.updateOne({ _id: me._id }, { $set: { salary } });
     await i.deferReply(eph);
-    await i.editReply(await buildCompanyPanel(guildId, uid, i.client, `✏️ صار منصبك **${title}** وراتبك ${jenny(salary)} يوميًا (يُدفع من ميزانية الشركة).`));
+    await i.editReply(await buildCompanyPanel(guildId, uid, i.client, `✏️ صار راتبك ${jenny(salary)} يوميًا (يُدفع من ميزانية الشركة).`));
     return;
   }
 
-  /* --- نشر طلب توظيف --- */
+  /* --- سجلات الشركة (الإدارة العليا فقط) --- */
+  if (act === "logs" && i.isButton()) {
+    const { me } = await ctxOf(i, a);
+    if (!me || levelOf(me) !== 0) return void (await say("❌ السجلات للإدارة العليا فقط."));
+    const rows = await CompanyLog.find({ companyId: a }).sort({ createdAt: -1 }).limit(15);
+    const lines = rows.map((r) => `<t:${Math.floor(new Date(r.createdAt).getTime() / 1000)}:R> ${r.text}`);
+    return void (await i.reply({ embeds: [new EmbedBuilder().setColor(COLOR).setTitle("📜 سجلات الشركة").setDescription(lines.join("\n") || "لا توجد سجلات بعد.")], ...eph }));
+  }
+
+  /* --- نشر طلب توظيف: اختيار الوظيفة من قائمة ثم العدد والراتب فقط --- */
   if (act === "post" && i.isButton()) {
     const { me } = await ctxOf(i, a);
-    if (!isBoss(me)) return void (await say("❌ فقط المالك أو المسؤولون."));
+    if (!me || !isBoss(me)) return void (await say("❌ هذا للإدارة فقط."));
+    const opts = assignable(levelOf(me));
+    if (!opts.length) return void (await say("ما فيه وظائف تقدر تعلن عنها."));
+    const menu = new StringSelectMenuBuilder()
+      .setCustomId(`co|postsel|${a}`)
+      .setPlaceholder("اختر الوظيفة")
+      .addOptions(opts.map((t) => ({ label: t.name, description: t.group, value: t.key })));
+    await i.reply({ content: "📢 اختر الوظيفة اللي تبي تعلن عنها:", components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)], ...eph });
+    return;
+  }
+  if (act === "postsel" && i.isStringSelectMenu()) {
+    const { me } = await ctxOf(i, a);
+    const t = titleByKey(i.values[0]);
+    if (!me || !isBoss(me) || !t || t.level <= levelOf(me)) return void (await say("❌ ما تقدر تعلن عن هذي الوظيفة."));
     await i.showModal(
       modal(
-        `co|postm|${a}`,
-        "طلب توظيف",
-        input("title", "المسمى الوظيفي", "مثال: محاسب", TextInputStyle.Short, true, 40),
-        input("slots", `عدد الموظفين (1-${COMPANY_RULES.maxSlots})`, "3", TextInputStyle.Short, true, 3),
+        `co|postm|${a}|${t.key}`,
+        `توظيف: ${t.name}`.slice(0, 45),
+        input("slots", `عدد المطلوبين (1-${COMPANY_RULES.maxSlots})`, "3", TextInputStyle.Short, true, 3),
         input("salary", "الراتب اليومي", "300", TextInputStyle.Short, true, 6),
-        input("ranks", "الرتب الأعلى للترقية (اختياري)", "مشرف:500، مدير:800", TextInputStyle.Paragraph, false, 200),
       ),
     );
     return;
   }
   if (act === "postm" && i.isModalSubmit()) {
     const { company, me } = await ctxOf(i, a);
-    if (!company || !isBoss(me)) return void (await say("❌ فقط المالك أو المسؤولون."));
-    const title = i.fields.getTextInputValue("title").trim();
+    const def = titleByKey(b ?? "");
+    if (!company || !me || !isBoss(me) || !def || def.level <= levelOf(me)) return void (await say("❌ ما تقدر تعلن عن هذي الوظيفة."));
+    const title = def.name;
     const slots = num(i.fields.getTextInputValue("slots"));
     const salary = num(i.fields.getTextInputValue("salary"));
-    if (!title || !(slots >= 1 && slots <= COMPANY_RULES.maxSlots)) return void (await say(`❌ العدد لازم بين 1 و ${COMPANY_RULES.maxSlots}.`));
+    if (!(slots >= 1 && slots <= COMPANY_RULES.maxSlots)) return void (await say(`❌ العدد لازم بين 1 و ${COMPANY_RULES.maxSlots}.`));
     if (!(salary >= 1 && salary <= COMPANY_RULES.maxSalary)) return void (await say(`❌ الراتب لازم بين 1 و ${COMPANY_RULES.maxSalary}.`));
     const positions = new Map(company.positions.map((p) => [p.title, p.salary] as const));
     positions.set(title, salary);
-    const ranksRaw = i.fields.getTextInputValue("ranks") ?? "";
-    const shown: string[] = [];
-    for (const part of ranksRaw.split(/[،,\n]+/)) {
-      const [t, s] = part.split(/[:：]/);
-      const rs = num(s ?? "");
-      if (t?.trim() && rs >= 1 && rs <= COMPANY_RULES.maxSalary) {
-        positions.set(t.trim(), rs);
-        shown.push(`${t.trim()} (${rs})`);
-      }
-    }
     await Company.updateOne({ _id: company._id }, { $set: { positions: [...positions].map(([t, s]) => ({ title: t, salary: s })) } });
     const posting = await CompanyPosting.create({ guildId, companyId: a, title, slots, salary });
     const ch = i.channel;
     if (!ch || !("send" in ch)) return void (await say("❌ تعذّر النشر في هذا الروم."));
     const sent = await ch
-      .send({ embeds: [postingEmbed(company, { title, slots, filled: 0, salary }, shown.join("، "), true)], components: [row(btn(`co|apply|${idOf(posting)}`, "تقديم", ButtonStyle.Success, "📝"))] })
+      .send({ embeds: [postingEmbed(company, { title, slots, filled: 0, salary }, "", true)], components: [row(btn(`co|apply|${idOf(posting)}`, "تقديم", ButtonStyle.Success, "📝"))] })
       .catch(() => null);
     if (!sent) {
       await CompanyPosting.deleteOne({ _id: posting._id });
       return void (await say("❌ ما قدرت أنشر الطلب (صلاحيات الروم؟)."));
     }
     await CompanyPosting.updateOne({ _id: posting._id }, { $set: { channelId: sent.channelId, messageId: sent.id } });
+    await addLog(guildId, a, `📢 ${mention(uid)} أعلن عن وظيفة **${title}** (${slots} مقعد، ${jenny(salary)} يوميًا)`);
     await i.reply({ content: "✅ تم نشر طلب التوظيف في هذا الروم. الطلبات تظهر هنا بأزرار قبول/رفض.", ...eph });
     return;
   }
@@ -537,8 +580,9 @@ async function route(i: AnyI): Promise<void> {
   /* --- إدارة الموظفين --- */
   if (act === "mng" && i.isButton()) {
     const { me } = await ctxOf(i, a);
-    if (!isBoss(me)) return void (await say("❌ فقط المالك أو المسؤولون."));
-    const list = (await CompanyMember.find({ companyId: a, userId: { $ne: uid } }).limit(25)).filter((t) => t.role !== "owner" && (me?.role === "owner" || t.role === "employee"));
+    if (!me || !isBoss(me)) return void (await say("❌ هذا للإدارة فقط."));
+    const all = await CompanyMember.find({ companyId: a, userId: { $ne: uid } }).limit(100);
+    const list = all.filter((t) => canControl(me, t) || (me.role === "owner" && t.role !== "owner")).slice(0, 25);
     if (!list.length) return void (await say("ما فيه موظفين تقدر تديرهم الحين."));
     const menu = new StringSelectMenuBuilder()
       .setCustomId(`co|sel|${a}`)
@@ -551,8 +595,10 @@ async function route(i: AnyI): Promise<void> {
     const targetId = act === "sel" && i.isStringSelectMenu() ? i.values[0] : b;
     const { company, me } = await ctxOf(i, a);
     const t = company ? await CompanyMember.findOne({ companyId: a, userId: targetId }) : null;
-    if (!company || !me || !t || !isBoss(me) || !canManage(me, t)) {
-      return void (await say("❌ ما تقدر تدير هذا الموظف."));
+    const ownerOverride = Boolean(me && t && me.role === "owner" && t.role !== "owner");
+    const allowed = Boolean(me && t && (act === "offc" ? ownerOverride : act === "sel" ? canControl(me, t) || ownerOverride : canControl(me, t)));
+    if (!company || !me || !t || !allowed) {
+      return void (await say("❌ ما تقدر تدير هذا الشخص."));
     }
     const cid = a;
     const show = async (note?: string) => {
@@ -569,6 +615,7 @@ async function route(i: AnyI): Promise<void> {
       const amount = num(i.fields.getTextInputValue("amount"));
       if (!(amount >= 1 && amount <= t.salary)) return void (await say(`❌ الخصم لازم بين 1 و ${t.salary} (راتبه).`));
       await CompanyMember.updateOne({ _id: t._id }, { $inc: { penalty: amount } });
+      await addLog(guildId, cid, `➖ ${mention(uid)} خصم ${jenny(amount)} من راتب ${mention(t.userId)}`);
       return void (await show(`➖ تم خصم ${jenny(amount)} من راتبه القادم.`));
     }
     if (act === "raisem" && i.isModalSubmit()) {
@@ -580,30 +627,33 @@ async function route(i: AnyI): Promise<void> {
       return void (await show(`➕ صار راتبه ${jenny(t.salary + amount)} يوميًا.`));
     }
     if (act === "promo" && i.isButton()) {
-      const higher = company.positions.map((p, idx) => ({ ...p, idx })).filter((p) => p.salary > t.salary).slice(0, 25);
-      if (!higher.length) return void (await say("ما فيه رتبة أعلى راتبًا. أضف رتب جديدة في «طلب توظيف»."));
+      const options = company.positions.map((p, idx) => ({ ...p, idx })).filter((p) => titleLevel(p.title) > levelOf(me) && p.title !== t.title).slice(0, 25);
+      if (!options.length) return void (await say("ما فيه وظائف معلن عنها تقدر تنقله لها. أعلن عنها أولًا من «طلب توظيف»."));
       const menu = new StringSelectMenuBuilder()
         .setCustomId(`co|promosel|${cid}|${t.userId}`)
-        .setPlaceholder("اختر الرتبة الجديدة")
-        .addOptions(higher.map((p) => ({ label: p.title.slice(0, 90), description: `${p.salary} يوميًا`, value: String(p.idx) })));
-      return void (await i.update({ content: "📈 اختر المنصب الأعلى:", embeds: [], components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)] }));
+        .setPlaceholder("اختر الوظيفة الجديدة")
+        .addOptions(options.map((p) => ({ label: p.title.slice(0, 90), description: `${p.salary} يوميًا`, value: String(p.idx) })));
+      return void (await i.update({ content: "🔁 اختر الوظيفة من الوظائف المعلن عنها:", embeds: [], components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)] }));
     }
     if (act === "promosel" && i.isStringSelectMenu()) {
       const pos = company.positions[Number(i.values[0])];
-      if (!pos || pos.salary <= t.salary) return void (await say("❌ رتبة غير صالحة."));
+      if (!pos || titleLevel(pos.title) <= levelOf(me)) return void (await say("❌ وظيفة غير صالحة."));
       const total = await payrollTotal(cid);
       if (company.budget < total - t.salary + pos.salary) return void (await say("❌ ميزانية الشركة ما تغطي الراتب الجديد."));
       await CompanyMember.updateOne({ _id: t._id }, { $set: { title: pos.title, salary: pos.salary } });
-      return void (await show(`📈 تمت ترقيته إلى **${pos.title}** (${jenny(pos.salary)} يوميًا).`));
+      await addLog(guildId, cid, `🔁 ${mention(uid)} نقل ${mention(t.userId)} من **${t.title}** إلى **${pos.title}**`);
+      return void (await show(`🔁 صار **${pos.title}** (${jenny(pos.salary)} يوميًا).`));
     }
     if (act === "fire" && i.isButton()) {
       await CompanyMember.deleteOne({ _id: t._id });
+      await addLog(guildId, cid, `🥾 ${mention(uid)} فصل ${mention(t.userId)} (${t.title})`);
       return void (await i.update({ content: `🥾 تم فصل ${mention(t.userId)}.`, embeds: [], components: [], allowedMentions: { users: [] } }));
     }
     if (act === "offc" && i.isButton()) {
-      if (me.role !== "owner") return void (await say("❌ فقط المالك."));
-      await CompanyMember.updateOne({ _id: t._id }, { $set: { role: t.role === "official" ? "employee" : "official" } });
-      return void (await show(t.role === "official" ? "تم سحب المسؤولية." : "🛡️ صار مسؤولًا: يقبل الطلبات ويدير الموظفين."));
+      const toBoard = t.role !== "official";
+      await CompanyMember.updateOne({ _id: t._id }, { $set: toBoard ? { role: "official", title: BOARD_TITLE } : { role: "employee", title: "عامل نظافة" } });
+      await addLog(guildId, cid, toBoard ? `🏛️ ${mention(uid)} عيّن ${mention(t.userId)} في مجلس الإدارة` : `🏛️ ${mention(uid)} سحب عضوية المجلس من ${mention(t.userId)}`);
+      return void (await show(toBoard ? "🏛️ صار من مجلس الإدارة والمالكين." : "تم سحب عضوية المجلس (صار عامل نظافة)."));
     }
     return;
   }
