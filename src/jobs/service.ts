@@ -146,6 +146,7 @@ export async function resign(userId: string, guildId: string): Promise<boolean> 
 
 export type WorkResult =
   | { ok: false; reason: "no_job" }
+  | { ok: false; reason: "thief" }
   | { ok: false; reason: "cooldown"; msLeft: number }
   | { ok: false; reason: "on_shift"; msLeft: number }
   | { ok: true; kind: "shift"; pay: number; shifts: number; streak: number; rankTitle: string; promoReady: boolean }
@@ -167,6 +168,7 @@ export async function work(userId: string, guildId: string): Promise<WorkResult>
   const jp = await getJob(userId, guildId);
   const job = JOB_MAP[jp.jobId];
   if (!job) return { ok: false, reason: "no_job" };
+  if (job.kind === "thief") return { ok: false, reason: "thief" };
   const now = Date.now();
 
   if (job.kind === "career") {
