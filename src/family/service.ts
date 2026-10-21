@@ -1,4 +1,5 @@
 import { Marriage } from "../database/models/Marriage";
+import { Sibling } from "../database/models/Sibling";
 import { UserProfile, type IUserProfile } from "../database/models/UserProfile";
 import { getProfile } from "../services/economy";
 import { logTransaction } from "../services/transactions";
@@ -235,8 +236,10 @@ export type RunAwayResult = { ok: true; parentIds: string[] } | { ok: false; rea
 export async function runAway(childId: string, guildId: string): Promise<RunAwayResult> {
   const child = await getProfile(childId, guildId);
   const parentIds = child.parentIds ?? [];
-  if (parentIds.length === 0) return { ok: false, reason: "no_family" };
+  const sibLinks = await Sibling.countDocuments({ guildId, $or: [{ aId: childId }, { bId: childId }] });
+  if (parentIds.length === 0 && sibLinks === 0) return { ok: false, reason: "no_family" };
   await UserProfile.updateOne({ userId: childId, guildId }, { $set: { parentIds: [] } });
+  await Sibling.deleteMany({ guildId, $or: [{ aId: childId }, { bId: childId }] });
   return { ok: true, parentIds };
 }
 
@@ -253,12 +256,37 @@ export async function getParents(userId: string, guildId: string): Promise<IUser
 
 export async function getSiblings(userId: string, guildId: string): Promise<IUserProfile[]> {
   const parents = await getParents(userId, guildId);
-  if (parents.length === 0) return [];
   const ids = parents.map((p) => p.userId);
-  const siblings = await UserProfile.find({ guildId, parentIds: { $in: ids }, userId: { $ne: userId } });
+  const byParent = ids.length ? await UserProfile.find({ guildId, parentIds: { $in: ids }, userId: { $ne: userId } }) : [];
+  // أخوة بالطلب (!اخ / !اخت)
+  const links = await Sibling.find({ guildId, $or: [{ aId: userId }, { bId: userId }] });
+  const extraIds = links.map((l) => (l.aId === userId ? l.bId : l.aId));
+  const extra = extraIds.length ? await UserProfile.find({ guildId, userId: { $in: extraIds } }) : [];
   // إزالة التكرار (لو مشترك بالأبوين الاثنين يطلع مرتين)
   const seen = new Set<string>();
-  return siblings.filter((s) => (seen.has(s.userId) ? false : (seen.add(s.userId), true)));
+  return [...byParent, ...extra].filter((s) => (seen.has(s.userId) ? false : (seen.add(s.userId), true)));
+}
+
+export type SiblingResult = { ok: true } | { ok: false; reason: "self" | "already_siblings" | "related" };
+
+/** يتأكد إن طلب الأخوّة ممكن (بدون تنفيذ) */
+export async function canSibling(aId: string, bId: string, guildId: string): Promise<SiblingResult> {
+  if (aId === bId) return { ok: false, reason: "self" };
+  const [a, b] = await Promise.all([getProfile(aId, guildId), getProfile(bId, guildId)]);
+  if ((a.spouseIds ?? []).includes(bId)) return { ok: false, reason: "related" };
+  if ((a.parentIds ?? []).includes(bId) || (b.parentIds ?? []).includes(aId)) return { ok: false, reason: "related" };
+  const sibs = await getSiblings(aId, guildId);
+  if (sibs.some((s) => s.userId === bId)) return { ok: false, reason: "already_siblings" };
+  return { ok: true };
+}
+
+/** ينفّذ الأخوّة بعد موافقة الطرف الثاني */
+export async function makeSiblings(aId: string, bId: string, guildId: string): Promise<SiblingResult> {
+  const check = await canSibling(aId, bId, guildId);
+  if (!check.ok) return check;
+  const [x, y] = [aId, bId].sort();
+  await Sibling.updateOne({ guildId, aId: x, bId: y }, { $setOnInsert: { createdAt: new Date() } }, { upsert: true });
+  return { ok: true };
 }
 
 export async function getSpouses(userId: string, guildId: string): Promise<IUserProfile[]> {
@@ -279,6 +307,10 @@ export interface FamilyView {
   childSpouses: { profile: IUserProfile; viaId: string }[];
   /** الأحفاد (أبناء الأبناء) مع معرف الابن اللي ينتمون له */
   grandchildren: { profile: IUserProfile; viaId: string }[];
+  /** أهل الزوج/الزوجة (الحما والحماة) مع معرف الزوج/الزوجة */
+  spouseParents: { profile: IUserProfile; viaId: string }[];
+  /** أزواج/زوجات الأحفاد مع معرف الحفيد */
+  grandchildSpouses: { profile: IUserProfile; viaId: string }[];
 }
 
 /** يجمع كل أطراف عائلة العضو (والدان، أجداد، أزواج، إخوة، أبناء، أحفاد) */
@@ -317,5 +349,28 @@ export async function getFamilyView(userId: string, guildId: string): Promise<Fa
     }
   }
 
-  return { parents, siblings, children, spouses, grandparents, childSpouses, grandchildren };
+  // أهل الزوج/الزوجة
+  const spPIds = [...new Set(spouses.flatMap((s) => s.parentIds ?? []))];
+  const spPDocs = spPIds.length ? await UserProfile.find({ guildId, userId: { $in: spPIds } }) : [];
+  const spouseParents: { profile: IUserProfile; viaId: string }[] = [];
+  for (const sp of spouses) {
+    for (const id of sp.parentIds ?? []) {
+      const profile = spPDocs.find((d) => d.userId === id);
+      if (profile) spouseParents.push({ profile, viaId: sp.userId });
+    }
+  }
+
+  // أزواج/زوجات الأحفاد (حتى اثنين لكل حفيد)
+  const gcSpouseIds = new Map<string, string[]>(grandchildren.map((g) => [g.profile.userId, (g.profile.spouseIds ?? []).filter((id) => id !== userId).slice(0, 2)]));
+  const gcSpAll = [...new Set([...gcSpouseIds.values()].flat())];
+  const gcSpDocs = gcSpAll.length ? await UserProfile.find({ guildId, userId: { $in: gcSpAll } }) : [];
+  const grandchildSpouses: { profile: IUserProfile; viaId: string }[] = [];
+  for (const g of grandchildren) {
+    for (const id of gcSpouseIds.get(g.profile.userId) ?? []) {
+      const profile = gcSpDocs.find((d) => d.userId === id);
+      if (profile) grandchildSpouses.push({ profile, viaId: g.profile.userId });
+    }
+  }
+
+  return { parents, siblings, children, spouses, grandparents, childSpouses, grandchildren, spouseParents, grandchildSpouses };
 }
