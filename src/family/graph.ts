@@ -1,12 +1,15 @@
+import { Sibling } from "../database/models/Sibling";
 import { UserProfile } from "../database/models/UserProfile";
 import type { Gender } from "./gender";
 
-type EdgeType = "up" | "down" | "spouse";
+type StepType = "up" | "down" | "spouse";
+type EdgeType = StepType | "sibling";
 
 interface NodeInfo {
   parentIds: string[];
   spouseIds: string[];
   childrenIds: string[];
+  siblingIds: string[];
 }
 
 const MAX_DEPTH = 6;
@@ -15,30 +18,32 @@ async function loadNode(userId: string, guildId: string, cache: Map<string, Node
   const cached = cache.get(userId);
   if (cached) return cached;
 
-  const [profile, children] = await Promise.all([
+  const [profile, children, sibLinks] = await Promise.all([
     UserProfile.findOne({ userId, guildId }, { parentIds: 1, spouseIds: 1 }),
     UserProfile.find({ guildId, parentIds: userId }, { userId: 1 }),
+    Sibling.find({ guildId, $or: [{ aId: userId }, { bId: userId }] }),
   ]);
 
   const info: NodeInfo = {
     parentIds: profile?.parentIds ?? [],
     spouseIds: profile?.spouseIds ?? [],
     childrenIds: children.map((c) => c.userId),
+    siblingIds: sibLinks.map((l) => (l.aId === userId ? l.bId : l.aId)),
   };
   cache.set(userId, info);
   return info;
 }
 
 /** يلاقي أقصر مسار بين شخصين عبر روابط أب/ابن/زوج، ويرجع تسلسل نوع كل رابطة */
-async function shortestPath(aId: string, bId: string, guildId: string): Promise<EdgeType[] | null> {
+async function shortestPath(aId: string, bId: string, guildId: string): Promise<StepType[] | null> {
   if (aId === bId) return [];
 
   const cache = new Map<string, NodeInfo>();
   const visited = new Set<string>([aId]);
-  let frontier: { id: string; path: EdgeType[] }[] = [{ id: aId, path: [] }];
+  let frontier: { id: string; path: StepType[] }[] = [{ id: aId, path: [] }];
 
   for (let depth = 0; depth < MAX_DEPTH && frontier.length > 0; depth++) {
-    const next: { id: string; path: EdgeType[] }[] = [];
+    const next: { id: string; path: StepType[] }[] = [];
 
     for (const node of frontier) {
       const info = await loadNode(node.id, guildId, cache);
@@ -46,11 +51,13 @@ async function shortestPath(aId: string, bId: string, guildId: string): Promise<
         ...info.parentIds.map((id) => ({ id, type: "up" as const })),
         ...info.childrenIds.map((id) => ({ id, type: "down" as const })),
         ...info.spouseIds.map((id) => ({ id, type: "spouse" as const })),
+        ...info.siblingIds.map((id) => ({ id, type: "sibling" as const })),
       ];
 
       for (const n of neighbors) {
         if (visited.has(n.id)) continue;
-        const path = [...node.path, n.type];
+        // الأخ بالطلب = صعد لأب ونزل لأخ (نفس نمط الأخوة العاديين)
+        const path: StepType[] = [...node.path, ...(n.type === "sibling" ? (["up", "down"] as const) : [n.type])];
         if (n.id === bId) return path;
         visited.add(n.id);
         next.push({ id: n.id, path });
@@ -72,7 +79,9 @@ const PATTERNS: Record<string, string> = {
   "up,up": "الجد/الجدة",
   "down,down": "الحفيد/الحفيدة",
   "up,spouse": "زوج/زوجة الوالد",
-  "spouse,up": "والد/والدة الزوج",
+  "spouse,up": "الحما/الحماة (أهل الزوج/ة)",
+  "down,spouse": "الصهر/الكنة",
+  "down,down,spouse": "زوج/زوجة الحفيد",
   "spouse,down": "ابن/ابنة الزوج",
   "up,up,down": "العم/الخال أو العمة/الخالة",
   "up,down,down": "ابن/ابنة الأخ أو الأخت",
@@ -90,7 +99,9 @@ const GENDERED: Record<string, { male: string; female: string }> = {
   "up,up": { male: "الجد", female: "الجدة" },
   "down,down": { male: "الحفيد", female: "الحفيدة" },
   "up,spouse": { male: "زوج الأم", female: "زوجة الأب" },
-  "spouse,up": { male: "أبو الزوج/ة", female: "أم الزوج/ة" },
+  "spouse,up": { male: "حماك (أبو الزوج/ة)", female: "حماتك (أم الزوج/ة)" },
+  "down,spouse": { male: "الصهر", female: "الكنة" },
+  "down,down,spouse": { male: "زوج الحفيدة", female: "زوجة الحفيد" },
   "spouse,down": { male: "ابن الزوج/ة", female: "ابنة الزوج/ة" },
   "up,up,down": { male: "العم/الخال", female: "العمة/الخالة" },
   "up,down,down": { male: "ابن الأخ/الأخت", female: "ابنة الأخ/الأخت" },
