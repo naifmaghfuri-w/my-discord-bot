@@ -31,12 +31,12 @@ import { handleLabTasksMessage } from "../lab/tasks";
 import { buildLabCard } from "../lab/views";
 import { LabProfile } from "../database/models/LabProfile";
 import { computeRelationship } from "../family/graph";
-import { ADOPT_ACCEPT_PREFIX, ADOPT_DECLINE_PREFIX, MARRY_ACCEPT_PREFIX, MARRY_DECLINE_PREFIX } from "../family/ids";
+import { ADOPT_ACCEPT_PREFIX, ADOPT_DECLINE_PREFIX, MARRY_ACCEPT_PREFIX, MARRY_DECLINE_PREFIX, SIB_ACCEPT_PREFIX, SIB_DECLINE_PREFIX } from "../family/ids";
 import { sendFamilyTree } from "../family/treeView";
 import { handleGamesMessage } from "../games";
 import { handleCoinMessage } from "../games/coin";
 import { MARRIAGE_TRIGGER, buildMarriageGuide } from "../family/guide";
-import { canAdopt, canPropose, disown, getParents, khulaDivorce, runAway, talaqDivorce } from "../family/service";
+import { canAdopt, canPropose, canSibling, disown, getParents, khulaDivorce, runAway, talaqDivorce } from "../family/service";
 import { QUEST_SETTINGS, type QuestId } from "../quests/definitions";
 import { progressQuest, toAnnouncer } from "../quests/service";
 import { progressWeeklyQuest } from "../quests/weeklyService";
@@ -60,6 +60,8 @@ const MARRY_TRIGGER = /^!\s*زواج\s+<@!?(\d+)>\s+(\d+)$/;
 const TALAQ_TRIGGER = /^!\s*طلاق(?:\s+<@!?(\d+)>)?$/i;
 const ADOPT_TRIGGER = /^!\s*تبن[ىي]\s+<@!?(\d+)>$/i;
 const DISOWN_TRIGGER = /^!\s*تبرؤ\s+<@!?(\d+)>$/i;
+/** طلب أخ / أخت: "!اخ @شخص" أو "!اخت @شخص" */
+const SIBLING_TRIGGER = /^!\s*[اأإ]خ(ت)?\s+<@!?(\d+)>$/;
 /** هروب: الابن يتخلى عن عائلته بالكامل */
 const RUNAWAY_TRIGGER = /^!\s*(?:هروب|هرب)$/i;
 /** شجرة العائلة: "شجرة" لشجرتك، أو "شجرة @شخص" لشجرة غيرك */
@@ -514,6 +516,53 @@ const event: BotEvent = {
           content: `👶 <@${userId}> يريد تبني ${target}\n${target}، وافق أو ارفض بالأسفل.`,
           components: [row],
           allowedMentions: { users: [childId] },
+        })
+        .catch(() => undefined);
+      return;
+    }
+
+    const sibMatch = SIBLING_TRIGGER.exec(trimmed);
+    if (sibMatch) {
+      const wantsSister = Boolean(sibMatch[1]);
+      const targetId = sibMatch[2];
+      const target = await message.client.users.fetch(targetId).catch(() => null);
+      if (!target || target.bot || targetId === userId) {
+        await message.channel.send("❌ ما تقدر تطلب هذا الشخص.").catch(() => undefined);
+        return;
+      }
+      const targetMember = await guild.members.fetch(targetId).catch(() => null);
+      const targetGender: Gender = targetMember ? getGender(targetMember) : null;
+      if (!targetGender) {
+        await message.channel.send(`❌ ما قدرت أتأكد من جنس ${target} (محتاج رتبة ذكر/أنثى).`).catch(() => undefined);
+        return;
+      }
+      if (wantsSister && targetGender !== "female") {
+        await message.channel.send(`❌ ${target} مو أنثى، استخدم \`!اخ\`.`).catch(() => undefined);
+        return;
+      }
+      if (!wantsSister && targetGender !== "male") {
+        await message.channel.send(`❌ ${target} مو ذكر، استخدم \`!اخت\`.`).catch(() => undefined);
+        return;
+      }
+      const check = await canSibling(userId, targetId, guildId);
+      if (!check.ok) {
+        const reasons: Record<string, string> = {
+          self: "❌ ما تقدر تسوي هذا مع نفسك.",
+          already_siblings: `❌ أنت و${target} إخوة بالفعل.`,
+          related: `❌ بينك وبين ${target} قرابة مباشرة (زواج أو أبوة).`,
+        };
+        await message.channel.send(reasons[check.reason] ?? "❌ تعذّر إرسال الطلب.").catch(() => undefined);
+        return;
+      }
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(`${SIB_ACCEPT_PREFIX}${userId}_${targetId}`).setLabel("قبول").setEmoji("🤝").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(`${SIB_DECLINE_PREFIX}${userId}_${targetId}`).setLabel("رفض").setEmoji("❌").setStyle(ButtonStyle.Danger),
+      );
+      await message.channel
+        .send({
+          content: `🤝 <@${userId}> يبي ${target} يكون ${wantsSister ? "أخته" : "أخوه"}\n${target}، وافق أو ارفض بالأسفل.`,
+          components: [row],
+          allowedMentions: { users: [targetId] },
         })
         .catch(() => undefined);
       return;
