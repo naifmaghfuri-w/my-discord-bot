@@ -30,6 +30,7 @@ async function panel(userId: string, guildId: string, note?: string) {
 function workText(r: WorkResult): string {
   if (!r.ok) {
     if (r.reason === "no_job") return "❌ ما عندك وظيفة. اكتب `!الوظائف` وقدّم على وحدة.";
+    if (r.reason === "thief") return "🦹 شغل الحرامي بأمر `!سرقة` (مو `!دوام`).";
     if (r.reason === "cooldown") return `⏳ الدوام القادم بعد ${fmtMs(r.msLeft)}.`;
     return `⏳ دوامك مستمر، يخلص بعد ${fmtMs(r.msLeft)}.`;
   }
