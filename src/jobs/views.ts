@@ -44,7 +44,7 @@ export function buildJobsList(owner: string, jp: IJobProfile, _ctx: JobContext, 
   }
 
   for (const j of JOBS) {
-    const pay = j.kind === "career" ? `${j.ranks[0].pay}–${j.ranks[j.ranks.length - 1].pay} لكل دوام` : `${j.ranks[0].pay} للدوام الكامل (24 ساعة)`;
+    const pay = j.kind === "thief" ? "150 كل ساعة بأمر `!سرقة`" : j.kind === "career" ? `${j.ranks[0].pay}–${j.ranks[j.ranks.length - 1].pay} لكل دوام` : `${j.ranks[0].pay} للدوام الكامل (24 ساعة)`;
     lines.push(`${j.icon} **${j.name}** — ${pay}`, `> ${j.desc}`);
   }
 
@@ -59,7 +59,7 @@ export function buildJobsList(owner: string, jp: IJobProfile, _ctx: JobContext, 
         label: j.name,
         value: j.id,
         emoji: j.icon,
-        description: j.kind === "career" ? "وظيفة مهنية بترقيات" : "دوام كامل 24 ساعة",
+        description: j.kind === "thief" ? "تسرق كل ساعة بأمر !سرقة" : j.kind === "career" ? "وظيفة مهنية بترقيات" : "دوام كامل 24 ساعة",
       })),
     );
   return { embeds: [embed], components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)] };
@@ -82,7 +82,7 @@ export function buildMyJob(jp: IJobProfile, note?: string): View {
   const rank = job.ranks[jp.rank] ?? job.ranks[0];
   lines.push(
     `${job.icon} **${job.name}** — ${rank.title}`,
-    `الراتب: ${jenny(rank.pay)}${job.kind === "career" ? " لكل دوام" : " لكل 24 ساعة"}`,
+    `الراتب: ${job.kind === "thief" ? "من السرقة (كل ساعة)" : `${jenny(rank.pay)}${job.kind === "career" ? " لكل دوام" : " لكل 24 ساعة"}`}`,
     `الدوامات: **${jp.shifts}**`,
   );
 
@@ -103,6 +103,9 @@ export function buildMyJob(jp: IJobProfile, note?: string): View {
     } else {
       lines.push("🏆 وصلت لأعلى رتبة.");
     }
+  } else if (job.kind === "thief") {
+    const wait = 60 * 60 * 1000 - (now - (jp.lastShiftAt ? new Date(jp.lastShiftAt).getTime() : 0));
+    lines.push(wait > 0 ? `⏳ السرقة القادمة بعد ${fmtMs(wait)}` : "🦹 اكتب `!سرقة` الحين.");
   } else if (!jp.shiftStartedAt) {
     lines.push("اكتب `!دوام` لتبدأ دوامك الكامل (24 ساعة).");
   } else {
