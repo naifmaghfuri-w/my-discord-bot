@@ -3,7 +3,7 @@ import {
   type BaseMessageOptions, type ButtonInteraction, type Client, type Interaction, type Message, type ModalSubmitInteraction, type StringSelectMenuInteraction,
 } from "discord.js";
 import { jenny } from "../constants";
-import { Company, CompanyApplication, CompanyComplaint, CompanyLog, CompanyMember, CompanyPosting, type ICompany, type ICompanyMember } from "../database/models/Company";
+import { Company, CompanyApplication, CompanyComplaint, CompanyLog, CompanyMember, CompanyPosting, CompanyReport, type ICompany, type ICompanyMember } from "../database/models/Company";
 import { UserProfile } from "../database/models/UserProfile";
 import { JOBS } from "../jobs/data";
 import { buildJobsPanel, fmtMs } from "../jobs/views";
@@ -11,7 +11,7 @@ import { clearNotice, getJob, loadContext } from "../jobs/service";
 import { logTransaction } from "../services/transactions";
 import { makeLogo, renderCompanyCard } from "./card";
 import { logger } from "../utils/logger";
-import { BOARD_TITLE, HR_TITLE, PROMOTIONS, TITLES, assignable, badgeOf, canControl, levelOf, titleByKey, titleLevel } from "./titles";
+import { BOARD_TITLE, CEO_TITLE, HR_TITLE, PROMOTIONS, TITLES, assignable, badgeOf, canControl, levelOf, titleByKey, titleLevel } from "./titles";
 import { handleThiefMessage } from "../jobs/thief";
 
 /* ───────────── الثوابت ───────────── */
@@ -262,7 +262,8 @@ async function buildCompanyPanel(guildId: string, userId: string, client: Client
     btn(`co|refresh|${cid}`, "تحديث", ButtonStyle.Secondary, "🔄"),
     btn(`co|menu|${cid}`, c.name.slice(0, 60), ButtonStyle.Primary, "🏢"),
   ];
-  if (m.title === HR_TITLE) first.push(btn(`co|hrbox|${cid}`, "شكاوى الموظفين", ButtonStyle.Secondary, "📨"));
+  if (m.title === HR_TITLE) first.push(btn(`co|hrbox|${cid}`, "شكاوى الموظفين", ButtonStyle.Secondary, "📨"), btn(`co|rpt|${cid}`, "رفع تقرير", ButtonStyle.Secondary, "📄"));
+  if (m.title === CEO_TITLE) first.push(btn(`co|rptbox|${cid}`, "تقارير HR", ButtonStyle.Secondary, "📄"));
   const rows: ActionRowBuilder<ButtonBuilder>[] = [row(...first)];
   if (isBoss(m)) rows.push(row(btn(`co|post|${cid}`, "طلب توظيف", ButtonStyle.Primary, "📢")));
   if (m.role !== "owner") rows.push(row(btn(`co|leave|${cid}`, "استقالة من الشركة", ButtonStyle.Danger, "🚪")));
@@ -667,6 +668,43 @@ async function route(i: AnyI): Promise<void> {
     }
     await addLog(guildId, a, `🗑️ ${mention(uid)} حذف طلب التوظيف **${p.title}**`);
     return void (await i.update({ content: `🗑️ تم حذف طلب التوظيف **${p.title}** مع متقدميه.`, embeds: [], components: [] }));
+  }
+
+  /* --- تقارير HR عن الموظفين (من مدير فرع لتحت) تروح للمدير التنفيذي --- */
+  if (act === "rpt" && i.isButton()) {
+    const { me } = await ctxOf(i, a);
+    if (!me || me.title !== HR_TITLE) return void (await say("❌ رفع التقارير لقسم HR فقط."));
+    if (!(await CompanyMember.exists({ companyId: a, title: CEO_TITLE }))) return void (await say("❌ ما فيه مدير تنفيذي في الشركة يستقبل التقارير."));
+    const all = await CompanyMember.find({ companyId: a, userId: { $ne: uid } }).limit(100);
+    const list = all.filter((t) => levelOf(t) >= 2).slice(0, 25);
+    if (!list.length) return void (await say("ما فيه موظفين تقدر ترفع عنهم تقرير."));
+    const menu = new StringSelectMenuBuilder()
+      .setCustomId(`co|rptsel|${a}`)
+      .setPlaceholder("اختر الموظف")
+      .addOptions(list.map((t) => ({ label: t.title.slice(0, 90), description: t.userId, value: t.userId })));
+    return void (await i.reply({ content: "📄 اختر الموظف اللي تبي ترفع عنه تقرير:", components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)], ...eph }));
+  }
+  if (act === "rptsel" && i.isStringSelectMenu()) {
+    const { me } = await ctxOf(i, a);
+    const t = await CompanyMember.findOne({ companyId: a, userId: i.values[0] });
+    if (!me || me.title !== HR_TITLE || !t || levelOf(t) < 2 || t.userId === uid) return void (await say("❌ ما تقدر ترفع تقرير عن هذا الشخص."));
+    return void (await i.showModal(modal(`co|rptm|${a}|${t.userId}`, "تقرير عن موظف", input("reason", "سبب التقرير", "اكتب السبب بالتفصيل...", TextInputStyle.Paragraph, true, 800))));
+  }
+  if (act === "rptm" && i.isModalSubmit()) {
+    const { me } = await ctxOf(i, a);
+    const t = await CompanyMember.findOne({ companyId: a, userId: b });
+    if (!me || me.title !== HR_TITLE || !t || levelOf(t) < 2 || t.userId === uid) return void (await say("❌ ما تقدر ترفع تقرير عن هذا الشخص."));
+    if (!(await CompanyMember.exists({ companyId: a, title: CEO_TITLE }))) return void (await say("❌ ما فيه مدير تنفيذي في الشركة يستقبل التقارير."));
+    await CompanyReport.create({ guildId, companyId: a, fromId: uid, targetId: t.userId, reason: i.fields.getTextInputValue("reason").trim() });
+    await addLog(guildId, a, `📄 ${mention(uid)} (HR) رفع تقريرًا عن ${mention(t.userId)} (${t.title}) للمدير التنفيذي`);
+    return void (await say("📄 وصل تقريرك للمدير التنفيذي."));
+  }
+  if (act === "rptbox" && i.isButton()) {
+    const { me } = await ctxOf(i, a);
+    if (!me || me.title !== CEO_TITLE) return void (await say("❌ التقارير للمدير التنفيذي فقط."));
+    const rows = await CompanyReport.find({ companyId: a }).sort({ createdAt: -1 }).limit(10);
+    const lines = rows.map((r) => `<t:${Math.floor(new Date(r.createdAt).getTime() / 1000)}:f> عن ${mention(r.targetId)} • من HR ${mention(r.fromId)}\n> ${r.reason.slice(0, 350)}`);
+    return void (await i.reply({ embeds: [new EmbedBuilder().setColor(COLOR).setTitle("📄 تقارير HR").setDescription(lines.join("\n\n") || "ما فيه تقارير.")], ...eph }));
   }
 
   /* --- سجلات الشركة (الإدارة العليا فقط) --- */
