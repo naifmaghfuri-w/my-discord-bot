@@ -515,7 +515,10 @@ async function route(i: AnyI): Promise<void> {
     const lvl = levelOf(me);
     const rows: ActionRowBuilder<ButtonBuilder>[] = [row(btn(`co|donate|${a}`, "دعم الميزانية", ButtonStyle.Success))];
     const cost = COMPANY_RULES.changeCost;
-    if (lvl === 0) rows.push(row(btn(`co|logo|${a}`, `تغيير الصورة (${cost})`, ButtonStyle.Secondary, "🖼️"), btn(`co|rename|${a}`, `تغيير الاسم (${cost})`, ButtonStyle.Secondary, "✏️")));
+    const imgRow: ButtonBuilder[] = [];
+    if (lvl <= 1) imgRow.push(btn(`co|logo|${a}`, `تغيير الصورة (${cost})`, ButtonStyle.Secondary, "🖼️"));
+    if (lvl === 0) imgRow.push(btn(`co|rename|${a}`, `تغيير الاسم (${cost})`, ButtonStyle.Secondary, "✏️"));
+    if (imgRow.length) rows.push(row(...imgRow));
     const second: ButtonBuilder[] = [];
     if (isBoss(me)) second.push(btn(`co|mng|${a}`, "إدارة الموظفين", ButtonStyle.Secondary, "👥"), btn(`co|reqs|${a}`, "قائمة الطلبات", ButtonStyle.Secondary, "📋"));
     if (lvl <= 1) second.push(btn(`co|logs|${a}`, "السجلات", ButtonStyle.Secondary, "📜"));
@@ -548,7 +551,7 @@ async function route(i: AnyI): Promise<void> {
   if (act === "logo" && i.isButton()) {
     const { company, me } = await ctxOf(i, a);
     const cost = COMPANY_RULES.changeCost;
-    if (!company || !me || levelOf(me) !== 0) return void (await say("❌ للإدارة العليا فقط."));
+    if (!company || !me || levelOf(me) > 1) return void (await say("❌ للإدارة العليا والمدير التنفيذي فقط."));
     if (company.budget < cost) return void (await say(`❌ ميزانية الشركة ما تكفي (${jenny(cost)}).`));
     const ch = i.channel;
     if (!ch || !("awaitMessages" in ch)) return void (await say("❌ تعذّر استقبال الصورة هنا."));
