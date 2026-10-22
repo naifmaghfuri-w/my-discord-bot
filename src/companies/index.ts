@@ -204,6 +204,11 @@ async function buildCompanyPanel(guildId: string, userId: string, client: Client
   const c = await Company.findById(m.companyId);
   if (!c) return { content: "تعذّر إيجاد الشركة.", embeds: [], components: [] };
   const cid = idOf(c);
+  // تنظيف الوظائف القديمة المكتوبة يدويًا (ما عادت مستخدمة)
+  if (c.positions.some((p) => !TITLES.some((x) => x.name === p.title))) {
+    c.positions = c.positions.filter((p) => TITLES.some((x) => x.name === p.title));
+    await Company.updateOne({ _id: c._id }, { $set: { positions: c.positions.map((p) => ({ title: p.title, salary: p.salary })) } }).catch(() => undefined);
+  }
   const members = await CompanyMember.find({ companyId: cid }).sort({ salary: -1 });
   const payroll = members.reduce((s, x) => s + x.salary, 0);
   const lines = members.slice(0, 15).map((x) => `${roleLabel(x)} ${mention(x.userId)} — ${x.title} • ${jenny(x.salary)}`);
@@ -795,15 +800,14 @@ async function route(i: AnyI): Promise<void> {
       if (selfOwner) {
         options = [{ label: "المالك", description: "المسمى الافتراضي", value: "owner" }, ...TITLES.map((x) => ({ label: x.name, description: x.group, value: x.key }))].slice(0, 25);
       } else {
-        options = company.positions
-          .map((p, idx) => ({ title: p.title, salary: p.salary, idx }))
-          .filter((p) => titleLevel(p.title) > levelOf(me) && p.title !== t.title)
-          .slice(0, 25)
-          .map((p) => ({ label: p.title.slice(0, 90), description: `${p.salary} يوميًا`, value: String(p.idx) }));
-        if (!options.length) return void (await say("ما فيه وظائف معلن عنها تقدر تنقله لها. أعلن عنها أولًا من «طلب توظيف»."));
+        const posted = new Map(company.positions.map((p) => [p.title, p.salary] as const));
+        options = assignable(levelOf(me))
+          .filter((x) => x.name !== t.title)
+          .map((x) => ({ label: x.name, description: posted.has(x.name) ? `${posted.get(x.name)} يوميًا` : `${x.group} • يبقى راتبه`, value: x.key }));
+        if (!options.length) return void (await say("ما فيه وظائف تقدر تنقله لها."));
       }
       const menu = new StringSelectMenuBuilder().setCustomId(`co|promosel|${cid}|${t.userId}`).setPlaceholder("اختر الوظيفة الجديدة").addOptions(options);
-      return void (await i.update({ content: selfOwner ? "🔁 اختر وظيفتك:" : "🔁 اختر الوظيفة من الوظائف المعلن عنها:", embeds: [], components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)] }));
+      return void (await i.update({ content: selfOwner ? "🔁 اختر وظيفتك:" : "🔁 اختر الوظيفة الجديدة من وظائف الشركة:", embeds: [], components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)] }));
     }
     if (act === "promosel" && i.isStringSelectMenu()) {
       if (selfOwner) {
@@ -814,13 +818,17 @@ async function route(i: AnyI): Promise<void> {
         await addLog(guildId, cid, `🔁 ${mention(uid)} غيّر وظيفته إلى **${title}**`);
         return void (await show(`🔁 صارت وظيفتك **${title}**.`));
       }
-      const pos = company.positions[Number(i.values[0])];
-      if (!pos || titleLevel(pos.title) <= levelOf(me)) return void (await say("❌ وظيفة غير صالحة."));
-      const total = await payrollTotal(cid);
-      if (company.budget < total - t.salary + pos.salary) return void (await say("❌ ميزانية الشركة ما تغطي الراتب الجديد."));
-      await CompanyMember.updateOne({ _id: t._id }, { $set: { title: pos.title, salary: pos.salary } });
-      await addLog(guildId, cid, `🔁 ${mention(uid)} نقل ${mention(t.userId)} من **${t.title}** إلى **${pos.title}**`);
-      return void (await show(`🔁 صار **${pos.title}** (${jenny(pos.salary)} يوميًا).`));
+      const def = titleByKey(i.values[0]);
+      if (!def || def.level <= levelOf(me)) return void (await say("❌ وظيفة غير صالحة."));
+      // الراتب: راتب الوظيفة لو سبق الإعلان عنها، وإلا يبقى راتبه الحالي
+      const salary = company.positions.find((p) => p.title === def.name)?.salary ?? t.salary;
+      if (salary > t.salary) {
+        const total = await payrollTotal(cid);
+        if (company.budget < total - t.salary + salary) return void (await say("❌ ميزانية الشركة ما تغطي الراتب الجديد."));
+      }
+      await CompanyMember.updateOne({ _id: t._id }, { $set: { title: def.name, salary } });
+      await addLog(guildId, cid, `🔁 ${mention(uid)} نقل ${mention(t.userId)} من **${t.title}** إلى **${def.name}**`);
+      return void (await show(`🔁 صار **${def.name}** (${jenny(salary)} يوميًا).`));
     }
 
     if (act === "upg" && i.isButton()) {
