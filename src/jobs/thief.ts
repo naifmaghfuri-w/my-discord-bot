@@ -17,6 +17,8 @@ export const THIEF = {
   member: { max: 100, cooldownMs: 90 * MIN },
   /** شركة عشوائية: بدون حارس يسرق من ميزانيتها، وبحارس يُمسك ويدفع تعويض */
   company: { steal: 150, fine: 50, cooldownMs: 150 * MIN },
+  /** الحارس يحسب فقط لو داوم خلال هذي المدة */
+  guardActiveMs: 3 * 60 * MIN,
   /** محل صغير */
   shop: { gain: 50, cooldownMs: 30 * MIN },
 } as const;
@@ -44,7 +46,7 @@ export async function buildThiefMenu(userId: string, guildId: string, note?: str
   const lines = [
     note ?? "",
     `🎲 **عضو عشوائي** — تاخذ اللي في محفظته (لين ${jenny(THIEF.member.max)}) • ينتظر ${THIEF.member.cooldownMs / MIN} دقيقة\n${state("member")}`,
-    `🏢 **شركة عشوائية** — بدون حارس بوابة تسرق ${jenny(THIEF.company.steal)} من ميزانيتها، وبحارس تنمسك وتدفع تعويض ${jenny(THIEF.company.fine)} • ينتظر ${THIEF.company.cooldownMs / MIN} دقيقة\n${state("company")}`,
+    `🏢 **شركة عشوائية** — بدون حارس بوابة (داوم آخر 3 ساعات) تسرق ${jenny(THIEF.company.steal)} من ميزانيتها، وبحارس يداوم تنمسك وتدفع تعويض ${jenny(THIEF.company.fine)} • ينتظر ${THIEF.company.cooldownMs / MIN} دقيقة\n${state("company")}`,
     `🏪 **محل صغير** — تاخذ ${jenny(THIEF.shop.gain)} • ينتظر ${THIEF.shop.cooldownMs / MIN} دقيقة\n${state("shop")}`,
   ].filter(Boolean);
   const btn = (a: ThiefAction, label: string, emoji: string) =>
@@ -104,11 +106,11 @@ export async function runThief(userId: string, guildId: string, action: ThiefAct
       const ok = await UserProfile.findOneAndUpdate({ userId: c.userId, guildId, coins: { $gte: take } }, { $inc: { coins: -take } });
       if (ok) {
         await payThief(userId, guildId, take);
-        return ` **نجحت!** سرقت ${jenny(take)} من <@${c.userId}>.`;
+        return `🦹 **نجحت!** سرقت ${jenny(take)} من <@${c.userId}>.`;
       }
     }
     await revert();
-    return " دورت وما لقيت عضو معه فلوس. جرّب بعدين (ما انحسبت عليك مهلة).";
+    return "🦹 دورت وما لقيت عضو معه فلوس. جرّب بعدين (ما انحسبت عليك مهلة).";
   }
 
   /* ----- شركة عشوائية ----- */
@@ -119,7 +121,7 @@ export async function runThief(userId: string, guildId: string, action: ThiefAct
       return "🏢 ما فيه شركات في السيرفر الحين (ما انحسبت عليك مهلة).";
     }
     const cid = String(c._id);
-    const guarded = await CompanyMember.exists({ companyId: cid, title: GUARD_TITLE });
+    const guarded = await CompanyMember.exists({ companyId: cid, title: GUARD_TITLE, lastShiftAt: { $gte: new Date(Date.now() - THIEF.guardActiveMs) } });
     if (guarded) {
       // انمسك: يدفع تعويض لميزانية الشركة (أو كل اللي معه لو أقل)
       const prof = await UserProfile.findOne({ userId, guildId }, { coins: 1 });
@@ -142,8 +144,8 @@ export async function runThief(userId: string, guildId: string, action: ThiefAct
       return `🏢 شركة **${c.name}** ما فيها فلوس تنسرق. جرّب بعدين (ما انحسبت عليك مهلة).`;
     }
     await payThief(userId, guildId, take);
-    await CompanyLog.create({ guildId, companyId: cid, text: ` حرامي سرق ${jenny(take)} من ميزانية الشركة (ما فيها حارس بوابة).` }).catch(() => undefined);
-    return ` **نجحت!** سرقت ${jenny(take)} من ميزانية شركة **${c.name}** (ما عندها حارس بوابة).`;
+    await CompanyLog.create({ guildId, companyId: cid, text: `🦹 حرامي سرق ${jenny(take)} من ميزانية الشركة (ما فيها حارس بوابة).` }).catch(() => undefined);
+    return `🦹 **نجحت!** سرقت ${jenny(take)} من ميزانية شركة **${c.name}** (ما عندها حارس بوابة).`;
   }
 
   /* ----- محل صغير ----- */
