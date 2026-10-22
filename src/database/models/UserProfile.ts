@@ -6,6 +6,8 @@ export interface IUserProfile {
   coins: number;
   wins: number;
   xp: number;
+  /** عدد رسائل العضو الكلي (لأمر !لفل) */
+  messages?: number;
   level: number;
   lastDaily?: Date;
   /** شعلة النشاط: أيام متتالية أرسل فيها أي رسالة */
@@ -54,6 +56,7 @@ const schema = new Schema<IUserProfile>(
     coins: { type: Number, default: 0 },
     wins: { type: Number, default: 0 },
     xp: { type: Number, default: 0 },
+    messages: { type: Number, default: 0 },
     level: { type: Number, default: 1 },
     lastDaily: { type: Date },
     streak: { type: Number, default: 0 },
