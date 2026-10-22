@@ -511,8 +511,8 @@ async function route(i: AnyI): Promise<void> {
     const cost = COMPANY_RULES.changeCost;
     if (lvl === 0) rows.push(row(btn(`co|logo|${a}`, `تغيير الصورة (${cost})`, ButtonStyle.Secondary, "🖼️"), btn(`co|rename|${a}`, `تغيير الاسم (${cost})`, ButtonStyle.Secondary, "✏️")));
     const second: ButtonBuilder[] = [];
-    if (isBoss(me)) second.push(btn(`co|mng|${a}`, "إدارة الموظفين", ButtonStyle.Secondary, "👥"));
-    if (lvl === 0) second.push(btn(`co|logs|${a}`, "السجلات", ButtonStyle.Secondary, "📜"));
+    if (isBoss(me)) second.push(btn(`co|mng|${a}`, "إدارة الموظفين", ButtonStyle.Secondary, "👥"), btn(`co|reqs|${a}`, "قائمة الطلبات", ButtonStyle.Secondary, "📋"));
+    if (lvl <= 1) second.push(btn(`co|logs|${a}`, "السجلات", ButtonStyle.Secondary, "📜"));
     if (second.length) rows.push(row(...second));
     if (me.role === "owner") rows.push(row(btn(`co|sell|${a}`, "بيع الشركة", ButtonStyle.Secondary, "🤝"), btn(`co|close|${a}`, "إغلاق الشركة", ButtonStyle.Danger, "🔒")));
     if (lvl >= 2) rows.push(row(btn(`co|compl|${a}`, "شكوى", ButtonStyle.Secondary, "📮")));
@@ -613,10 +613,61 @@ async function route(i: AnyI): Promise<void> {
     return void (await i.reply({ embeds: [new EmbedBuilder().setColor(COLOR).setTitle("📨 شكاوى الموظفين").setDescription(lines.join("\n\n") || "ما فيه شكاوى.")], ...eph }));
   }
 
+  /* --- قائمة الطلبات: طلبات التوظيف المعلقة ومتقدميها --- */
+  if (act === "reqs" && (i.isButton() || i.isStringSelectMenu())) {
+    const { me } = await ctxOf(i, a);
+    if (!me || !isBoss(me)) return void (await say("❌ هذا للإدارة فقط."));
+    const view = await postingList(a, me);
+    // زر "رجوع" يحدّث نفس الرسالة، وزر القائمة يفتح رسالة جديدة
+    if (i.isButton() && i.message.flags.has(MessageFlags.Ephemeral) && b === undefined && i.message.embeds[0]?.title?.startsWith("📢")) return void (await i.update(view));
+    return void (await i.reply({ ...view, ...eph }));
+  }
+  if (act === "rqsel" && i.isStringSelectMenu()) {
+    const { me } = await ctxOf(i, a);
+    const p = await CompanyPosting.findOne({ _id: i.values[0], companyId: a, open: true });
+    if (!me || !isBoss(me) || !p || titleLevel(p.title) <= levelOf(me)) return void (await say("❌ ما تقدر تدير هذا الطلب."));
+    return void (await i.update(await postingDetail(i, a, p)));
+  }
+  if (act === "rqapp" && i.isStringSelectMenu()) {
+    const { me } = await ctxOf(i, a);
+    const p = await CompanyPosting.findOne({ _id: b, companyId: a, open: true });
+    const ap = await CompanyApplication.findOne({ _id: i.values[0], postingId: b });
+    if (!me || !isBoss(me) || !p || !ap || titleLevel(p.title) <= levelOf(me)) return void (await say("❌ ما تقدر تدير هذا الطلب."));
+    const embed = new EmbedBuilder().setColor(0xf1c40f).setTitle("📝 طلب تقديم").setDescription(`${mention(ap.userId)} يقدّم على **${p.title}** (${jenny(p.salary)} يوميًا)\n\n> ${ap.about}`);
+    return void (
+      await i.update({
+        content: "",
+        embeds: [embed],
+        components: [row(btn(`co|acc|${idOf(ap)}`, "قبول", ButtonStyle.Success, "✅"), btn(`co|rej|${idOf(ap)}`, "رفض", ButtonStyle.Danger, "❌"), btn(`co|rqback|${a}|${b}`, "رجوع", ButtonStyle.Secondary))],
+        allowedMentions: { users: [] },
+      })
+    );
+  }
+  if (act === "rqback" && i.isButton()) {
+    const { me } = await ctxOf(i, a);
+    const p = await CompanyPosting.findOne({ _id: b, companyId: a, open: true });
+    if (!me || !isBoss(me)) return void (await say("❌ هذا للإدارة فقط."));
+    if (!p) return void (await i.update(await postingList(a, me)));
+    return void (await i.update(await postingDetail(i, a, p)));
+  }
+  if (act === "rqdel" && i.isButton()) {
+    const { me } = await ctxOf(i, a);
+    const p = await CompanyPosting.findOne({ _id: b, companyId: a });
+    if (!me || !isBoss(me) || !p || titleLevel(p.title) <= levelOf(me)) return void (await say("❌ ما تقدر تحذف هذا الطلب."));
+    await CompanyApplication.deleteMany({ postingId: b });
+    await CompanyPosting.deleteOne({ _id: p._id });
+    if (p.channelId && p.messageId) {
+      const ch = await i.client.channels.fetch(p.channelId).catch(() => null);
+      if (ch && ch.isTextBased()) (await ch.messages.fetch(p.messageId).catch(() => null))?.delete().catch(() => undefined);
+    }
+    await addLog(guildId, a, `🗑️ ${mention(uid)} حذف طلب التوظيف **${p.title}**`);
+    return void (await i.update({ content: `🗑️ تم حذف طلب التوظيف **${p.title}** مع متقدميه.`, embeds: [], components: [] }));
+  }
+
   /* --- سجلات الشركة (الإدارة العليا فقط) --- */
   if (act === "logs" && i.isButton()) {
     const { me } = await ctxOf(i, a);
-    if (!me || levelOf(me) !== 0) return void (await say("❌ السجلات للإدارة العليا فقط."));
+    if (!me || levelOf(me) > 1) return void (await say("❌ السجلات للإدارة العليا والمدير التنفيذي فقط."));
     const rows = await CompanyLog.find({ companyId: a }).sort({ createdAt: -1 }).limit(15);
     const lines = rows.map((r) => `<t:${Math.floor(new Date(r.createdAt).getTime() / 1000)}:f> ${r.text}`);
     return void (await i.reply({ embeds: [new EmbedBuilder().setColor(COLOR).setTitle("📜 سجلات الشركة").setDescription(lines.join("\n") || "لا توجد سجلات بعد.")], ...eph }));
@@ -870,6 +921,53 @@ async function route(i: AnyI): Promise<void> {
     await dissolveCompany(company, true);
     return void (await i.update({ content: `🔒 تم إغلاق **${company.name}**.`, components: [] }));
   }
+}
+
+type ReqRow = ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>;
+
+/** طلبات التوظيف المفتوحة اللي يقدر هذا الشخص يديرها (وظائف أقل من مستواه) */
+async function visiblePostings(cid: string, me: ICompanyMember) {
+  const ps = await CompanyPosting.find({ companyId: cid, open: true });
+  return ps.filter((p) => titleLevel(p.title) > levelOf(me)).slice(0, 25);
+}
+
+async function postingList(cid: string, me: ICompanyMember, note?: string): Promise<View> {
+  const ps = await visiblePostings(cid, me);
+  if (!ps.length) return { content: note ?? "ما فيه طلبات توظيف معلقة.", embeds: [], components: [] };
+  const counts = await Promise.all(ps.map((p) => CompanyApplication.countDocuments({ postingId: idOf(p) })));
+  const lines = ps.map((p, k) => `**${p.title}** — ${jenny(p.salary)} • ${p.filled}/${p.slots} • ${counts[k]} متقدم`);
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId(`co|rqsel|${cid}`)
+    .setPlaceholder("اختر طلب توظيف")
+    .addOptions(ps.map((p, k) => ({ label: p.title.slice(0, 90), description: `${counts[k]} متقدم • ${p.filled}/${p.slots}`, value: idOf(p) })));
+  return {
+    content: note ?? "",
+    embeds: [new EmbedBuilder().setColor(COLOR).setTitle("📋 قائمة الطلبات").setDescription(lines.join("\n"))],
+    components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)],
+  };
+}
+
+async function postingDetail(i: AnyI, cid: string, p: { _id: unknown; title: string; slots: number; filled: number; salary: number }): Promise<View> {
+  const apps = await CompanyApplication.find({ postingId: idOf(p) }).limit(25);
+  const names = await Promise.all(apps.map(async (ap) => (await i.guild?.members.fetch(ap.userId).catch(() => null))?.displayName ?? ap.userId));
+  const lines = apps.map((ap, k) => `${k + 1}. ${mention(ap.userId)} — ${ap.about.slice(0, 120)}`);
+  const embed = new EmbedBuilder()
+    .setColor(COLOR)
+    .setTitle(`📢 ${p.title}`)
+    .setDescription([`الراتب: ${jenny(p.salary)} يوميًا`, `المقاعد: ${p.filled}/${p.slots}`, "", lines.join("\n") || "ما فيه متقدمين للحين."].join("\n"));
+  const rows: ReqRow[] = [];
+  if (apps.length) {
+    rows.push(
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(`co|rqapp|${cid}|${idOf(p)}`)
+          .setPlaceholder("اختر متقدم لقبوله أو رفضه")
+          .addOptions(apps.map((ap, k) => ({ label: names[k].slice(0, 90), description: ap.about.slice(0, 90) || "بدون وصف", value: idOf(ap) }))),
+      ),
+    );
+  }
+  rows.push(row(btn(`co|reqs|${cid}`, "رجوع", ButtonStyle.Secondary), btn(`co|rqdel|${cid}|${idOf(p)}`, "حذف الطلب", ButtonStyle.Danger, "🗑️")));
+  return { content: "", embeds: [embed], components: rows };
 }
 
 async function closePosting(i: AnyI, p: { _id: unknown; channelId: string; messageId: string; companyId: string; title: string; slots: number; filled: number; salary: number }): Promise<void> {
