@@ -141,3 +141,24 @@ const complaintSchema = new Schema<ICompanyComplaint>({
 });
 
 export const CompanyComplaint = model<ICompanyComplaint>("CompanyComplaint", complaintSchema);
+
+/** تقارير HR عن الموظفين: تروح للمدير التنفيذي */
+export interface ICompanyReport {
+  guildId: string;
+  companyId: string;
+  fromId: string;
+  targetId: string;
+  reason: string;
+  createdAt: Date;
+}
+
+const reportSchema = new Schema<ICompanyReport>({
+  guildId: { type: String, required: true },
+  companyId: { type: String, required: true, index: true },
+  fromId: { type: String, required: true },
+  targetId: { type: String, required: true },
+  reason: { type: String, required: true },
+  createdAt: { type: Date, default: () => new Date(), expires: 60 * 60 * 24 * 90 },
+});
+
+export const CompanyReport = model<ICompanyReport>("CompanyReport", reportSchema);
