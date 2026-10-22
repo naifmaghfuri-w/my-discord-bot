@@ -193,7 +193,7 @@ export async function renderCompanyCard(d: CompanyCardData): Promise<Buffer | nu
     ctx.textAlign = "right";
     ctx.fillStyle = "#e2e8f0";
     ctx.font = `700 28px "${family}"`;
-    ctx.fillText("الفريق", W - PAD, 510);
+    ctx.fillText("الموظفين", W - PAD, 510);
 
     d.members.forEach((m, i) => {
       const y = 540 + i * 72;
