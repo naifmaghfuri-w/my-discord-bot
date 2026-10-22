@@ -13,6 +13,8 @@ export interface ICompany {
   positions: ICompanyPosition[];
   lastPayrollAt: Date;
   createdAt: Date;
+  /** شعار الشركة (JPEG مصغّر) */
+  logo?: Buffer | null;
 }
 
 const companySchema = new Schema<ICompany>({
@@ -23,6 +25,7 @@ const companySchema = new Schema<ICompany>({
   positions: { type: [{ _id: false, title: String, salary: Number }], default: [] },
   lastPayrollAt: { type: Date, default: () => new Date() },
   createdAt: { type: Date, default: () => new Date() },
+  logo: { type: Buffer, default: null },
 });
 companySchema.index({ guildId: 1, name: 1 }, { unique: true });
 companySchema.index({ guildId: 1, ownerId: 1 }, { unique: true });
@@ -119,3 +122,22 @@ const logSchema = new Schema<ICompanyLog>({
 });
 
 export const CompanyLog = model<ICompanyLog>("CompanyLog", logSchema);
+
+/** شكاوى الموظفين: تروح لقسم HR فقط */
+export interface ICompanyComplaint {
+  guildId: string;
+  companyId: string;
+  fromId: string;
+  text: string;
+  createdAt: Date;
+}
+
+const complaintSchema = new Schema<ICompanyComplaint>({
+  guildId: { type: String, required: true },
+  companyId: { type: String, required: true, index: true },
+  fromId: { type: String, required: true },
+  text: { type: String, required: true },
+  createdAt: { type: Date, default: () => new Date(), expires: 60 * 60 * 24 * 60 },
+});
+
+export const CompanyComplaint = model<ICompanyComplaint>("CompanyComplaint", complaintSchema);
