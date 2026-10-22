@@ -20,6 +20,7 @@ export interface CompanyCardData {
   payroll: number;
   memberCount: number;
   payrollIn: string;
+  logo?: Buffer | null;
   members: CardMember[];
   me: { badge: Badge; title: string; salary: number; penalty: number; shiftReady: boolean; shiftIn: string };
 }
@@ -95,14 +96,19 @@ export async function renderCompanyCard(d: CompanyCardData): Promise<Buffer | nu
     ctx.fill();
 
     // شعار + اسم
+    const logoImg = d.logo ? await loadImage(Buffer.from(d.logo)).catch(() => null) : null;
     ctx.fillStyle = "#3b82f6";
     ctx.beginPath();
     ctx.arc(W - PAD - 56, 90, 56, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "#fff";
-    ctx.textAlign = "center";
-    ctx.font = `700 56px "${family}"`;
-    ctx.fillText([...d.name][0] ?? "؟", W - PAD - 56, 92);
+    if (logoImg) {
+      drawAvatar(ctx, logoImg, W - PAD - 56, 90, 56, "#3b82f6", "", family);
+    } else {
+      ctx.fillStyle = "#fff";
+      ctx.textAlign = "center";
+      ctx.font = `700 56px "${family}"`;
+      ctx.fillText([...d.name][0] ?? "؟", W - PAD - 56, 92);
+    }
 
     ctx.textAlign = "right";
     ctx.fillStyle = "#f8fafc";
@@ -235,6 +241,21 @@ export async function renderCompanyCard(d: CompanyCardData): Promise<Buffer | nu
       ctx.fillText(`+ ${extra} أعضاء آخرين`, W / 2, 540 + rows * 72 + 20);
     }
     return await canvas.encode("png");
+  } catch {
+    return null;
+  }
+}
+
+/** يصغّر الصورة لمربع 256 (قص من المنتصف) ويرجعها JPEG للتخزين */
+export async function makeLogo(buf: Buffer): Promise<Buffer | null> {
+  try {
+    const img = await loadImage(buf);
+    const s = Math.min(img.width, img.height);
+    if (!s) return null;
+    const canvas = createCanvas(256, 256);
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 256, 256);
+    return await canvas.encode("jpeg", 85);
   } catch {
     return null;
   }
