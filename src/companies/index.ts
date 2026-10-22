@@ -12,7 +12,7 @@ import { logTransaction } from "../services/transactions";
 import { makeLogo, renderCompanyCard } from "./card";
 import { logger } from "../utils/logger";
 import { BOARD_TITLE, CEO_TITLE, HR_TITLE, PROMOTIONS, TITLES, assignable, badgeOf, canControl, levelOf, titleByKey, titleLevel } from "./titles";
-import { handleThiefMessage } from "../jobs/thief";
+import { buildThiefMenu, handleThiefMessage, runThief, type ThiefAction } from "../jobs/thief";
 
 /* ───────────── الثوابت ───────────── */
 
@@ -157,7 +157,7 @@ const row = (...b: ButtonBuilder[]) => new ActionRowBuilder<ButtonBuilder>().add
 async function buildHub(guildId: string): Promise<View> {
   const postings = await CompanyPosting.find({ guildId, open: true }).limit(40);
   const companies = await Company.countDocuments({ guildId });
-  const regular = JOBS.map((j) => `${j.icon} **${j.name}** — ${j.kind === "thief" ? "150 كل ساعة (!سرقة)" : j.kind === "career" ? `${j.ranks[0].pay}–${j.ranks[j.ranks.length - 1].pay} لكل دوام` : `${j.ranks[0].pay} للدوام الكامل`}`);
+  const regular = JOBS.map((j) => `${j.icon} **${j.name}** — ${j.kind === "thief" ? "سرقة بالقائمة (!سرقة)" : j.kind === "career" ? `${j.ranks[0].pay}–${j.ranks[j.ranks.length - 1].pay} لكل دوام` : `${j.ranks[0].pay} للدوام الكامل`}`);
   const corp = postings.length
     ? postings.slice(0, 8).map((p) => `🏢 **${p.title}** — ${jenny(p.salary)} يوميًا (${p.slots - p.filled}/${p.slots} متاح)`)
     : ["ما فيه وظائف شركات مفتوحة الحين."];
@@ -620,6 +620,13 @@ async function route(i: AnyI): Promise<void> {
     const rows = await CompanyComplaint.find({ companyId: a }).sort({ createdAt: -1 }).limit(10);
     const lines = rows.map((r) => `<t:${Math.floor(new Date(r.createdAt).getTime() / 1000)}:R> من ${mention(r.fromId)}\n> ${r.text.slice(0, 350)}`);
     return void (await i.reply({ embeds: [new EmbedBuilder().setColor(COLOR).setTitle("📨 شكاوى الموظفين").setDescription(lines.join("\n\n") || "ما فيه شكاوى.")], ...eph }));
+  }
+
+  /* --- قائمة سرقة الحرامي (!سرقة) --- */
+  if (act === "thf" && i.isButton()) {
+    if (uid !== a) return void (await say("❌ هذي مو قائمتك. اكتب `!سرقة`."));
+    const result = await runThief(uid, guildId, b as ThiefAction);
+    return void (await i.update(await buildThiefMenu(uid, guildId, result)));
   }
 
   /* --- قائمة الطلبات: طلبات التوظيف المعلقة ومتقدميها --- */
