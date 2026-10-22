@@ -83,10 +83,10 @@ export const JOBS: JobDef[] = [
 ];
 
 JOBS.push({
-  id: "thief", name: "حرامي", icon: "🦹", kind: "thief",
-  desc: "اكتب `!سرقة` كل ساعة: تسرق 150 من لاعب عشوائي، و100 من شركة ما عندها حارس بوابة.",
+  id: "thief", name: "حرامي", icon: "", kind: "thief",
+  desc: "اكتب `!سرقة` واختر: عضو عشوائي، شركة عشوائية، أو محل صغير.",
   req: {},
-  ranks: [{ title: "حرامي", pay: 150, shiftsNeeded: 0 }],
+  ranks: [{ title: "حرامي", pay: 0, shiftsNeeded: 0 }],
 });
 
 export const JOB_MAP: Record<string, JobDef> = Object.fromEntries(JOBS.map((j) => [j.id, j]));
