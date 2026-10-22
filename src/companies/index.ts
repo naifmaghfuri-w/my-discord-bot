@@ -173,7 +173,7 @@ async function buildHub(guildId: string): Promise<View> {
     embeds: [embed],
     components: [
       row(btn("co|reg", "الوظائف العادية", ButtonStyle.Primary, "💼"), btn("co|list", "وظائف الشركات", ButtonStyle.Primary, "🏢")),
-      row(btn("co|open", "فتح شركة", ButtonStyle.Success, "🏗️"), btn("co|mine", "شركتي", ButtonStyle.Secondary, "📋")),
+      row(btn("co|open", "فتح شركة", ButtonStyle.Success, "🏗️")),
     ],
   };
 }
