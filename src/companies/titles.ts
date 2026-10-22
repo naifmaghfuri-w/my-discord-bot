@@ -69,6 +69,7 @@ export function canControl(actor: { userId: string; role: string; title?: string
 export function badgeOf(m: { role: string; title?: string }): { label: string; color: string } {
   if (m.role === "owner") return { label: "المالك", color: "#f59e0b" };
   if (m.role === "official") return { label: "مجلس", color: "#f97316" };
+  if (m.title === HR_TITLE) return { label: "HR", color: "#14b8a6" };
   const l = levelOf(m);
   if (l === 1) return { label: "تنفيذي", color: "#3b82f6" };
   if (l === 2) return { label: "مدير فرع", color: "#8b5cf6" };
