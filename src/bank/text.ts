@@ -1,4 +1,5 @@
-import type { Message } from "discord.js";
+import { AttachmentBuilder, type Message } from "discord.js";
+import { renderBankCard } from "./card";
 import { jenny } from "../constants";
 import { getProfile } from "../services/economy";
 import { deposit, withdraw } from "./service";
@@ -26,7 +27,17 @@ export async function handleBankText(message: Message<true>): Promise<boolean> {
 
   if (BANK_BALANCE_TRIGGER.test(text)) {
     const profile = await getProfile(message.author.id, message.guildId).catch(() => null);
-    await reply(profile ? `رصيد البنك: ${jenny(profile.bank ?? 0)}` : "❌ تعذّر جلب الرصيد، حاول لاحقاً.");
+    if (!profile) {
+      await reply("❌ تعذّر جلب الرصيد، حاول لاحقاً.");
+      return true;
+    }
+    const png = await renderBankCard({
+      name: message.member?.displayName ?? message.author.username,
+      avatar: message.author.displayAvatarURL({ extension: "png", size: 256 }),
+      balance: profile.bank ?? 0,
+    });
+    if (!png) await reply(`رصيد البنك: ${jenny(profile.bank ?? 0)}`);
+    else await message.reply({ files: [new AttachmentBuilder(png, { name: "bank.png" })], allowedMentions: noPing }).catch(() => undefined);
     return true;
   }
 
