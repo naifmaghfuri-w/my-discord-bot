@@ -43,6 +43,7 @@ import { progressWeeklyQuest } from "../quests/weeklyService";
 import { getBirthday, parseBirthdayInput, setBirthday } from "../services/birthday";
 import { recordMessage } from "../services/stats";
 import { tickStreak } from "../services/streak";
+import { LEVEL_TRIGGER, awardMessageXp, handleLevelMessage } from "../level/text";
 import { STREAK_TRIGGER, handleStreakMessage } from "../streak/interactions";
 import { applyStreakNick } from "../streak/nick";
 import type { BotEvent } from "../types";
@@ -147,6 +148,10 @@ const event: BotEvent = {
     }
 
     // --- الوظائف: "وظائف" / "دوام" / "استقالة" ---
+    if (LEVEL_TRIGGER.test(rawContent.trim())) {
+      await handleLevelMessage(message);
+      return;
+    }
     if (STREAK_TRIGGER.test(rawContent.trim())) {
       await handleStreakMessage(message);
       return;
@@ -690,7 +695,7 @@ const event: BotEvent = {
 
     const channel = toAnnouncer(message.channel);
     const content = rawContent;
-    const jobs: Promise<void>[] = [recordMessage(guildId, userId).catch(() => undefined)];
+    const jobs: Promise<void>[] = [recordMessage(guildId, userId).catch(() => undefined), awardMessageXp(message).catch(() => undefined)];
 
     const track = (questId: QuestId, amount = 1, uid = userId) => {
       jobs.push(progressQuest(client, { guildId, userId: uid, questId, amount, channel }));
