@@ -56,15 +56,6 @@ export const JOBS: JobDef[] = [
     ],
   },
   {
-    id: "lab_assistant", name: "مساعد مختبر", icon: "🧪", kind: "career", desc: "اشتغل في الأبحاث.",
-    req: {},
-    ranks: [
-      { title: "مساعد مختبر", pay: 90, shiftsNeeded: 0 },
-      { title: "كيميائي", pay: 140, shiftsNeeded: 30 },
-      { title: "رئيس أبحاث", pay: 220, shiftsNeeded: 80 },
-    ],
-  },
-  {
     id: "bank_clerk", name: "موظف بنك", icon: "🏦", kind: "career", desc: "رواتب جيدة وترقيات بطيئة.",
     req: {},
     ranks: [
