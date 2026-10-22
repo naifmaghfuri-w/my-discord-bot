@@ -1,14 +1,15 @@
 import {
-  ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle,
+  ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle,
   type BaseMessageOptions, type ButtonInteraction, type Client, type Interaction, type Message, type ModalSubmitInteraction, type StringSelectMenuInteraction,
 } from "discord.js";
 import { jenny } from "../constants";
 import { Company, CompanyApplication, CompanyComplaint, CompanyLog, CompanyMember, CompanyPosting, CompanyReport, type ICompany, type ICompanyMember } from "../database/models/Company";
 import { UserProfile } from "../database/models/UserProfile";
 import { JOBS } from "../jobs/data";
-import { buildJobsPanel, fmtMs } from "../jobs/views";
-import { clearNotice, getJob, loadContext } from "../jobs/service";
+import { fmtMs } from "../jobs/views";
+import { applyForJob, getJob } from "../jobs/service";
 import { logTransaction } from "../services/transactions";
+import { renderHub, type HubCorpRow, type HubRegRow } from "./hub";
 import { makeLogo, renderCompanyCard } from "./card";
 import { logger } from "../utils/logger";
 import { BOARD_TITLE, CEO_TITLE, HR_TITLE, PROMOTIONS, TITLES, assignable, badgeOf, canControl, levelOf, titleByKey, titleLevel } from "./titles";
@@ -154,39 +155,55 @@ const btn = (id: string, label: string, style = ButtonStyle.Secondary, emoji?: s
 };
 const row = (...b: ButtonBuilder[]) => new ActionRowBuilder<ButtonBuilder>().addComponents(...b);
 
-async function buildHub(guildId: string): Promise<View> {
-  const postings = await CompanyPosting.find({ guildId, open: true }).limit(40);
-  const companies = await Company.countDocuments({ guildId });
-  const regular = JOBS.map((j) => `${j.icon} **${j.name}** — ${j.kind === "thief" ? "سرقة بالقائمة (!سرقة)" : j.kind === "career" ? `${j.ranks[0].pay}–${j.ranks[j.ranks.length - 1].pay} لكل دوام` : `${j.ranks[0].pay} للدوام الكامل`}`);
-  const corp = postings.length
-    ? postings.slice(0, 8).map((p) => `🏢 **${p.title}** — ${jenny(p.salary)} يوميًا (${p.slots - p.filled}/${p.slots} متاح)`)
-    : ["ما فيه وظائف شركات مفتوحة الحين."];
-  const embed = new EmbedBuilder()
-    .setColor(COLOR)
-    .setTitle("💼 الوظائف")
-    .addFields(
-      { name: "القائمة الأولى — وظائف عادية", value: regular.join("\n") },
-      { name: `القائمة الثانية — وظائف شركات السيرفر (${companies} شركة)`, value: corp.join("\n") },
-    )
-    .setFooter({ text: `تقدر تفتح شركتك بـ ${COMPANY_RULES.openCost.toLocaleString("en-US")} من محفظتك` });
-  return {
-    embeds: [embed],
-    components: [
-      row(btn("co|reg", "الوظائف العادية", ButtonStyle.Primary, "💼"), btn("co|list", "وظائف الشركات", ButtonStyle.Primary, "🏢")),
-      row(btn("co|open", "فتح شركة", ButtonStyle.Success, "🏗️")),
-    ],
-  };
-}
-
-async function buildPostingsList(guildId: string): Promise<View> {
-  const postings = await CompanyPosting.find({ guildId, open: true }).limit(20);
-  const lines: string[] = [];
+async function buildHub(guildId: string, kind: "reg" | "corp" = "reg"): Promise<View> {
+  const postings = await CompanyPosting.find({ guildId, open: true }).limit(12);
+  const names = new Map<string, string>();
   for (const p of postings) {
-    const c = await Company.findById(p.companyId, { name: 1 });
-    const link = p.channelId && p.messageId ? `https://discord.com/channels/${guildId}/${p.channelId}/${p.messageId}` : "";
-    lines.push(`🏢 **${p.title}** في **${c?.name ?? "?"}** — ${jenny(p.salary)} يوميًا • متاح ${p.slots - p.filled}/${p.slots}${link ? ` • [اذهب للتقديم](${link})` : ""}`);
+    const k = String(p.companyId);
+    if (!names.has(k)) names.set(k, (await Company.findById(p.companyId, { name: 1 }))?.name ?? "?");
   }
-  return { embeds: [new EmbedBuilder().setColor(COLOR).setTitle("🏢 وظائف الشركات").setDescription(lines.join("\n") || "ما فيه وظائف مفتوحة الحين.")], components: [] };
+  const regRows: HubRegRow[] = JOBS.map((j) => ({
+    name: j.name,
+    pay: j.kind === "thief" ? { value: "من السرقة", unit: "!سرقة" } : j.kind === "career" ? { value: `${j.ranks[0].pay}–${j.ranks[j.ranks.length - 1].pay}`, unit: "لكل دوام" } : { value: String(j.ranks[0].pay), unit: "للدوام الكامل" },
+    promo: j.kind === "career" && j.ranks.length > 1,
+  }));
+  const corpRows: HubCorpRow[] = postings.map((p) => ({
+    name: p.title,
+    company: names.get(String(p.companyId)) ?? "?",
+    pay: { value: p.salary.toLocaleString("en-US"), unit: "يوميًا" },
+    count: `${p.slots - p.filled}/${p.slots}`,
+    promo: !!PROMOTIONS[p.title],
+  }));
+  const png = await renderHub(kind, regRows, corpRows);
+  const components: ActionRowBuilder<any>[] = [
+    row(
+      btn("co|hub|reg", "وظائف عادية", kind === "reg" ? ButtonStyle.Primary : ButtonStyle.Secondary),
+      btn("co|hub|corp", "وظائف شركات", kind === "corp" ? ButtonStyle.Primary : ButtonStyle.Secondary),
+    ),
+  ];
+  if (kind === "reg") {
+    components.push(
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId("co|regsel")
+          .setPlaceholder("قدّم على وظيفة عادية")
+          .addOptions(JOBS.map((j) => ({ label: j.name, value: j.id }))),
+      ),
+    );
+  } else {
+    components.push(row(btn("co|open", "فتح شركة", ButtonStyle.Success)));
+  }
+  if (!png) {
+    const embed = new EmbedBuilder().setColor(COLOR).setTitle(kind === "reg" ? "الوظائف العادية" : "وظائف الشركات").setDescription(
+      kind === "reg"
+        ? regRows.map((r) => `**${r.name}** — ${r.pay.value} ${r.pay.unit} • ترقية: ${r.promo ? "نعم" : "لا"}`).join("\n")
+        : corpRows.map((r) => `**${r.name}** (${r.company}) — ${r.pay.value} ${r.pay.unit} • ${r.count} • ترقية: ${r.promo ? "نعم" : "لا"}`).join("\n") || "لا توجد وظائف حالياً",
+    );
+    return { embeds: [embed], components };
+  }
+  const name = kind === "reg" ? "jobs.png" : "corp-jobs.png";
+  const embed = new EmbedBuilder().setColor(COLOR).setImage(`attachment://${name}`);
+  return { embeds: [embed], files: [new AttachmentBuilder(png, { name })], components };
 }
 
 async function memberInfo(client: Client, guildId: string, id: string): Promise<{ name: string; avatar?: string }> {
@@ -399,14 +416,23 @@ async function route(i: AnyI): Promise<void> {
   const say = (content: string) => i.reply({ content, ...eph });
 
   /* --- اللوحة الرئيسية --- */
-  if (act === "reg" && i.isButton()) {
-    const [jp, ctx] = await Promise.all([getJob(uid, guildId), loadContext(uid, guildId)]);
-    const view = buildJobsPanel(uid, jp, ctx);
-    if (jp.notice) await clearNotice(uid, guildId);
-    await i.reply({ ...view, ...eph });
-    return;
+  if (act === "hub" && i.isButton()) {
+    await i.deferUpdate();
+    const view = await buildHub(guildId, a === "corp" ? "corp" : "reg");
+    return void (await i.editReply({ ...view, attachments: [] }));
   }
-  if (act === "list" && i.isButton()) return void (await i.reply({ ...(await buildPostingsList(guildId)), ...eph }));
+  if (act === "regsel" && i.isStringSelectMenu()) {
+    await i.deferReply(eph);
+    const r = await applyForJob(uid, guildId, i.values[0]);
+    let note: string;
+    if (r.ok) note = `🎉 تم قبولك في وظيفة **${r.job.name}**! اكتب \`!دوام\` لتبدأ.`;
+    else if (r.reason === "reqs") note = `❌ ما تحقق الشروط: ${(r.missing ?? []).join("، ")}.`;
+    else if (r.reason === "coins") note = "❌ رسوم التقديم ما تكفي في محفظتك.";
+    else if (r.reason === "blocked") note = `⏳ تقدر تقدّم بعد ${fmtMs(r.msLeft ?? 0)}.`;
+    else if (r.reason === "has_job") note = "❌ عندك وظيفة بالفعل. استقل أولًا.";
+    else note = "❌ تعذّر التقديم.";
+    return void (await i.editReply({ content: note }));
+  }
   if (act === "mine" && i.isButton()) {
     await i.deferReply(eph);
     return void (await i.editReply(await buildCompanyPanel(guildId, uid, i.client)));
