@@ -3,14 +3,15 @@ import {
   type BaseMessageOptions, type ButtonInteraction, type Client, type Interaction, type Message, type ModalSubmitInteraction, type StringSelectMenuInteraction,
 } from "discord.js";
 import { jenny } from "../constants";
-import { Company, CompanyApplication, CompanyLog, CompanyMember, CompanyPosting, type ICompany, type ICompanyMember } from "../database/models/Company";
+import { Company, CompanyApplication, CompanyComplaint, CompanyLog, CompanyMember, CompanyPosting, type ICompany, type ICompanyMember } from "../database/models/Company";
 import { UserProfile } from "../database/models/UserProfile";
 import { JOBS } from "../jobs/data";
 import { buildJobsPanel, fmtMs } from "../jobs/views";
 import { clearNotice, getJob, loadContext } from "../jobs/service";
 import { logTransaction } from "../services/transactions";
-import { renderCompanyCard } from "./card";
-import { BOARD_TITLE, assignable, badgeOf, canControl, levelOf, titleByKey, titleLevel } from "./titles";
+import { makeLogo, renderCompanyCard } from "./card";
+import { logger } from "../utils/logger";
+import { BOARD_TITLE, HR_TITLE, PROMOTIONS, TITLES, assignable, badgeOf, canControl, levelOf, titleByKey, titleLevel } from "./titles";
 import { handleThiefMessage } from "../jobs/thief";
 
 /* ───────────── الثوابت ───────────── */
@@ -23,6 +24,8 @@ export const COMPANY_RULES = {
   shiftGainOfficial: 200, // دوام المسؤول/المالك
   maxSlots: 20,
   maxSalary: 10_000,
+  /** تكلفة تغيير الاسم أو الصورة (تُخصم من ميزانية الشركة) */
+  changeCost: 200,
 } as const;
 
 /** !وظائف / !الوظائف */
@@ -217,6 +220,7 @@ async function buildCompanyPanel(guildId: string, userId: string, client: Client
     budget: c.budget,
     payroll,
     memberCount: members.length,
+    logo: c.logo ?? null,
     payrollIn: fmtMs(Math.max(60_000, since + COMPANY_RULES.payrollMs - Date.now())),
     members: shown.map((x, idx) => ({
       name: infos[idx].name,
@@ -248,15 +252,15 @@ async function buildCompanyPanel(guildId: string, userId: string, client: Client
     embed.setTitle(null).setDescription(note ?? null).setImage("attachment://company.png");
     files = [{ attachment: png, name: "company.png" }];
   }
-  const first = [btn(`co|work|${cid}`, "دوام", ButtonStyle.Success), btn(`co|refresh|${cid}`, "تحديث", ButtonStyle.Secondary, "🔄")];
-  if (m.role === "owner") first.push(btn(`co|self|${cid}`, "راتبي", ButtonStyle.Secondary, "✏️"));
-  if (levelOf(m) === 0) first.push(btn(`co|logs|${cid}`, "السجلات", ButtonStyle.Secondary, "📜"));
+  const first = [
+    btn(`co|work|${cid}`, "دوام", ButtonStyle.Success),
+    btn(`co|refresh|${cid}`, "تحديث", ButtonStyle.Secondary, "🔄"),
+    btn(`co|menu|${cid}`, c.name.slice(0, 60), ButtonStyle.Primary, "🏢"),
+  ];
+  if (m.title === HR_TITLE) first.push(btn(`co|hrbox|${cid}`, "شكاوى الموظفين", ButtonStyle.Secondary, "📨"));
   const rows: ActionRowBuilder<ButtonBuilder>[] = [row(...first)];
-  if (isBoss(m)) {
-    rows.push(row(btn(`co|post|${cid}`, "طلب توظيف", ButtonStyle.Primary, "📢"), btn(`co|mng|${cid}`, "إدارة الموظفين", ButtonStyle.Secondary, "👥")));
-  }
-  if (m.role === "owner") rows.push(row(btn(`co|sell|${cid}`, "بيع الشركة", ButtonStyle.Secondary, "🤝"), btn(`co|close|${cid}`, "إغلاق الشركة", ButtonStyle.Danger, "🔒")));
-  else rows.push(row(btn(`co|leave|${cid}`, "استقالة من الشركة", ButtonStyle.Danger, "🚪")));
+  if (isBoss(m)) rows.push(row(btn(`co|post|${cid}`, "طلب توظيف", ButtonStyle.Primary, "📢")));
+  if (m.role !== "owner") rows.push(row(btn(`co|leave|${cid}`, "استقالة من الشركة", ButtonStyle.Danger, "🚪")));
   return { embeds: [embed], components: rows, files };
 }
 
@@ -266,15 +270,18 @@ function memberCard(c: ICompany, t: ICompanyMember, actor: ICompanyMember, cid: 
     .setTitle(`👤 ${t.title}`)
     .setDescription([note ?? "", `${roleLabel(t)} ${mention(t.userId)}`, `الراتب اليومي: ${jenny(t.salary)}`, `خصم قادم: ${jenny(t.penalty ?? 0)}`, `ميزانية الشركة: ${jenny(c.budget)}`].filter(Boolean).join("\n"));
   const rows: ActionRowBuilder<ButtonBuilder>[] = [];
-  if (canControl(actor, t)) {
-    rows.push(
-      row(
-        btn(`co|pen|${cid}|${t.userId}`, "خصم", ButtonStyle.Secondary, "➖"),
-        btn(`co|raise|${cid}|${t.userId}`, "زيادة راتب", ButtonStyle.Secondary, "➕"),
-        btn(`co|promo|${cid}|${t.userId}`, "تغيير المنصب", ButtonStyle.Primary, "🔁"),
-        btn(`co|fire|${cid}|${t.userId}`, "فصل", ButtonStyle.Danger, "🥾"),
-      ),
-    );
+  if (actor.role === "owner" && t.userId === actor.userId) {
+    // المالك يعدّل وظيفته وراتبه بنفسه
+    rows.push(row(btn(`co|setsal|${cid}|${t.userId}`, "تعديل الراتب", ButtonStyle.Secondary, "💰"), btn(`co|promo|${cid}|${t.userId}`, "تغيير وظيفتي", ButtonStyle.Primary, "🔁")));
+  } else if (canControl(actor, t)) {
+    const first = [
+      btn(`co|setsal|${cid}|${t.userId}`, "تعديل الراتب", ButtonStyle.Secondary, "💰"),
+      btn(`co|pen|${cid}|${t.userId}`, "خصم", ButtonStyle.Secondary, "➖"),
+      btn(`co|promo|${cid}|${t.userId}`, "تغيير الوظيفة", ButtonStyle.Primary, "🔁"),
+    ];
+    const next = PROMOTIONS[t.title];
+    if (next && titleLevel(next) > levelOf(actor)) first.push(btn(`co|upg|${cid}|${t.userId}`, `ترقية: ${next}`.slice(0, 70), ButtonStyle.Success, "📈"));
+    rows.push(row(...first), row(btn(`co|fire|${cid}|${t.userId}`, "فصل", ButtonStyle.Danger, "🥾")));
   }
   if (actor.role === "owner" && t.role !== "owner") rows.push(row(btn(`co|offc|${cid}|${t.userId}`, t.role === "official" ? "سحب عضوية المجلس" : "تعيين في مجلس الإدارة", ButtonStyle.Secondary, "🏛️")));
   return { embeds: [embed], components: rows };
@@ -363,7 +370,8 @@ export async function handleCompanyInteraction(i: Interaction): Promise<boolean>
   if (!i.inGuild()) return true;
   try {
     await route(i);
-  } catch {
+  } catch (err) {
+    logger.error("خطأ في تفاعل الشركات", err);
     if (!i.replied && !i.deferred) await i.reply({ content: "⚠️ صار خطأ، حاول مرة ثانية.", ...eph }).catch(() => undefined);
   }
   return true;
@@ -373,7 +381,7 @@ type AnyI = ButtonInteraction | ModalSubmitInteraction | StringSelectMenuInterac
 
 async function ctxOf(i: AnyI, cid: string) {
   const guildId = i.guildId as string;
-  const company = await Company.findOne({ _id: cid, guildId });
+  const company = await Company.findOne({ _id: cid, guildId }).select("-logo");
   const me = company ? await CompanyMember.findOne({ companyId: cid, userId: i.user.id }) : null;
   return { guildId, company, me };
 }
@@ -494,23 +502,96 @@ async function route(i: AnyI): Promise<void> {
     return void (await i.update({ content: "🚪 استقلت من الشركة.", components: [] }));
   }
 
-  /* --- المالك يعدّل راتبه --- */
-  if (act === "self" && i.isButton()) {
-    const { me } = await ctxOf(i, a);
-    if (me?.role !== "owner") return void (await say("❌ فقط المالك."));
-    const t2 = input("salary", "راتبك اليومي", "0", TextInputStyle.Short, true, 6).components[0].setValue(String(me.salary));
-    await i.showModal(new ModalBuilder().setCustomId(`co|selfm|${a}`).setTitle("راتبي").addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(t2)));
+  /* --- قائمة الشركة (زر اسم الشركة) --- */
+  if (act === "menu" && i.isButton()) {
+    const { company, me } = await ctxOf(i, a);
+    if (!company || !me) return void (await say("❌ هذي مو شركتك."));
+    const lvl = levelOf(me);
+    const rows: ActionRowBuilder<ButtonBuilder>[] = [];
+    const cost = COMPANY_RULES.changeCost;
+    if (lvl === 0) rows.push(row(btn(`co|logo|${a}`, `تغيير الصورة (${cost})`, ButtonStyle.Secondary, "🖼️"), btn(`co|rename|${a}`, `تغيير الاسم (${cost})`, ButtonStyle.Secondary, "✏️")));
+    const second: ButtonBuilder[] = [];
+    if (isBoss(me)) second.push(btn(`co|mng|${a}`, "إدارة الموظفين", ButtonStyle.Secondary, "👥"));
+    if (lvl === 0) second.push(btn(`co|logs|${a}`, "السجلات", ButtonStyle.Secondary, "📜"));
+    if (second.length) rows.push(row(...second));
+    if (me.role === "owner") rows.push(row(btn(`co|sell|${a}`, "بيع الشركة", ButtonStyle.Secondary, "🤝"), btn(`co|close|${a}`, "إغلاق الشركة", ButtonStyle.Danger, "🔒")));
+    if (lvl >= 2) rows.push(row(btn(`co|compl|${a}`, "شكوى", ButtonStyle.Secondary, "📮")));
+    const embed = new EmbedBuilder().setColor(COLOR).setTitle(`🏢 ${company.name}`).setDescription(`💰 الميزانية: ${jenny(company.budget)}\nتغيير الاسم أو الصورة يخصم ${jenny(cost)} من الميزانية.`);
+    return void (await i.reply({ embeds: [embed], components: rows, ...eph }));
+  }
+
+  if (act === "logo" && i.isButton()) {
+    const { company, me } = await ctxOf(i, a);
+    const cost = COMPANY_RULES.changeCost;
+    if (!company || !me || levelOf(me) !== 0) return void (await say("❌ للإدارة العليا فقط."));
+    if (company.budget < cost) return void (await say(`❌ ميزانية الشركة ما تكفي (${jenny(cost)}).`));
+    const ch = i.channel;
+    if (!ch || !("awaitMessages" in ch)) return void (await say("❌ تعذّر استقبال الصورة هنا."));
+    await i.reply({ content: `🖼️ ارسل الصورة في هذا الروم خلال دقيقة (التغيير يخصم ${jenny(cost)} من ميزانية الشركة).`, ...eph });
+    const got = await ch
+      .awaitMessages({ filter: (m) => m.author.id === uid && m.attachments.some((x) => Boolean(x.contentType?.startsWith("image/"))), max: 1, time: 60_000 })
+      .catch(() => null);
+    const msg = got?.first();
+    if (!msg) return void (await i.editReply({ content: "⏰ انتهى الوقت بدون صورة." }));
+    const att = msg.attachments.find((x) => Boolean(x.contentType?.startsWith("image/")));
+    if (!att || att.size > 8 * 1024 * 1024) return void (await i.editReply({ content: "❌ الصورة كبيرة (الحد 8 ميغا)." }));
+    const res = await fetch(att.url).catch(() => null);
+    const logo = res && res.ok ? await makeLogo(Buffer.from(await res.arrayBuffer())) : null;
+    if (!logo) return void (await i.editReply({ content: "❌ ما قدرت أقرأ الصورة." }));
+    const paid = await Company.findOneAndUpdate({ _id: a, budget: { $gte: cost } }, { $inc: { budget: -cost }, $set: { logo } });
+    if (!paid) return void (await i.editReply({ content: "❌ ميزانية الشركة ما تكفي." }));
+    await addLog(guildId, a, `🖼️ ${mention(uid)} غيّر صورة الشركة (خصم ${jenny(cost)})`);
+    msg.delete().catch(() => undefined);
+    await i.editReply({ content: `✅ تم تغيير صورة الشركة (خصمنا ${jenny(cost)} من الميزانية). اضغط 🔄 تحديث.` });
     return;
   }
-  if (act === "selfm" && i.isModalSubmit()) {
+
+  if (act === "rename" && i.isButton()) {
+    const { company, me } = await ctxOf(i, a);
+    if (!company || !me || levelOf(me) !== 0) return void (await say("❌ للإدارة العليا فقط."));
+    const r = input("name", `الاسم الجديد (يخصم ${COMPANY_RULES.changeCost})`, "اسم الشركة", TextInputStyle.Short, true, 40);
+    r.components[0].setValue(company.name);
+    return void (await i.showModal(modal(`co|renamem|${a}`, "تغيير اسم الشركة", r)));
+  }
+  if (act === "renamem" && i.isModalSubmit()) {
+    const { company, me } = await ctxOf(i, a);
+    const cost = COMPANY_RULES.changeCost;
+    if (!company || !me || levelOf(me) !== 0) return void (await say("❌ للإدارة العليا فقط."));
+    const name = i.fields.getTextInputValue("name").trim();
+    if (name.length < 2) return void (await say("❌ الاسم قصير."));
+    if (name === company.name) return void (await say("❌ هذا هو الاسم الحالي."));
+    if (await Company.findOne({ guildId, name })) return void (await say("❌ يوجد شركة بنفس الاسم."));
+    let paid = null;
+    try {
+      paid = await Company.findOneAndUpdate({ _id: a, budget: { $gte: cost } }, { $inc: { budget: -cost }, $set: { name } });
+    } catch {
+      return void (await say("❌ يوجد شركة بنفس الاسم."));
+    }
+    if (!paid) return void (await say(`❌ ميزانية الشركة ما تكفي (${jenny(cost)}).`));
+    await addLog(guildId, a, `✏️ ${mention(uid)} غيّر اسم الشركة من **${company.name}** إلى **${name}** (خصم ${jenny(cost)})`);
+    return void (await i.reply({ content: `✅ صار اسم الشركة **${name}** (خصمنا ${jenny(cost)}). اضغط 🔄 تحديث.`, ...eph }));
+  }
+
+  /* --- الشكاوى: مدير الفرع وتحت يكتبون، وتروح لقسم HR فقط --- */
+  if (act === "compl" && i.isButton()) {
     const { me } = await ctxOf(i, a);
-    if (!me || me.role !== "owner") return void (await say("❌ فقط المالك."));
-    const salary = num(i.fields.getTextInputValue("salary"));
-    if (!(salary >= 0 && salary <= COMPANY_RULES.maxSalary)) return void (await say(`❌ الراتب لازم بين 0 و ${COMPANY_RULES.maxSalary}.`));
-    await CompanyMember.updateOne({ _id: me._id }, { $set: { salary } });
-    await i.deferReply(eph);
-    await i.editReply(await buildCompanyPanel(guildId, uid, i.client, `✏️ صار راتبك ${jenny(salary)} يوميًا (يُدفع من ميزانية الشركة).`));
-    return;
+    if (!me || levelOf(me) < 2) return void (await say("❌ الشكوى لمدير الفرع ومن تحته."));
+    if (!(await CompanyMember.exists({ companyId: a, title: HR_TITLE }))) return void (await say("❌ ما فيه موظف HR في الشركة يستقبل الشكاوى."));
+    return void (await i.showModal(modal(`co|complm|${a}`, "شكوى إلى HR", input("text", "اكتب شكواك", "التفاصيل...", TextInputStyle.Paragraph, true, 800))));
+  }
+  if (act === "complm" && i.isModalSubmit()) {
+    const { me } = await ctxOf(i, a);
+    if (!me || levelOf(me) < 2) return void (await say("❌ الشكوى لمدير الفرع ومن تحته."));
+    if (!(await CompanyMember.exists({ companyId: a, title: HR_TITLE }))) return void (await say("❌ ما فيه موظف HR في الشركة يستقبل الشكاوى."));
+    await CompanyComplaint.create({ guildId, companyId: a, fromId: uid, text: i.fields.getTextInputValue("text").trim() });
+    return void (await say("📮 وصلت شكواك لقسم HR."));
+  }
+  if (act === "hrbox" && i.isButton()) {
+    const { me } = await ctxOf(i, a);
+    if (!me || me.title !== HR_TITLE) return void (await say("❌ هذا لقسم HR فقط."));
+    const rows = await CompanyComplaint.find({ companyId: a }).sort({ createdAt: -1 }).limit(10);
+    const lines = rows.map((r) => `<t:${Math.floor(new Date(r.createdAt).getTime() / 1000)}:R> من ${mention(r.fromId)}\n> ${r.text.slice(0, 350)}`);
+    return void (await i.reply({ embeds: [new EmbedBuilder().setColor(COLOR).setTitle("📨 شكاوى الموظفين").setDescription(lines.join("\n\n") || "ما فيه شكاوى.")], ...eph }));
   }
 
   /* --- سجلات الشركة (الإدارة العليا فقط) --- */
@@ -582,35 +663,38 @@ async function route(i: AnyI): Promise<void> {
     const { me } = await ctxOf(i, a);
     if (!me || !isBoss(me)) return void (await say("❌ هذا للإدارة فقط."));
     const all = await CompanyMember.find({ companyId: a, userId: { $ne: uid } }).limit(100);
-    const list = all.filter((t) => canControl(me, t) || (me.role === "owner" && t.role !== "owner")).slice(0, 25);
+    const others = all.filter((t) => canControl(me, t) || (me.role === "owner" && t.role !== "owner"));
+    const list = (me.role === "owner" ? [me, ...others] : others).slice(0, 25);
     if (!list.length) return void (await say("ما فيه موظفين تقدر تديرهم الحين."));
     const menu = new StringSelectMenuBuilder()
       .setCustomId(`co|sel|${a}`)
       .setPlaceholder("اختر موظف")
-      .addOptions(list.map((t) => ({ label: `${t.title}`.slice(0, 90), description: `${t.salary} يوميًا • ${t.userId}`, value: t.userId })));
+      .addOptions(list.map((t) => ({ label: (t.userId === uid ? `أنت — ${t.title}` : t.title).slice(0, 90), description: `${t.salary} يوميًا • ${t.userId}`, value: t.userId })));
     await i.reply({ content: "👥 اختر الموظف:", components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)], ...eph });
     return;
   }
-  if (["sel", "pen", "raise", "promo", "promosel", "fire", "offc", "penm", "raisem"].includes(act)) {
+  if (["sel", "pen", "penm", "setsal", "setsalm", "promo", "promosel", "upg", "fire", "offc"].includes(act)) {
     const targetId = act === "sel" && i.isStringSelectMenu() ? i.values[0] : b;
     const { company, me } = await ctxOf(i, a);
     const t = company ? await CompanyMember.findOne({ companyId: a, userId: targetId }) : null;
+    const selfOwner = Boolean(me && t && me.role === "owner" && t.userId === me.userId);
     const ownerOverride = Boolean(me && t && me.role === "owner" && t.role !== "owner");
-    const allowed = Boolean(me && t && (act === "offc" ? ownerOverride : act === "sel" ? canControl(me, t) || ownerOverride : canControl(me, t)));
+    const selfActs = ["sel", "setsal", "setsalm", "promo", "promosel"];
+    const allowed = Boolean(me && t && (selfOwner ? selfActs.includes(act) : act === "offc" ? ownerOverride : act === "sel" ? canControl(me, t) || ownerOverride : canControl(me, t)));
     if (!company || !me || !t || !allowed) {
       return void (await say("❌ ما تقدر تدير هذا الشخص."));
     }
     const cid = a;
     const show = async (note?: string) => {
       const fresh = (await CompanyMember.findById(t._id)) ?? t;
-      const c2 = (await Company.findById(cid)) ?? company;
+      const c2 = (await Company.findById(cid).select("-logo")) ?? company;
       const card = memberCard(c2, fresh, me, cid, note);
       if (i.isButton() || i.isStringSelectMenu()) return i.update({ content: "", ...card });
       return i.reply({ ...card, ...eph });
     };
     if (act === "sel") return void (await show());
+
     if (act === "pen" && i.isButton()) return void (await i.showModal(modal(`co|penm|${cid}|${t.userId}`, "خصم من الراتب القادم", input("amount", "مبلغ الخصم", "100", TextInputStyle.Short, true, 6))));
-    if (act === "raise" && i.isButton()) return void (await i.showModal(modal(`co|raisem|${cid}|${t.userId}`, "زيادة راتب", input("amount", "الزيادة اليومية", "100", TextInputStyle.Short, true, 6))));
     if (act === "penm" && i.isModalSubmit()) {
       const amount = num(i.fields.getTextInputValue("amount"));
       if (!(amount >= 1 && amount <= t.salary)) return void (await say(`❌ الخصم لازم بين 1 و ${t.salary} (راتبه).`));
@@ -618,24 +702,48 @@ async function route(i: AnyI): Promise<void> {
       await addLog(guildId, cid, `➖ ${mention(uid)} خصم ${jenny(amount)} من راتب ${mention(t.userId)}`);
       return void (await show(`➖ تم خصم ${jenny(amount)} من راتبه القادم.`));
     }
-    if (act === "raisem" && i.isModalSubmit()) {
-      const amount = num(i.fields.getTextInputValue("amount"));
-      if (!(amount >= 1) || t.salary + amount > COMPANY_RULES.maxSalary) return void (await say("❌ مبلغ غير صالح."));
-      const total = await payrollTotal(cid);
-      if (company.budget < total + amount) return void (await say(`❌ ميزانية الشركة (${jenny(company.budget)}) ما تغطي رواتب ${jenny(total + amount)} بعد الزيادة.`));
-      await CompanyMember.updateOne({ _id: t._id }, { $inc: { salary: amount } });
-      return void (await show(`➕ صار راتبه ${jenny(t.salary + amount)} يوميًا.`));
+
+    if (act === "setsal" && i.isButton()) {
+      const r = input("salary", `الراتب اليومي (0-${COMPANY_RULES.maxSalary})`, "300", TextInputStyle.Short, true, 6);
+      r.components[0].setValue(String(t.salary));
+      return void (await i.showModal(modal(`co|setsalm|${cid}|${t.userId}`, "تعديل الراتب", r)));
     }
+    if (act === "setsalm" && i.isModalSubmit()) {
+      const salary = num(i.fields.getTextInputValue("salary"));
+      if (!(salary >= 0 && salary <= COMPANY_RULES.maxSalary)) return void (await say(`❌ الراتب لازم بين 0 و ${COMPANY_RULES.maxSalary}.`));
+      if (salary > t.salary) {
+        const total = await payrollTotal(cid);
+        if (company.budget < total - t.salary + salary) return void (await say(`❌ ميزانية الشركة (${jenny(company.budget)}) ما تغطي الرواتب بعد التعديل.`));
+      }
+      await CompanyMember.updateOne({ _id: t._id }, { $set: { salary } });
+      await addLog(guildId, cid, `💰 ${mention(uid)} عدّل راتب ${mention(t.userId)} من ${jenny(t.salary)} إلى ${jenny(salary)}`);
+      return void (await show(`💰 صار راتبه ${jenny(salary)} يوميًا.`));
+    }
+
     if (act === "promo" && i.isButton()) {
-      const options = company.positions.map((p, idx) => ({ ...p, idx })).filter((p) => titleLevel(p.title) > levelOf(me) && p.title !== t.title).slice(0, 25);
-      if (!options.length) return void (await say("ما فيه وظائف معلن عنها تقدر تنقله لها. أعلن عنها أولًا من «طلب توظيف»."));
-      const menu = new StringSelectMenuBuilder()
-        .setCustomId(`co|promosel|${cid}|${t.userId}`)
-        .setPlaceholder("اختر الوظيفة الجديدة")
-        .addOptions(options.map((p) => ({ label: p.title.slice(0, 90), description: `${p.salary} يوميًا`, value: String(p.idx) })));
-      return void (await i.update({ content: "🔁 اختر الوظيفة من الوظائف المعلن عنها:", embeds: [], components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)] }));
+      let options: { label: string; description: string; value: string }[];
+      if (selfOwner) {
+        options = [{ label: "المالك", description: "المسمى الافتراضي", value: "owner" }, ...TITLES.map((x) => ({ label: x.name, description: x.group, value: x.key }))].slice(0, 25);
+      } else {
+        options = company.positions
+          .map((p, idx) => ({ title: p.title, salary: p.salary, idx }))
+          .filter((p) => titleLevel(p.title) > levelOf(me) && p.title !== t.title)
+          .slice(0, 25)
+          .map((p) => ({ label: p.title.slice(0, 90), description: `${p.salary} يوميًا`, value: String(p.idx) }));
+        if (!options.length) return void (await say("ما فيه وظائف معلن عنها تقدر تنقله لها. أعلن عنها أولًا من «طلب توظيف»."));
+      }
+      const menu = new StringSelectMenuBuilder().setCustomId(`co|promosel|${cid}|${t.userId}`).setPlaceholder("اختر الوظيفة الجديدة").addOptions(options);
+      return void (await i.update({ content: selfOwner ? "🔁 اختر وظيفتك:" : "🔁 اختر الوظيفة من الوظائف المعلن عنها:", embeds: [], components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)] }));
     }
     if (act === "promosel" && i.isStringSelectMenu()) {
+      if (selfOwner) {
+        const v = i.values[0];
+        const title = v === "owner" ? "المالك" : titleByKey(v)?.name;
+        if (!title) return void (await say("❌ وظيفة غير صالحة."));
+        await CompanyMember.updateOne({ _id: t._id }, { $set: { title } });
+        await addLog(guildId, cid, `🔁 ${mention(uid)} غيّر وظيفته إلى **${title}**`);
+        return void (await show(`🔁 صارت وظيفتك **${title}**.`));
+      }
       const pos = company.positions[Number(i.values[0])];
       if (!pos || titleLevel(pos.title) <= levelOf(me)) return void (await say("❌ وظيفة غير صالحة."));
       const total = await payrollTotal(cid);
@@ -644,6 +752,20 @@ async function route(i: AnyI): Promise<void> {
       await addLog(guildId, cid, `🔁 ${mention(uid)} نقل ${mention(t.userId)} من **${t.title}** إلى **${pos.title}**`);
       return void (await show(`🔁 صار **${pos.title}** (${jenny(pos.salary)} يوميًا).`));
     }
+
+    if (act === "upg" && i.isButton()) {
+      const next = PROMOTIONS[t.title];
+      if (!next || titleLevel(next) <= levelOf(me)) return void (await say("❌ ما فيه ترقية متاحة لك لهذي الوظيفة."));
+      const salary = company.positions.find((p) => p.title === next)?.salary ?? t.salary;
+      if (salary > t.salary) {
+        const total = await payrollTotal(cid);
+        if (company.budget < total - t.salary + salary) return void (await say("❌ ميزانية الشركة ما تغطي الراتب الجديد."));
+      }
+      await CompanyMember.updateOne({ _id: t._id }, { $set: { title: next, salary } });
+      await addLog(guildId, cid, `📈 ${mention(uid)} رقّى ${mention(t.userId)} من **${t.title}** إلى **${next}**`);
+      return void (await show(`📈 تمت ترقيته إلى **${next}** (${jenny(salary)} يوميًا).`));
+    }
+
     if (act === "fire" && i.isButton()) {
       await CompanyMember.deleteOne({ _id: t._id });
       await addLog(guildId, cid, `🥾 ${mention(uid)} فصل ${mention(t.userId)} (${t.title})`);
