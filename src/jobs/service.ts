@@ -54,6 +54,16 @@ export async function getJob(userId: string, guildId: string): Promise<IJobProfi
   let doc = await JobProfile.findOneAndUpdate({ userId, guildId }, { $setOnInsert: { userId, guildId } }, { upsert: true, new: true });
   if (!doc) throw new Error("Failed to load job profile");
 
+  // وظيفة محذوفة (مثل مساعد مختبر): نفصله منها بدون مهلة
+  if (doc.jobId && !JOB_MAP[doc.jobId]) {
+    const reset = await JobProfile.findOneAndUpdate(
+      { userId, guildId, jobId: doc.jobId },
+      { $set: { jobId: "", rank: 0, shifts: 0, lastShiftAt: null, shiftStartedAt: null, ...RESET_STREAK, notice: "ℹ️ وظيفتك السابقة ما عادت متوفرة، تقدر تقدّم على وظيفة جديدة." } },
+      { new: true },
+    );
+    if (reset) doc = reset;
+  }
+
   if (doc.jobId) {
     const last = doc.lastActiveAt ? new Date(doc.lastActiveAt).getTime() : 0;
     const onShift = Boolean(doc.shiftStartedAt);
