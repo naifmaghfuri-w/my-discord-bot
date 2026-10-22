@@ -44,7 +44,7 @@ export function buildJobsList(owner: string, jp: IJobProfile, _ctx: JobContext, 
   }
 
   for (const j of JOBS) {
-    const pay = j.kind === "thief" ? "150 كل ساعة بأمر `!سرقة`" : j.kind === "career" ? `${j.ranks[0].pay}–${j.ranks[j.ranks.length - 1].pay} لكل دوام` : `${j.ranks[0].pay} للدوام الكامل (24 ساعة)`;
+    const pay = j.kind === "thief" ? "من السرقة بأمر `!سرقة`" : j.kind === "career" ? `${j.ranks[0].pay}–${j.ranks[j.ranks.length - 1].pay} لكل دوام` : `${j.ranks[0].pay} للدوام الكامل (24 ساعة)`;
     lines.push(`${j.icon} **${j.name}** — ${pay}`, `> ${j.desc}`);
   }
 
@@ -82,7 +82,7 @@ export function buildMyJob(jp: IJobProfile, note?: string): View {
   const rank = job.ranks[jp.rank] ?? job.ranks[0];
   lines.push(
     `${job.icon} **${job.name}** — ${rank.title}`,
-    `الراتب: ${job.kind === "thief" ? "من السرقة (كل ساعة)" : `${jenny(rank.pay)}${job.kind === "career" ? " لكل دوام" : " لكل 24 ساعة"}`}`,
+    `الراتب: ${job.kind === "thief" ? "من السرقة" : `${jenny(rank.pay)}${job.kind === "career" ? " لكل دوام" : " لكل 24 ساعة"}`}`,
     `الدوامات: **${jp.shifts}**`,
   );
 
@@ -104,8 +104,7 @@ export function buildMyJob(jp: IJobProfile, note?: string): View {
       lines.push("🏆 وصلت لأعلى رتبة.");
     }
   } else if (job.kind === "thief") {
-    const wait = 60 * 60 * 1000 - (now - (jp.lastShiftAt ? new Date(jp.lastShiftAt).getTime() : 0));
-    lines.push(wait > 0 ? `⏳ السرقة القادمة بعد ${fmtMs(wait)}` : "🦹 اكتب `!سرقة` الحين.");
+    lines.push("🦹 اكتب `!سرقة` لتختار سرقتك.");
   } else if (!jp.shiftStartedAt) {
     lines.push("اكتب `!دوام` لتبدأ دوامك الكامل (24 ساعة).");
   } else {
