@@ -507,7 +507,7 @@ async function route(i: AnyI): Promise<void> {
     const { company, me } = await ctxOf(i, a);
     if (!company || !me) return void (await say("❌ هذي مو شركتك."));
     const lvl = levelOf(me);
-    const rows: ActionRowBuilder<ButtonBuilder>[] = [];
+    const rows: ActionRowBuilder<ButtonBuilder>[] = [row(btn(`co|donate|${a}`, "دعم الميزانية", ButtonStyle.Success))];
     const cost = COMPANY_RULES.changeCost;
     if (lvl === 0) rows.push(row(btn(`co|logo|${a}`, `تغيير الصورة (${cost})`, ButtonStyle.Secondary, "🖼️"), btn(`co|rename|${a}`, `تغيير الاسم (${cost})`, ButtonStyle.Secondary, "✏️")));
     const second: ButtonBuilder[] = [];
@@ -518,6 +518,25 @@ async function route(i: AnyI): Promise<void> {
     if (lvl >= 2) rows.push(row(btn(`co|compl|${a}`, "شكوى", ButtonStyle.Secondary, "📮")));
     const embed = new EmbedBuilder().setColor(COLOR).setTitle(`🏢 ${company.name}`).setDescription(`💰 الميزانية: ${jenny(company.budget)}\nتغيير الاسم أو الصورة يخصم ${jenny(cost)} من الميزانية.`);
     return void (await i.reply({ embeds: [embed], components: rows, ...eph }));
+  }
+
+  /* --- دعم ميزانية الشركة (زر في القائمة) --- */
+  if (act === "donate" && i.isButton()) {
+    const { company, me } = await ctxOf(i, a);
+    if (!company || !me) return void (await say("❌ هذي مو شركتك."));
+    return void (await i.showModal(modal(`co|donatem|${a}`, "دعم ميزانية الشركة", input("amount", "المبلغ", "500", TextInputStyle.Short, true, 9))));
+  }
+  if (act === "donatem" && i.isModalSubmit()) {
+    const { company, me } = await ctxOf(i, a);
+    if (!company || !me) return void (await say("❌ هذي مو شركتك."));
+    const amount = num(i.fields.getTextInputValue("amount"));
+    if (!(amount >= 1 && amount <= 1_000_000)) return void (await say("❌ المبلغ لازم بين 1 و 1,000,000."));
+    const paid = await UserProfile.findOneAndUpdate({ userId: uid, guildId, coins: { $gte: amount } }, { $inc: { coins: -amount } });
+    if (!paid) return void (await say(`❌ ما تكفي محفظتك لدعم بمبلغ ${jenny(amount)}.`));
+    await Company.updateOne({ _id: a }, { $inc: { budget: amount } });
+    await logTransaction(guildId, uid, "job_fee", amount);
+    await addLog(guildId, a, `💝 ${mention(uid)} دعم الشركة بمبلغ ${jenny(amount)}`);
+    return void (await i.reply({ content: `💝 دعمت **${company.name}** بمبلغ ${jenny(amount)}. شكرًا! اضغط 🔄 تحديث.`, ...eph }));
   }
 
   if (act === "logo" && i.isButton()) {
@@ -599,7 +618,7 @@ async function route(i: AnyI): Promise<void> {
     const { me } = await ctxOf(i, a);
     if (!me || levelOf(me) !== 0) return void (await say("❌ السجلات للإدارة العليا فقط."));
     const rows = await CompanyLog.find({ companyId: a }).sort({ createdAt: -1 }).limit(15);
-    const lines = rows.map((r) => `<t:${Math.floor(new Date(r.createdAt).getTime() / 1000)}:R> ${r.text}`);
+    const lines = rows.map((r) => `<t:${Math.floor(new Date(r.createdAt).getTime() / 1000)}:f> ${r.text}`);
     return void (await i.reply({ embeds: [new EmbedBuilder().setColor(COLOR).setTitle("📜 سجلات الشركة").setDescription(lines.join("\n") || "لا توجد سجلات بعد.")], ...eph }));
   }
 
