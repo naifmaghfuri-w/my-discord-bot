@@ -64,7 +64,7 @@ export async function getJob(userId: string, guildId: string): Promise<IJobProfi
     if (reset) doc = reset;
   }
 
-  if (doc.jobId) {
+  if (doc.jobId && JOB_MAP[doc.jobId]?.kind !== "thief") {
     const last = doc.lastActiveAt ? new Date(doc.lastActiveAt).getTime() : 0;
     const onShift = Boolean(doc.shiftStartedAt);
     if (!onShift && Date.now() - last > JOB_RULES.inactiveFireMs) {
