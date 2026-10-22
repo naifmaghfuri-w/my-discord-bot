@@ -81,10 +81,10 @@ export function buildMyJob(jp: IJobProfile, note?: string): View {
 
   const rank = job.ranks[jp.rank] ?? job.ranks[0];
   lines.push(
-    `${job.icon} **${job.name}** — ${rank.title}`,
+    job.kind === "thief" ? `${job.icon} **${job.name}**` : `${job.icon} **${job.name}** — ${rank.title}`,
     `الراتب: ${job.kind === "thief" ? "من السرقة" : `${jenny(rank.pay)}${job.kind === "career" ? " لكل دوام" : " لكل 24 ساعة"}`}`,
-    `الدوامات: **${jp.shifts}**`,
   );
+  if (job.kind !== "thief") lines.push(`الدوامات: **${jp.shifts}**`);
 
   const now = Date.now();
   if (job.kind === "career") {
@@ -104,7 +104,7 @@ export function buildMyJob(jp: IJobProfile, note?: string): View {
       lines.push("🏆 وصلت لأعلى رتبة.");
     }
   } else if (job.kind === "thief") {
-    lines.push("🦹 اكتب `!سرقة` لتختار سرقتك.");
+    lines.push("اكتب `!سرقة` لتختار سرقتك.");
   } else if (!jp.shiftStartedAt) {
     lines.push("اكتب `!دوام` لتبدأ دوامك الكامل (24 ساعة).");
   } else {
@@ -112,7 +112,7 @@ export function buildMyJob(jp: IJobProfile, note?: string): View {
     if (now < endsAt) lines.push(`⏳ دوامك ينتهي بعد ${fmtMs(endsAt - now)}`);
     else lines.push("✅ خلص دوامك! اكتب `!دوام` لتستلم راتبك.");
   }
-  lines.push("", "الأوامر: `!دوام` • `!ترقية` • `!استقاله`", "_ما تداوم أسبوعًا = تنفصل من الوظيفة._");
+  if (job.kind !== "thief") lines.push("", "الأوامر: `!دوام` • `!ترقية` • `!استقاله`", "_ما تداوم أسبوعًا = تنفصل من الوظيفة._");
 
   const embed = new EmbedBuilder().setColor(0x2ecc71).setTitle("💼 وظيفتك").setDescription(lines.join("\n"));
   return { embeds: [embed], components: [] };
