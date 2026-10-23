@@ -39,6 +39,7 @@ import { canAdopt, canPropose, canSibling, disown, getParents, khulaDivorce, run
 import { getBirthday, parseBirthdayInput, setBirthday } from "../services/birthday";
 import { recordMessage } from "../services/stats";
 import { tickStreak } from "../services/streak";
+import { CHATPANEL_TRIGGER, handleChatPanelMessage } from "../chat/text";
 import { LEVEL_TRIGGER, awardMessageXp, handleLevelMessage } from "../level/text";
 import { STREAK_TRIGGER, handleStreakMessage } from "../streak/interactions";
 import { applyStreakNick } from "../streak/nick";
@@ -126,6 +127,10 @@ const event: BotEvent = {
     if (await handleModerationText(message)) return;
 
     // --- الوظائف: "وظائف" / "دوام" / "استقالة" ---
+    if (CHATPANEL_TRIGGER.test(rawContent.trim())) {
+      await handleChatPanelMessage(message);
+      return;
+    }
     if (LEVEL_TRIGGER.test(rawContent.trim())) {
       await handleLevelMessage(message);
       return;
