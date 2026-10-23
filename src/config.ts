@@ -20,7 +20,6 @@ export const config = {
   /** Render يمرر المنفذ تلقائياً عبر PORT */
   port: process.env.PORT ? Number(process.env.PORT) : undefined,
   /** قاعة الانجازات: كل بطاقات إكمال المهام تنزل هنا فقط */
-  questsChannelId: process.env.QUESTS_CHANNEL_ID || "1550924300939436062",
   /** قناة السجلات: رابط تعريفي بس في آخر رسالة الإنجاز (Hall of Deeds & Decrees)، مو مكان النشر الفعلي */
   recordsChannelId: process.env.RECORDS_CHANNEL_ID || "1551185659354419200",
   /** قناة العد (رقم صحيح = ☑️، رقم غلط = يُمسح) ومنها مهمة "عد في قناة العد" */
