@@ -37,9 +37,6 @@ import { handleGamesMessage } from "../games";
 import { handleCoinMessage } from "../games/coin";
 import { MARRIAGE_TRIGGER, buildMarriageGuide } from "../family/guide";
 import { canAdopt, canPropose, canSibling, disown, getParents, khulaDivorce, runAway, talaqDivorce } from "../family/service";
-import { QUEST_SETTINGS, type QuestId } from "../quests/definitions";
-import { progressQuest, toAnnouncer } from "../quests/service";
-import { progressWeeklyQuest } from "../quests/weeklyService";
 import { getBirthday, parseBirthdayInput, setBirthday } from "../services/birthday";
 import { recordMessage } from "../services/stats";
 import { tickStreak } from "../services/streak";
@@ -49,9 +46,6 @@ import { applyStreakNick } from "../streak/nick";
 import type { BotEvent } from "../types";
 import { logger } from "../utils/logger";
 
-const CUSTOM_EMOJI = /<a?:\w+:\d+>/g;
-const UNICODE_EMOJI = /\p{Extended_Pictographic}/gu;
-const MEOW = /م+ي+ا+و+/;
 /** يفعّل AFK إذا الرسالة "afk" لحالها أو "afk سبب..." (بدون سلاش) */
 const AFK_TRIGGER = /^afk(?:\s+([\s\S]+))?$/i;
 /** عيد الميلاد: "ميلاد" أو "birthday" أو "dob"، مع تاريخ اختياري بعدها (بدون سلاش أو زر) */
@@ -69,17 +63,11 @@ const RUNAWAY_TRIGGER = /^!\s*(?:هروب|هرب)$/i;
 const TREE_TRIGGER = /^!\s*شجرة(?:\s+<@!?(\d+)>)?$/;
 const RELATION_TRIGGER = /^!\s*قرابة\s+<@!?(\d+)>$/i;
 
-const lastCounted = new Map<string, number>();
 
 /** قنوات العد (كل قناة لها عدّاد مستقل). أضف أي ID جديد هنا */
 const EXTRA_COUNTING_CHANNELS = ["1551164925001342986"];
 const countingChannels = (): string[] => [config.countingChannelId, ...EXTRA_COUNTING_CHANNELS].filter((id): id is string => !!id);
 
-function countEmojis(text: string): number {
-  const custom = text.match(CUSTOM_EMOJI)?.length ?? 0;
-  const unicode = text.replace(CUSTOM_EMOJI, "").match(UNICODE_EMOJI)?.length ?? 0;
-  return custom + unicode;
-}
 
 const event: BotEvent = {
   name: Events.MessageCreate,
@@ -93,11 +81,9 @@ const event: BotEvent = {
     });
 
     // --- قناة العد: رقم صحيح (أو عملية ناتجها الرقم الصحيح) يتعلّم، وأي شيء ثاني يُمسح بدون ما يحسب لأي مهمة ---
-    let countedCorrectly = false;
     if (countingChannels().includes(message.channelId)) {
       const result = await handleCountingMessage(message);
       if (result === "wrong") return; // انمسحت: كأنها ما انكتبت
-      countedCorrectly = result === "correct";
     }
 
     const guildId = message.guildId;
@@ -693,41 +679,7 @@ const event: BotEvent = {
       }
     }
 
-    const channel = toAnnouncer(message.channel);
-    const content = rawContent;
     const jobs: Promise<void>[] = [recordMessage(guildId, userId).catch(() => undefined), awardMessageXp(message).catch(() => undefined)];
-
-    const track = (questId: QuestId, amount = 1, uid = userId) => {
-      jobs.push(progressQuest(client, { guildId, userId: uid, questId, amount, channel }));
-      jobs.push(progressWeeklyQuest(client, { guildId, userId: uid, questId, amount }));
-    };
-
-    // أرسل 5 رسائل (بفاصل زمني ضد السبام)
-    const now = Date.now();
-    if (now - (lastCounted.get(userId) ?? 0) >= QUEST_SETTINGS.messageGapMs) {
-      lastCounted.set(userId, now);
-      track("messages");
-    }
-
-    // صورة أو فيديو
-    if (message.attachments.some((a) => a.contentType?.startsWith("image/") || a.contentType?.startsWith("video/"))) {
-      track("media");
-    }
-
-    // ستيكرات
-    if (message.stickers.size > 0) track("stickers", message.stickers.size);
-
-    // إيموجي
-    const emojis = countEmojis(content);
-    if (emojis > 0) track("emojis", emojis);
-
-    // مياو
-    if (MEOW.test(content)) track("meow");
-
-    // قناة العد
-    if (countedCorrectly) {
-      track("counting");
-    }
 
     // رد على عضو + استلام رد/منشن
     const mentioned = new Set<string>();
@@ -738,18 +690,16 @@ const event: BotEvent = {
     if (message.reference?.messageId) {
       const ref = await message.fetchReference().catch(() => null);
       if (ref && !ref.author.bot && ref.author.id !== userId) {
-        track("reply");
         mentioned.add(ref.author.id);
       }
     }
-    mentioned.forEach((id) => track("mention", 1, id));
     if (mentioned.size > 0) {
       await sendAfkNotices(message, mentioned).catch((err) => logger.error("خطأ في إشعار AFK", err));
     }
 
     const results = await Promise.allSettled(jobs);
     for (const r of results) {
-      if (r.status === "rejected") logger.error("خطأ في تتبع المهام", r.reason);
+      if (r.status === "rejected") logger.error("خطأ في معالجة الرسالة", r.reason);
     }
   },
 };
