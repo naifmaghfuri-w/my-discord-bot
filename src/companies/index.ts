@@ -651,8 +651,9 @@ async function route(i: AnyI): Promise<void> {
   /* --- قائمة سرقة الحرامي (!سرقة) --- */
   if (act === "thf" && i.isButton()) {
     if (uid !== a) return void (await say("❌ هذي مو قائمتك. اكتب `!سرقة`."));
-    const result = await runThief(uid, guildId, b as ThiefAction);
-    return void (await i.update(await buildThiefMenu(uid, guildId, result)));
+    await i.deferUpdate();
+    const result = await runThief(uid, guildId, b as ThiefAction, i.client);
+    return void (await i.editReply({ ...(await buildThiefMenu(uid, guildId, result)), attachments: [] }));
   }
 
   /* --- قائمة الطلبات: طلبات التوظيف المعلقة ومتقدميها --- */
