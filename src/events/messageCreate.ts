@@ -21,7 +21,6 @@ import { handleTalkMessage, handleTalkReply } from "../talk";
 import { COMPANY_HUB_TRIGGER, COMPANY_MINE_TRIGGER, handleCompanyMessage, handleCompanyWorkMessage } from "../companies";
 import { JOBS_GUIDE_TRIGGER, buildJobsGuide } from "../jobs/guide";
 import { JOBS_TRIGGER, PROMO_TRIGGER, RESIGN_TRIGGER, WORK_TRIGGER, handleJobMessage } from "../jobs/interactions";
-import { DUEL_TRIGGER, HUNTER_TRIGGER, handleDuelMessage, handleHunterMessage } from "../hunter/interactions";
 import { handleCountingMessage } from "../counting/service";
 import { CLEAR_TRIGGER, handleClearMessage } from "../moderation/clearText";
 import { handleTextCommand } from "../handlers/textCommands";
@@ -126,13 +125,6 @@ const event: BotEvent = {
     // --- إدارة: !تحذير !تحذيرات !ميوت !نو ميوت !بان !نو بان ---
     if (await handleModerationText(message)) return;
 
-    // --- مبارزة لاعبين: "قتال @شخص 500" ---
-    const duelMatch = DUEL_TRIGGER.exec(rawContent.trim());
-    if (duelMatch) {
-      await handleDuelMessage(message, duelMatch);
-      return;
-    }
-
     // --- الوظائف: "وظائف" / "دوام" / "استقالة" ---
     if (LEVEL_TRIGGER.test(rawContent.trim())) {
       await handleLevelMessage(message);
@@ -166,12 +158,6 @@ const event: BotEvent = {
     if (RESIGN_TRIGGER.test(rawContent.trim())) {
       if (await handleCompanyWorkMessage(message, "resign")) return;
       await handleJobMessage(message, "resign");
-      return;
-    }
-
-    // --- لعبة هنتر ---
-    if (HUNTER_TRIGGER.test(rawContent.trim())) {
-      await handleHunterMessage(message);
       return;
     }
 
