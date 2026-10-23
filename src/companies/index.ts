@@ -213,7 +213,15 @@ async function memberInfo(client: Client, guildId: string, id: string): Promise<
   return { name: u?.username ?? id, avatar: u?.displayAvatarURL({ extension: "png", size: 128 }) };
 }
 
-async function buildCompanyPanel(guildId: string, userId: string, client: Client, note?: string): Promise<View> {
+const MEMBERS_PER_PAGE = 6;
+
+/** ترتيب حسب المنصب: المالك، المجلس، التنفيذي، مدير الفرع، ثم باقي الوظائف بترتيب القائمة */
+function rankKey(x: ICompanyMember): [number, number, number] {
+  const idx = TITLES.findIndex((t) => t.name === x.title);
+  return [x.role === "owner" ? -1 : levelOf(x), idx < 0 ? 0 : idx, -x.salary];
+}
+
+async function buildCompanyPanel(guildId: string, userId: string, client: Client, note?: string, pageArg = 0): Promise<View> {
   const m = await myMembership(guildId, userId);
   if (!m) {
     return { content: "ما عندك شركة. اكتب `!وظائف` ثم اضغط «فتح شركة»، أو قدّم على طلب توظيف.", embeds: [], components: [] };
@@ -226,11 +234,16 @@ async function buildCompanyPanel(guildId: string, userId: string, client: Client
     c.positions = c.positions.filter((p) => TITLES.some((x) => x.name === p.title));
     await Company.updateOne({ _id: c._id }, { $set: { positions: c.positions.map((p) => ({ title: p.title, salary: p.salary })) } }).catch(() => undefined);
   }
-  const members = await CompanyMember.find({ companyId: cid }).sort({ salary: -1 });
+  const members = (await CompanyMember.find({ companyId: cid })).sort((p, q) => {
+    const a = rankKey(p), b = rankKey(q);
+    return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+  });
+  const pages = Math.max(1, Math.ceil(members.length / MEMBERS_PER_PAGE));
+  const page = Math.min(Math.max(0, pageArg), pages - 1);
   const payroll = members.reduce((s, x) => s + x.salary, 0);
   const lines = members.slice(0, 15).map((x) => `${roleLabel(x)} ${mention(x.userId)} — ${x.title} • ${jenny(x.salary)}`);
   const since = new Date(c.lastPayrollAt).getTime();
-  const shown = members.slice(0, 6);
+  const shown = members.slice(page * MEMBERS_PER_PAGE, (page + 1) * MEMBERS_PER_PAGE);
   const infos = await Promise.all(shown.map((x) => memberInfo(client, guildId, x.userId)));
   const ownerIdx = shown.findIndex((x) => x.role === "owner");
   const ownerName = ownerIdx >= 0 ? infos[ownerIdx].name : (await memberInfo(client, guildId, c.ownerId)).name;
@@ -242,6 +255,7 @@ async function buildCompanyPanel(guildId: string, userId: string, client: Client
     budget: c.budget,
     payroll,
     memberCount: members.length,
+    pageInfo: pages > 1 ? `صفحة ${page + 1} من ${pages} • ${members.length} موظف` : undefined,
     logo: c.logo ?? null,
     payrollIn: fmtMs(Math.max(60_000, since + COMPANY_RULES.payrollMs - Date.now())),
     members: shown.map((x, idx) => ({
@@ -283,7 +297,12 @@ async function buildCompanyPanel(guildId: string, userId: string, client: Client
   if (m.title === CEO_TITLE) first.push(btn(`co|rptbox|${cid}`, "تقارير HR", ButtonStyle.Secondary, "📄"));
   const rows: ActionRowBuilder<ButtonBuilder>[] = [row(...first)];
   if (isBoss(m)) rows.push(row(btn(`co|post|${cid}`, "طلب توظيف", ButtonStyle.Primary, "📢")));
-  if (m.role !== "owner") rows.push(row(btn(`co|leave|${cid}`, "استقالة من الشركة", ButtonStyle.Danger, "🚪")));
+  if (pages > 1) {
+    rows.push(row(
+      btn(`co|pg|${cid}|${page - 1}`, "السابق", ButtonStyle.Secondary, "⬅️").setDisabled(page <= 0),
+      btn(`co|pg|${cid}|${page + 1}`, "التالي", ButtonStyle.Secondary, "➡️").setDisabled(page >= pages - 1),
+    ));
+  }
   return { embeds: [embed], components: rows, files };
 }
 
@@ -433,6 +452,13 @@ async function route(i: AnyI): Promise<void> {
     else note = "❌ تعذّر التقديم.";
     return void (await i.editReply({ content: note }));
   }
+  if (act === "pg" && i.isButton()) {
+    const mine = await myMembership(guildId, uid);
+    if (!mine || String(mine.companyId) !== a) return void (await say("❌ هذي مو شركتك."));
+    await i.deferUpdate();
+    const view = await buildCompanyPanel(guildId, uid, i.client, undefined, Number(b) || 0);
+    return void (await i.editReply({ ...view, attachments: [] }));
+  }
   if (act === "mine" && i.isButton()) {
     await i.deferReply(eph);
     return void (await i.editReply(await buildCompanyPanel(guildId, uid, i.client)));
@@ -551,6 +577,7 @@ async function route(i: AnyI): Promise<void> {
     if (second.length) rows.push(row(...second));
     if (me.role === "owner") rows.push(row(btn(`co|sell|${a}`, "بيع الشركة", ButtonStyle.Secondary, "🤝"), btn(`co|close|${a}`, "إغلاق الشركة", ButtonStyle.Danger, "🔒")));
     if (lvl >= 2) rows.push(row(btn(`co|compl|${a}`, "شكوى", ButtonStyle.Secondary, "📮")));
+    if (me.role !== "owner") rows.push(row(btn(`co|leave|${a}`, "استقالة من الشركة", ButtonStyle.Danger, "🚪")));
     const embed = new EmbedBuilder().setColor(COLOR).setTitle(`🏢 ${company.name}`).setDescription(`💰 الميزانية: ${jenny(company.budget)}\nتغيير الاسم أو الصورة يخصم ${jenny(cost)} من الميزانية.`);
     return void (await i.reply({ embeds: [embed], components: rows, ...eph }));
   }
