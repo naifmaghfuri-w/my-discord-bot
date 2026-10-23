@@ -45,7 +45,7 @@ export const config = {
   femaleRoleIds: parseIds(
     [process.env.FEMALE_ROLE_ID, process.env.FEMALE_ROLE_ID_1, process.env.FEMALE_ROLE_ID_2].filter(Boolean).join(","),
   ),
-  /** صورة بانر لوحات الدردشة الخاصة (اختياري، ويمكن تحديدها من أمر /chatpanel) */
+  /** صورة بانر لوحات الدردشة الخاصة (اختياري، ويمكن تحديدها من أمر !لوحة دردشة) */
   chatBannerUrl: process.env.CHAT_BANNER_URL || undefined,
   /** قناة سجلات الإدارة الافتراضية (يمكن تغييرها لكل سيرفر بأمر /setlog) */
   logChannelId: process.env.LOG_CHANNEL_ID || undefined,
