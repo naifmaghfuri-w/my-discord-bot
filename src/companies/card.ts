@@ -19,6 +19,7 @@ export interface CompanyCardData {
   budget: number;
   payroll: number;
   memberCount: number;
+  pageInfo?: string;
   payrollIn: string;
   logo?: Buffer | null;
   members: CardMember[];
@@ -77,7 +78,7 @@ export async function renderCompanyCard(d: CompanyCardData): Promise<Buffer | nu
   try {
     const family = ensureFontsRegistered() ? FONT_BOLD : "sans-serif";
     const rows = d.members.length;
-    const extra = d.memberCount - rows;
+    const extra = d.pageInfo ? 1 : 0;
     const H = 560 + rows * 72 + (extra > 0 ? 44 : 0);
     const canvas = createCanvas(W, H);
     const ctx = canvas.getContext("2d");
@@ -238,7 +239,7 @@ export async function renderCompanyCard(d: CompanyCardData): Promise<Buffer | nu
       ctx.textAlign = "center";
       ctx.fillStyle = "#94a3b8";
       ctx.font = `700 20px "${family}"`;
-      ctx.fillText(`+ ${extra} أعضاء آخرين`, W / 2, 540 + rows * 72 + 20);
+      ctx.fillText(d.pageInfo ?? "", W / 2, 540 + rows * 72 + 20);
     }
     return await canvas.encode("png");
   } catch {
