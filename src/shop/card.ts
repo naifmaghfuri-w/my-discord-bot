@@ -143,7 +143,7 @@ export async function renderFlowerShop(price: number, owned: number): Promise<Bu
     ctx.fillText("محل ورد", W - 380, 100);
     ctx.fillStyle = "#94a3b8";
     ctx.font = `700 22px "${family}"`;
-    ctx.fillText("اشتر ورد وأهده لزوجك أو زوجتك من !مقتنياتي", W - 380, 150);
+    ctx.fillText("اشتر ورد وأهده", W - 380, 150);
     ctx.fillStyle = "rgba(255,255,255,0.06)";
     rr(ctx, PAD, 250, 560, 130, 24);
     ctx.fill();
