@@ -7,6 +7,8 @@ export interface IThiefState {
   member: Date | null;
   company: Date | null;
   shop: Date | null;
+  /** مجموع كل اللي سرقه (لقائمة أشهر الحرامية) */
+  total?: number;
 }
 
 const thiefSchema = new Schema<IThiefState>({
@@ -15,6 +17,7 @@ const thiefSchema = new Schema<IThiefState>({
   member: { type: Date, default: null },
   company: { type: Date, default: null },
   shop: { type: Date, default: null },
+  total: { type: Number, default: 0 },
 });
 thiefSchema.index({ guildId: 1, userId: 1 }, { unique: true });
 
