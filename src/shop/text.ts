@@ -46,7 +46,7 @@ async function flowerView(owner: string, guildId: string, note?: string): Promis
   const png = await renderFlowerShop(ITEMS.flower.price, have);
   return view(
     png, "flower.png",
-    [row(btn(id(owner, "buy", "1"), `شراء 1 (${ITEMS.flower.price})`, ButtonStyle.Success), btn(id(owner, "buy", "5"), `شراء 5 (${ITEMS.flower.price * 5})`, ButtonStyle.Success), btn(id(owner, "shops"), "رجوع"))],
+    [row(btn(id(owner, "buy", "1"), "شراء", ButtonStyle.Success))],
     `محل ورد — السعر ${ITEMS.flower.price}`, note,
   );
 }
