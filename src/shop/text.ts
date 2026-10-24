@@ -63,7 +63,7 @@ async function inventoryView(guild: Guild, owner: string, note?: string): Promis
   const rows = flowers > 0 ? [{ name: ITEMS.flower.name, count: flowers }] : [];
   const png = await renderInventory(rows);
   const buttons: ButtonBuilder[] = [];
-  if (flowers > 0 && (await spouseIds(owner, guild.id)).length > 0) buttons.push(btn(id(owner, "gift"), "إهداء ورد لشريك حياتك", ButtonStyle.Success));
+  if (flowers > 0 && (await spouseIds(owner, guild.id)).length > 0) buttons.push(btn(id(owner, "gift"), "إهداء", ButtonStyle.Success));
   return view(png, "inv.png", buttons.length ? [row(...buttons)] : [], flowers ? `ورد × ${flowers}` : "ما عندك مقتنيات.", note);
 }
 
@@ -97,7 +97,7 @@ async function marriageView(guild: Guild, owner: string, partnerId?: string, not
     gifts: m.gifts ?? m.flowers ?? 0,
     love: lovePercent(m.lovePoints ?? (m.flowers ?? 0) * ITEMS.flower.love, days),
   });
-  const rows: ActionRowBuilder<any>[] = [row(btn(id(owner, "mgift", pid), "إهداء ورد", ButtonStyle.Success))];
+  const rows: ActionRowBuilder<any>[] = [row(btn(id(owner, "mgift", pid), "إهداء", ButtonStyle.Success))];
   if (ms.length > 1) {
     const opts = await Promise.all(
       ms.map(async (x) => {
@@ -178,10 +178,10 @@ async function sendGift(i: ButtonInteraction | StringSelectMenuInteraction, guil
   if (!ids.includes(to)) return void (await i.editReply({ ...(await refresh()), attachments: [] }));
   const r = await giftFlower(guild, from, to);
   const base = await refresh();
-  await i.editReply({ ...base, content: r === "ok" ? " انرسلت الوردة." : r, attachments: [] });
+  await i.editReply({ ...base, content: r === "ok" ? "" : r, attachments: [] });
   if (r === "ok" && i.channel && "send" in i.channel) {
     await i.channel
-      .send({ embeds: [new EmbedBuilder().setColor(0xf43f5e).setDescription(`<@${from}> أهدى <@${to}> وردة، حب وسعادة 🌹`)], allowedMentions: { users: [to] } })
+      .send({ embeds: [new EmbedBuilder().setColor(0xf43f5e).setDescription(`<@${from}> أهدى <@${to}> وردة`)], allowedMentions: { users: [to] } })
       .catch(() => undefined);
   }
 }
