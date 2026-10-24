@@ -39,6 +39,7 @@ import { canAdopt, canPropose, canSibling, disown, getParents, khulaDivorce, run
 import { getBirthday, parseBirthdayInput, setBirthday } from "../services/birthday";
 import { recordMessage } from "../services/stats";
 import { tickStreak } from "../services/streak";
+import { INVENTORY_TRIGGER, MYMARRIAGE_TRIGGER, SHOPS_TRIGGER, handleShopMessage } from "../shop/text";
 import { TOP_TRIGGER, handleTopMessage } from "../top/text";
 import { CHATPANEL_TRIGGER, handleChatPanelMessage } from "../chat/text";
 import { LEVEL_TRIGGER, awardMessageXp, handleLevelMessage } from "../level/text";
@@ -128,6 +129,10 @@ const event: BotEvent = {
     if (await handleModerationText(message)) return;
 
     // --- الوظائف: "وظائف" / "دوام" / "استقالة" ---
+    if (SHOPS_TRIGGER.test(rawContent.trim()) || INVENTORY_TRIGGER.test(rawContent.trim()) || MYMARRIAGE_TRIGGER.test(rawContent.trim())) {
+      await handleShopMessage(message);
+      return;
+    }
     if (TOP_TRIGGER.test(rawContent.trim())) {
       await handleTopMessage(message);
       return;
