@@ -48,6 +48,8 @@ export interface ICompanyMember {
   lastShiftAt: Date | null;
   /** تقليل مهلة الدوام الجاي بالمللي ثانية (من آلة البيع) */
   cutMs?: number;
+  /** آخر شراء من آلة البيع لكل عنصر (مرة كل 5 ساعات) */
+  vendAt?: { water?: Date | null; espresso?: Date | null };
   joinedAt: Date;
 }
 
@@ -61,6 +63,7 @@ const memberSchema = new Schema<ICompanyMember>({
   penalty: { type: Number, default: 0 },
   lastShiftAt: { type: Date, default: null },
   cutMs: { type: Number, default: 0 },
+  vendAt: { type: { _id: false, water: { type: Date, default: null }, espresso: { type: Date, default: null } }, default: () => ({}) },
   joinedAt: { type: Date, default: () => new Date() },
 });
 memberSchema.index({ guildId: 1, userId: 1 }, { unique: true });
