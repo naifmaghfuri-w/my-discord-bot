@@ -89,6 +89,7 @@ export async function handleThiefMessage(message: Message): Promise<void> {
 
 async function payThief(userId: string, guildId: string, amount: number): Promise<void> {
   await UserProfile.updateOne({ userId, guildId }, { $inc: { coins: amount } }, { upsert: true });
+  await ThiefState.updateOne({ userId, guildId }, { $inc: { total: amount } }, { upsert: true }).catch(() => undefined);
   await logTransaction(guildId, userId, "salary", amount);
 }
 
