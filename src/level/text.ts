@@ -10,13 +10,6 @@ const XP_MIN = 15;
 const XP_MAX = 25;
 const lastXp = new Map<string, number>();
 
-/** يحسب النقاط الكلية من المستوى + الـ XP الحالي (نفس معادلة xpNeeded) */
-function totalPoints(level: number, xp: number): number {
-  let total = xp;
-  for (let l = 1; l < level; l++) total += xpNeeded(l);
-  return total;
-}
-
 /** كل رسالة تنحسب، والـ XP مرة كل دقيقة (ضد السبام) */
 export async function awardMessageXp(message: Message<true>): Promise<void> {
   const { guildId } = message;
@@ -50,7 +43,6 @@ export async function handleLevelMessage(message: Message<true>): Promise<void> 
     avatar: member.displayAvatarURL({ extension: "png", size: 256 }),
     level,
     rank: ahead + 1,
-    points: totalPoints(level, xp),
     messages: p.messages ?? 0,
     xp,
     need: xpNeeded(level),
