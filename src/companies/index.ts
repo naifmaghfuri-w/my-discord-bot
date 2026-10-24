@@ -312,6 +312,7 @@ async function buildCompanyPanel(guildId: string, userId: string, client: Client
   return { embeds: [embed], components: rows, files };
 }
 
+const VEND_COOLDOWN_MS = 5 * 60 * 60_000;
 const VEND_EDITORS = [BRANCH_TITLE, "موظف القهوة"];
 const vendPrices = (c: { vending?: { water?: number; espresso?: number } }): Record<VendItem, number> => ({
   water: c.vending?.water ?? VEND_DEFAULTS.water,
@@ -728,8 +729,22 @@ async function route(i: AnyI): Promise<void> {
     const last = me.lastShiftAt ? new Date(me.lastShiftAt).getTime() : 0;
     const left = last ? cd - (me.cutMs ?? 0) - (Date.now() - last) : 0;
     if (left <= 0) return await reply("✅ دوامك جاهز الحين، ما تحتاج مشروب.");
+    // مرة واحدة لكل عنصر كل 5 ساعات (نحجزها ذريًا قبل الدفع)
+    const now = Date.now();
+    const field = `vendAt.${item}`;
+    const before = await CompanyMember.findOneAndUpdate(
+      { _id: me._id, $or: [{ [field]: null }, { [field]: { $exists: false } }, { [field]: { $lte: new Date(now - VEND_COOLDOWN_MS) } }] },
+      { $set: { [field]: new Date(now) } },
+    );
+    if (!before) {
+      const at = me.vendAt?.[item] ? new Date(me.vendAt[item] as Date).getTime() : now;
+      return await reply(`⏳ تقدر تشتري **${def.name}** مرة ثانية بعد ${fmtMs(Math.max(60_000, VEND_COOLDOWN_MS - (now - at)))}.`);
+    }
     const paid = await UserProfile.findOneAndUpdate({ userId: uid, guildId, coins: { $gte: price } }, { $inc: { coins: -price } });
-    if (!paid) return await reply(`❌ ما تكفي محفظتك (السعر ${jenny(price)}).`);
+    if (!paid) {
+      await CompanyMember.updateOne({ _id: me._id }, { $set: { [field]: before.vendAt?.[item] ?? null } });
+      return await reply(`❌ ما تكفي محفظتك (السعر ${jenny(price)}).`);
+    }
     const cut = Math.min(Math.round(cd * def.pct), left);
     await CompanyMember.updateOne({ _id: me._id }, { $inc: { cutMs: cut } });
     await Company.updateOne({ _id: a }, { $inc: { budget: price } });
