@@ -1,6 +1,6 @@
 import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, type BaseMessageOptions, type Client, type Message } from "discord.js";
 import { jenny } from "../constants";
-import { renderThiefMenu, renderThiefResult } from "./thiefCard";
+import { renderThiefJail, renderThiefMenu, renderThiefResult } from "./thiefCard";
 import { GUARD_TITLE } from "../companies/titles";
 import { Company, CompanyLog, CompanyMember } from "../database/models/Company";
 import { JobProfile } from "../database/models/JobProfile";
@@ -22,16 +22,23 @@ export const THIEF = {
   guardActiveMs: 3 * 60 * MIN,
   /** محل صغير */
   shop: { gain: 50, cooldownMs: 30 * MIN },
+  /** السجن بعد الإمساك مرتين ورا بعض: ساعة ونص أو كفالة */
+  jail: { catches: 2, ms: 90 * MIN, bail: 100 },
 } as const;
 
-export type ThiefAction = "member" | "company" | "shop";
+export type ThiefAction = "member" | "company" | "shop" | "bail";
 const ACTIONS: ThiefAction[] = ["member", "company", "shop"];
-const COOLDOWN: Record<ThiefAction, number> = { member: THIEF.member.cooldownMs, company: THIEF.company.cooldownMs, shop: THIEF.shop.cooldownMs };
+const COOLDOWN: Record<"member" | "company" | "shop", number> = { member: THIEF.member.cooldownMs, company: THIEF.company.cooldownMs, shop: THIEF.shop.cooldownMs };
 
-async function cooldowns(userId: string, guildId: string): Promise<Record<ThiefAction, number>> {
+async function jailLeft(userId: string, guildId: string): Promise<number> {
+  const st = await ThiefState.findOne({ userId, guildId }, { jailUntil: 1 });
+  return st?.jailUntil ? Math.max(0, new Date(st.jailUntil).getTime() - Date.now()) : 0;
+}
+
+async function cooldowns(userId: string, guildId: string): Promise<Record<"member" | "company" | "shop", number>> {
   const st = await ThiefState.findOne({ userId, guildId });
   const now = Date.now();
-  const left = (a: ThiefAction) => {
+  const left = (a: "member" | "company" | "shop") => {
     const at = st?.[a] ? new Date(st[a] as Date).getTime() : 0;
     return Math.max(0, COOLDOWN[a] - (now - at));
   };
@@ -49,13 +56,18 @@ export interface ThiefResult {
 /** قائمة السرقة (!سرقة) كصورة، ولو فيه نتيجة تطلع صورة النتيجة بدالها */
 export async function buildThiefMenu(userId: string, guildId: string, result?: ThiefResult): Promise<BaseMessageOptions> {
   const cd = await cooldowns(userId, guildId);
-  const btn = (a: ThiefAction, label: string) =>
-    new ButtonBuilder().setCustomId(`co|thf|${userId}|${a}`).setLabel(label).setStyle(ButtonStyle.Danger).setDisabled(cd[a] > 0);
+  const jail = await jailLeft(userId, guildId);
+  const btn = (a: "member" | "company" | "shop", label: string) =>
+    new ButtonBuilder().setCustomId(`co|thf|${userId}|${a}`).setLabel(label).setStyle(ButtonStyle.Danger).setDisabled(cd[a] > 0 || jail > 0);
   const components = [new ActionRowBuilder<ButtonBuilder>().addComponents(btn("member", "عضو عشوائي"), btn("company", "شركة عشوائية"), btn("shop", "محل صغير"))];
+  if (jail > 0) components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`co|thf|${userId}|bail`).setLabel(`ادفع ${THIEF.jail.bail} واطلع`).setStyle(ButtonStyle.Success)));
 
   let png: Buffer | null = null;
   let name = "thief.png";
-  if (result && result.kind !== "info") {
+  if (jail > 0 && result?.kind !== "info") {
+    png = await renderThiefJail(fmtMs(Math.max(MIN, jail)), THIEF.jail.bail);
+    name = "thief-jail.png";
+  } else if (result && result.kind !== "info") {
     png = await renderThiefResult(result.kind, result.place ?? "", result.amount ?? 0);
     name = "thief-result.png";
   }
@@ -89,16 +101,28 @@ export async function handleThiefMessage(message: Message): Promise<void> {
 
 async function payThief(userId: string, guildId: string, amount: number): Promise<void> {
   await UserProfile.updateOne({ userId, guildId }, { $inc: { coins: amount } }, { upsert: true });
-  await ThiefState.updateOne({ userId, guildId }, { $inc: { total: amount } }, { upsert: true }).catch(() => undefined);
+  await ThiefState.updateOne({ userId, guildId }, { $inc: { total: amount }, $set: { caught: 0 } }, { upsert: true }).catch(() => undefined);
   await logTransaction(guildId, userId, "salary", amount);
 }
 
 /** ينفّذ السرقة ويرجع نص النتيجة */
 export async function runThief(userId: string, guildId: string, action: ThiefAction, client?: Client): Promise<ThiefResult> {
   const info = (text: string): ThiefResult => ({ kind: "info", text });
-  if (!ACTIONS.includes(action)) return info("❌ سرقة غير معروفة.");
   const jp = await getJob(userId, guildId);
   if (jp.jobId !== THIEF.jobId) return info("❌ هذي القائمة للحرامية فقط.");
+
+  // كفالة: تدفع وتطلع من السجن
+  if (action === "bail") {
+    const left = await jailLeft(userId, guildId);
+    if (left <= 0) return info("ما أنت مسجون.");
+    const paid = await UserProfile.findOneAndUpdate({ userId, guildId, coins: { $gte: THIEF.jail.bail } }, { $inc: { coins: -THIEF.jail.bail } });
+    if (!paid) return info(`❌ ما تكفي محفظتك للكفالة (${jenny(THIEF.jail.bail)}).`);
+    await ThiefState.updateOne({ userId, guildId }, { $set: { jailUntil: null, caught: 0 } });
+    return info(`دفعت كفالة ${jenny(THIEF.jail.bail)} وطلعت من السجن.`);
+  }
+  if (!ACTIONS.includes(action)) return info("❌ سرقة غير معروفة.");
+  const jailed = await jailLeft(userId, guildId);
+  if (jailed > 0) return info(`أنت مسجون! باقي ${fmtMs(Math.max(MIN, jailed))}، أو ادفع كفالة ${jenny(THIEF.jail.bail)}.`);
 
   // نضمن وجود سجل المهل ثم نحجز المهلة ذريًا
   await ThiefState.updateOne({ userId, guildId }, { $setOnInsert: { member: null, company: null, shop: null } }, { upsert: true }).catch(() => undefined);
@@ -154,6 +178,8 @@ export async function runThief(userId: string, guildId: string, action: ThiefAct
           await Company.updateOne({ _id: c._id }, { $inc: { budget: pay } });
         }
       }
+      const st = await ThiefState.findOneAndUpdate({ userId, guildId }, { $inc: { caught: 1 } }, { new: true });
+      if ((st?.caught ?? 0) >= THIEF.jail.catches) await ThiefState.updateOne({ userId, guildId }, { $set: { jailUntil: new Date(Date.now() + THIEF.jail.ms), caught: 0 } });
       await CompanyLog.create({ guildId, companyId: cid, text: `🛡️ حارس البوابة أمسك حرامي <@${userId}> وأخذنا تعويض ${jenny(paid)}.` }).catch(() => undefined);
       return { kind: "caught", place: c.name, amount: paid };
     }
