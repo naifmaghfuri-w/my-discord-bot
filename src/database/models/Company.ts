@@ -15,6 +15,8 @@ export interface ICompany {
   createdAt: Date;
   /** شعار الشركة (JPEG مصغّر) */
   logo?: Buffer | null;
+  /** أسعار آلة البيع */
+  vending?: { water: number; espresso: number };
 }
 
 const companySchema = new Schema<ICompany>({
@@ -26,6 +28,7 @@ const companySchema = new Schema<ICompany>({
   lastPayrollAt: { type: Date, default: () => new Date() },
   createdAt: { type: Date, default: () => new Date() },
   logo: { type: Buffer, default: null },
+  vending: { type: { _id: false, water: { type: Number, default: 2 }, espresso: { type: Number, default: 28 } }, default: () => ({ water: 2, espresso: 28 }) },
 });
 companySchema.index({ guildId: 1, name: 1 }, { unique: true });
 companySchema.index({ guildId: 1, ownerId: 1 }, { unique: true });
@@ -43,6 +46,8 @@ export interface ICompanyMember {
   salary: number;
   penalty: number;
   lastShiftAt: Date | null;
+  /** تقليل مهلة الدوام الجاي بالمللي ثانية (من آلة البيع) */
+  cutMs?: number;
   joinedAt: Date;
 }
 
@@ -55,6 +60,7 @@ const memberSchema = new Schema<ICompanyMember>({
   salary: { type: Number, default: 0 },
   penalty: { type: Number, default: 0 },
   lastShiftAt: { type: Date, default: null },
+  cutMs: { type: Number, default: 0 },
   joinedAt: { type: Date, default: () => new Date() },
 });
 memberSchema.index({ guildId: 1, userId: 1 }, { unique: true });
