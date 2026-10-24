@@ -8,7 +8,7 @@ import { UserProfile } from "../database/models/UserProfile";
 import { jenny } from "../constants";
 import { logTransaction } from "../services/transactions";
 import { renderFlowerShop, renderInventory, renderMarriageCard, renderShops } from "./card";
-import { ITEMS } from "./data";
+import { ITEMS, lovePercent } from "./data";
 
 export const SHOPS_TRIGGER = /^!\s*محلات$/;
 export const INVENTORY_TRIGGER = /^!\s*مقتنياتي$/;
@@ -73,7 +73,7 @@ async function giftFlower(guild: Guild, from: string, to: string): Promise<strin
   if (!took) return "❌ ما عندك ورد. اشتر من `!محلات`.";
   await Marriage.updateOne(
     { guildId: guild.id, $or: [{ husbandId: from, wifeId: to }, { husbandId: to, wifeId: from }] },
-    { $inc: { flowers: 1 } },
+    { $inc: { gifts: 1, lovePoints: ITEMS.flower.love } },
   );
   return "ok";
 }
@@ -86,14 +86,16 @@ async function marriageView(guild: Guild, owner: string, partnerId?: string, not
   const m = ms.find((x) => (x.husbandId === owner ? x.wifeId : x.husbandId) === partnerId) ?? ms[0];
   const pid = m.husbandId === owner ? m.wifeId : m.husbandId;
   const [a, b] = await Promise.all([guild.members.fetch(owner).catch(() => null), guild.members.fetch(pid).catch(() => null)]);
+  const days = Math.max(0, Math.floor((Date.now() - new Date(m.createdAt).getTime()) / 86_400_000));
   const png = await renderMarriageCard({
     aName: a?.displayName ?? "؟",
     aAvatar: a?.displayAvatarURL({ extension: "png", size: 256 }),
     bName: b?.displayName ?? "عضو غادر",
     bAvatar: b?.displayAvatarURL({ extension: "png", size: 256 }),
     since: new Date(m.createdAt).toLocaleDateString("en-GB"),
-    days: Math.max(0, Math.floor((Date.now() - new Date(m.createdAt).getTime()) / 86_400_000)),
-    flowers: m.flowers ?? 0,
+    days,
+    gifts: m.gifts ?? m.flowers ?? 0,
+    love: lovePercent(m.lovePoints ?? (m.flowers ?? 0) * ITEMS.flower.love, days),
   });
   const rows: ActionRowBuilder<any>[] = [row(btn(id(owner, "mgift", pid), "إهداء ورد", ButtonStyle.Success))];
   if (ms.length > 1) {
@@ -176,7 +178,7 @@ async function sendGift(i: ButtonInteraction | StringSelectMenuInteraction, guil
   if (!ids.includes(to)) return void (await i.editReply({ ...(await refresh()), attachments: [] }));
   const r = await giftFlower(guild, from, to);
   const base = await refresh();
-  await i.editReply({ ...base, content: r === "ok" ? "🌹 انرسلت الوردة." : r, attachments: [] });
+  await i.editReply({ ...base, content: r === "ok" ? " انرسلت الوردة." : r, attachments: [] });
   if (r === "ok" && i.channel && "send" in i.channel) {
     await i.channel
       .send({ embeds: [new EmbedBuilder().setColor(0xf43f5e).setDescription(`<@${from}> أهدى <@${to}> وردة، حب وسعادة 🌹`)], allowedMentions: { users: [to] } })
