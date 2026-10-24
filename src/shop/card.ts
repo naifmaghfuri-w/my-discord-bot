@@ -214,7 +214,9 @@ export interface MarriageCardData {
   bAvatar?: string;
   since: string;
   days: number;
-  flowers: number;
+  gifts: number;
+  /** نسبة الحب من 100 */
+  love: number;
 }
 
 /** بطاقة الزواج */
@@ -268,9 +270,17 @@ export async function renderMarriageCard(d: MarriageCardData): Promise<Buffer | 
       fit(ctx, s.name, family, 30, 340);
       ctx.fillText(s.name, s.x, 300);
     }
-    heart(ctx, W / 2, 190, 36, "#f43f5e");
+    // قلب كبير فيه نسبة الحب
+    heart(ctx, W / 2, 178, 62, "#f43f5e");
+    ctx.fillStyle = "#fff";
+    ctx.textAlign = "center";
+    ctx.font = `700 34px "${family}"`;
+    ctx.fillText(`${d.love}%`, W / 2, 172);
+    ctx.fillStyle = "#fbcfe8";
+    ctx.font = `700 18px "${family}"`;
+    ctx.fillText("نسبة الحب", W / 2, 262);
 
-    const stats: [string, string][] = [["تاريخ الزواج", d.since], ["مدة الزواج", `${fmt(d.days)} يوم`], ["الورد المهدى", fmt(d.flowers)]];
+    const stats: [string, string][] = [["تاريخ الزواج", d.since], ["مدة الزواج", `${fmt(d.days)} يوم`], ["عدد الهدايا", fmt(d.gifts)]];
     stats.forEach(([label, value], i) => {
       const w = 280, gap = 24;
       const x = W / 2 - (w * 3 + gap * 2) / 2 + (2 - i) * (w + gap);
