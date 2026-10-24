@@ -9,6 +9,8 @@ export interface IMarriage {
   /** مين دفع المهر (الزوج في الحالة الطبيعية) */
   paidBy: string;
   createdAt: Date;
+  /** عدد الورد المهدى بين الزوجين */
+  flowers?: number;
 }
 
 const schema = new Schema<IMarriage>({
@@ -18,6 +20,7 @@ const schema = new Schema<IMarriage>({
   dowry: { type: Number, default: 0 },
   paidBy: { type: String, required: true },
   createdAt: { type: Date, default: () => new Date() },
+  flowers: { type: Number, default: 0 },
 });
 
 schema.index({ guildId: 1, husbandId: 1, wifeId: 1 }, { unique: true });
