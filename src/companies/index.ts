@@ -13,7 +13,7 @@ import { renderHub, type HubCorpRow, type HubRegRow } from "./hub";
 import { VEND, VEND_DEFAULTS, renderVending, type VendItem } from "./vending";
 import { makeLogo, renderCompanyCard } from "./card";
 import { logger } from "../utils/logger";
-import { BOARD_TITLE, CEO_TITLE, HR_TITLE, PROMOTIONS, TITLES, assignable, badgeOf, canControl, levelOf, titleByKey, titleLevel } from "./titles";
+import { BOARD_TITLE, BRANCH_TITLE, CEO_TITLE, HR_TITLE, PROMOTIONS, TITLES, assignable, badgeOf, canControl, levelOf, titleByKey, titleLevel } from "./titles";
 import { buildThiefMenu, handleThiefMessage, runThief, type ThiefAction } from "../jobs/thief";
 
 /* ───────────── الثوابت ───────────── */
