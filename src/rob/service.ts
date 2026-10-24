@@ -1,4 +1,5 @@
 import { ROB } from "../bank/service";
+import { ThiefState } from "../database/models/ThiefState";
 import { UserProfile } from "../database/models/UserProfile";
 import { getProfile } from "../services/economy";
 import { logTransaction } from "../services/transactions";
@@ -65,6 +66,8 @@ export async function resolveRob(
         { $inc: { coins: amount } },
         { new: true },
       );
+      // يُحسب في قائمة أشهر الحرامية (!توب)
+      await ThiefState.updateOne({ userId: robberId, guildId }, { $inc: { total: amount } }, { upsert: true }).catch(() => undefined);
       await logTransaction(guildId, robberId, "rob_gain", amount, victimId);
       await logTransaction(guildId, victimId, "rob_loss", amount, robberId);
       return { outcome: "loot", amount, coins: robber?.coins ?? 0 };
