@@ -11,6 +11,10 @@ export interface IMarriage {
   createdAt: Date;
   /** عدد الورد المهدى بين الزوجين */
   flowers?: number;
+  /** عدد الهدايا المتبادلة */
+  gifts?: number;
+  /** مجموع نقاط الحب من الهدايا */
+  lovePoints?: number;
 }
 
 const schema = new Schema<IMarriage>({
@@ -21,6 +25,8 @@ const schema = new Schema<IMarriage>({
   paidBy: { type: String, required: true },
   createdAt: { type: Date, default: () => new Date() },
   flowers: { type: Number, default: 0 },
+  gifts: { type: Number, default: 0 },
+  lovePoints: { type: Number, default: 0 },
 });
 
 schema.index({ guildId: 1, husbandId: 1, wifeId: 1 }, { unique: true });
