@@ -1,3 +1,4 @@
+import { handleTopButton } from "../top/text";
 import { Collection, Events, MessageFlags, type Interaction } from "discord.js";
 import { handleAfkButton, handleAfkModal } from "../afk/interactions";
 import { handleBankButton, handleBankModal } from "../bank/interactions";
@@ -41,6 +42,7 @@ const event: BotEvent = {
           (await handleChatButton(interaction)) ||
           (await handleAfkButton(interaction)) ||
           (await handleMenuButton(interaction)) ||
+          (await handleTopButton(interaction)) ||
           (await handleBirthdayButton(interaction)) ||
           (await handleJobButton(interaction)) ||
           (await handleStreakButton(interaction)) ||
