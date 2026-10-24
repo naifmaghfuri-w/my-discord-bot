@@ -160,3 +160,51 @@ export async function renderThiefResult(kind: "success" | "caught", place: strin
     return null;
   }
 }
+
+/** صورة السجن */
+export async function renderThiefJail(timeLeft: string, bail: number): Promise<Buffer | null> {
+  try {
+    const family = ensureFontsRegistered() ? FONT_BOLD : "sans-serif";
+    const H = 360;
+    const canvas = createCanvas(W, H);
+    const ctx = canvas.getContext("2d");
+    ctx.textBaseline = "middle";
+    bg(ctx, H, "rgba(239,68,68,0.14)");
+    // رمز القضبان
+    ctx.fillStyle = "#ef4444";
+    rr(ctx, W - 192, 58, 124, 124, 28);
+    ctx.fill();
+    ctx.fillStyle = "#fff";
+    for (let i = 0; i < 4; i++) {
+      rr(ctx, W - 176 + i * 30, 72, 12, 96, 6);
+      ctx.fill();
+    }
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#f8fafc";
+    ctx.font = `700 52px "${family}"`;
+    ctx.fillText("أنت مسجون", W - 230, 96);
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = `700 24px "${family}"`;
+    ctx.fillText("انمسكت مرتين ورا بعض", W - 230, 146);
+    ctx.fillStyle = "rgba(255,255,255,0.06)";
+    rr(ctx, PAD, 216, W - PAD * 2, 108, 24);
+    ctx.fill();
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = `700 24px "${family}"`;
+    ctx.fillText("باقي على خروجك", W - PAD - 28, 252);
+    ctx.fillStyle = "#fca5a5";
+    ctx.font = `700 40px "${family}"`;
+    ctx.fillText(timeLeft, W - PAD - 28, 292);
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = `700 22px "${family}"`;
+    ctx.fillText("أو اطلع بكفالة", PAD + 32, 252);
+    ctx.fillStyle = "#fbbf24";
+    ctx.font = `700 40px "${family}"`;
+    ctx.fillText(`${fmt(bail)} Jenny`, PAD + 32, 292);
+    return await canvas.encode("png");
+  } catch {
+    return null;
+  }
+}
