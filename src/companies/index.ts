@@ -711,15 +711,15 @@ async function route(i: AnyI): Promise<void> {
   if (act === "vend" && i.isButton()) {
     const { company, me } = await ctxOf(i, a);
     if (!company || !me) return void (await say("❌ هذي مو شركتك."));
-    await i.deferReply(eph);
+    await i.deferReply();
     return void (await i.editReply(await buildVending(a, VEND_EDITORS.includes(me.title))));
   }
   if (act === "vendsel" && i.isStringSelectMenu()) {
     const { company, me } = await ctxOf(i, a);
     if (!company || !me) return void (await say("❌ هذي مو شركتك."));
-    await i.deferUpdate();
-    const canEdit = VEND_EDITORS.includes(me.title);
-    const reply = async (note: string) => void (await i.editReply({ ...(await buildVending(a, canEdit, note)), attachments: [] }));
+    // الرسالة عامة: نتيجة الشراء ترجع للمشتري لحاله
+    await i.deferReply(eph);
+    const reply = async (note: string) => void (await i.editReply({ content: note }));
     const item = i.values[0] as VendItem;
     const def = VEND[item];
     if (!def) return await reply("❌ عنصر غير معروف.");
