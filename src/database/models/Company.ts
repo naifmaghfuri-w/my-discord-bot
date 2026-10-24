@@ -16,7 +16,7 @@ export interface ICompany {
   /** شعار الشركة (JPEG مصغّر) */
   logo?: Buffer | null;
   /** أسعار آلة البيع */
-  vending?: { water: number; espresso: number };
+  vending?: { water: number; espresso: number; cheese: number };
 }
 
 const companySchema = new Schema<ICompany>({
@@ -28,7 +28,7 @@ const companySchema = new Schema<ICompany>({
   lastPayrollAt: { type: Date, default: () => new Date() },
   createdAt: { type: Date, default: () => new Date() },
   logo: { type: Buffer, default: null },
-  vending: { type: { _id: false, water: { type: Number, default: 2 }, espresso: { type: Number, default: 28 } }, default: () => ({ water: 2, espresso: 28 }) },
+  vending: { type: { _id: false, water: { type: Number, default: 2 }, espresso: { type: Number, default: 28 }, cheese: { type: Number, default: 50 } }, default: () => ({ water: 2, espresso: 28, cheese: 50 }) },
 });
 companySchema.index({ guildId: 1, name: 1 }, { unique: true });
 companySchema.index({ guildId: 1, ownerId: 1 }, { unique: true });
@@ -48,8 +48,10 @@ export interface ICompanyMember {
   lastShiftAt: Date | null;
   /** تقليل مهلة الدوام الجاي بالمللي ثانية (من آلة البيع) */
   cutMs?: number;
+  /** تشيز كيك مشتراة بانتظار الدوام القادم (تزيد الميزانية 2٪ مرة وحدة مع فلوس الدوام) */
+  cakePending?: number;
   /** آخر شراء من آلة البيع لكل عنصر (مرة كل 5 ساعات) */
-  vendAt?: { water?: Date | null; espresso?: Date | null };
+  vendAt?: { water?: Date | null; espresso?: Date | null; cheese?: Date | null };
   joinedAt: Date;
 }
 
@@ -63,7 +65,8 @@ const memberSchema = new Schema<ICompanyMember>({
   penalty: { type: Number, default: 0 },
   lastShiftAt: { type: Date, default: null },
   cutMs: { type: Number, default: 0 },
-  vendAt: { type: { _id: false, water: { type: Date, default: null }, espresso: { type: Date, default: null } }, default: () => ({}) },
+  cakePending: { type: Number, default: 0 },
+  vendAt: { type: { _id: false, water: { type: Date, default: null }, espresso: { type: Date, default: null }, cheese: { type: Date, default: null } }, default: () => ({}) },
   joinedAt: { type: Date, default: () => new Date() },
 });
 memberSchema.index({ guildId: 1, userId: 1 }, { unique: true });
