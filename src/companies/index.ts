@@ -10,6 +10,7 @@ import { fmtMs } from "../jobs/views";
 import { applyForJob, getJob } from "../jobs/service";
 import { logTransaction } from "../services/transactions";
 import { renderHub, type HubCorpRow, type HubRegRow } from "./hub";
+import { VEND, VEND_DEFAULTS, renderVending, type VendItem } from "./vending";
 import { makeLogo, renderCompanyCard } from "./card";
 import { logger } from "../utils/logger";
 import { BOARD_TITLE, CEO_TITLE, HR_TITLE, PROMOTIONS, TITLES, assignable, badgeOf, canControl, levelOf, titleByKey, titleLevel } from "./titles";
@@ -101,11 +102,14 @@ async function dissolveCompany(company: ICompany & { _id: unknown }, splitBudget
 async function companyShift(guildId: string, userId: string): Promise<string | null> {
   const m = await myMembership(guildId, userId);
   if (!m) return null;
-  const cutoff = new Date(Date.now() - COMPANY_RULES.shiftCooldownMs);
-  const upd = await CompanyMember.findOneAndUpdate({ _id: m._id, $or: [{ lastShiftAt: null }, { lastShiftAt: { $lte: cutoff } }] }, { $set: { lastShiftAt: new Date() } });
+  const cd = COMPANY_RULES.shiftCooldownMs;
+  const upd = await CompanyMember.findOneAndUpdate(
+    { _id: m._id, $or: [{ lastShiftAt: null }, { $expr: { $lte: [{ $add: ["$lastShiftAt", { $subtract: [cd, { $ifNull: ["$cutMs", 0] }] }] }, new Date()] } }] },
+    { $set: { lastShiftAt: new Date(), cutMs: 0 } },
+  );
   if (!upd) {
     const last = m.lastShiftAt ? new Date(m.lastShiftAt).getTime() : 0;
-    return `⏳ الدوام القادم بعد ${fmtMs(Math.max(60_000, COMPANY_RULES.shiftCooldownMs - (Date.now() - last)))}.`;
+    return `⏳ الدوام القادم بعد ${fmtMs(Math.max(60_000, cd - (m.cutMs ?? 0) - (Date.now() - last)))}.`;
   }
   const gain = isBoss(m) ? COMPANY_RULES.shiftGainOfficial : COMPANY_RULES.shiftGainEmployee;
   const c = await Company.findOneAndUpdate({ _id: m.companyId }, { $inc: { budget: gain } }, { new: true });
@@ -247,7 +251,7 @@ async function buildCompanyPanel(guildId: string, userId: string, client: Client
   const infos = await Promise.all(shown.map((x) => memberInfo(client, guildId, x.userId)));
   const ownerIdx = shown.findIndex((x) => x.role === "owner");
   const ownerName = ownerIdx >= 0 ? infos[ownerIdx].name : (await memberInfo(client, guildId, c.ownerId)).name;
-  const shiftLeft = m.lastShiftAt ? COMPANY_RULES.shiftCooldownMs - (Date.now() - new Date(m.lastShiftAt).getTime()) : 0;
+  const shiftLeft = m.lastShiftAt ? COMPANY_RULES.shiftCooldownMs - (m.cutMs ?? 0) - (Date.now() - new Date(m.lastShiftAt).getTime()) : 0;
   const png = await renderCompanyCard({
     name: c.name,
     ownerName,
@@ -296,7 +300,9 @@ async function buildCompanyPanel(guildId: string, userId: string, client: Client
   if (m.title === HR_TITLE) first.push(btn(`co|hrbox|${cid}`, "شكاوى الموظفين", ButtonStyle.Secondary, "📨"), btn(`co|rpt|${cid}`, "رفع تقرير", ButtonStyle.Secondary, "📄"));
   if (m.title === CEO_TITLE) first.push(btn(`co|rptbox|${cid}`, "تقارير HR", ButtonStyle.Secondary, "📄"));
   const rows: ActionRowBuilder<ButtonBuilder>[] = [row(...first)];
-  if (isBoss(m)) rows.push(row(btn(`co|post|${cid}`, "طلب توظيف", ButtonStyle.Primary, "📢")));
+  const extra = [btn(`co|vend|${cid}`, "آلة البيع", ButtonStyle.Secondary, "🥤")];
+  if (isBoss(m)) extra.push(btn(`co|post|${cid}`, "طلب توظيف", ButtonStyle.Primary, "📢"));
+  rows.push(row(...extra));
   if (pages > 1) {
     rows.push(row(
       btn(`co|pg|${cid}|${page - 1}`, "السابق", ButtonStyle.Secondary, "⬅️").setDisabled(page <= 0),
@@ -304,6 +310,32 @@ async function buildCompanyPanel(guildId: string, userId: string, client: Client
     ));
   }
   return { embeds: [embed], components: rows, files };
+}
+
+const VEND_EDITORS = [BRANCH_TITLE, "موظف القهوة"];
+const vendPrices = (c: { vending?: { water?: number; espresso?: number } }): Record<VendItem, number> => ({
+  water: c.vending?.water ?? VEND_DEFAULTS.water,
+  espresso: c.vending?.espresso ?? VEND_DEFAULTS.espresso,
+});
+
+async function buildVending(cid: string, canEdit: boolean, note?: string): Promise<View> {
+  const c = await Company.findById(cid).select("-logo");
+  const prices = c ? vendPrices(c) : VEND_DEFAULTS;
+  const png = await renderVending(prices);
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(`co|vendsel|${cid}`)
+    .setPlaceholder("اختر عنصر")
+    .addOptions(
+      { label: `${VEND.espresso.name} — ${prices.espresso}`, value: "espresso", description: VEND.espresso.effect },
+      { label: `${VEND.water.name} — ${prices.water}`, value: "water", description: VEND.water.effect },
+    );
+  const components: ActionRowBuilder<any>[] = [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
+  if (canEdit) components.push(row(btn(`co|vendp|${cid}`, "تعديل الأسعار", ButtonStyle.Secondary, "💲")));
+  const embed = new EmbedBuilder().setColor(COLOR);
+  if (png) embed.setImage("attachment://vending.png");
+  else embed.setTitle("آلة البيع").setDescription(`${VEND.espresso.name}: ${prices.espresso}\n${VEND.water.name}: ${prices.water}`);
+  if (note) embed.setDescription(note);
+  return { embeds: [embed], components, files: png ? [new AttachmentBuilder(png, { name: "vending.png" })] : [] };
 }
 
 function memberCard(c: ICompany, t: ICompanyMember, actor: ICompanyMember, cid: string, note?: string): View {
@@ -673,6 +705,56 @@ async function route(i: AnyI): Promise<void> {
     const rows = await CompanyComplaint.find({ companyId: a }).sort({ createdAt: -1 }).limit(10);
     const lines = rows.map((r) => `<t:${Math.floor(new Date(r.createdAt).getTime() / 1000)}:R> من ${mention(r.fromId)}\n> ${r.text.slice(0, 350)}`);
     return void (await i.reply({ embeds: [new EmbedBuilder().setColor(COLOR).setTitle("📨 شكاوى الموظفين").setDescription(lines.join("\n\n") || "ما فيه شكاوى.")], ...eph }));
+  }
+
+  /* --- آلة البيع --- */
+  if (act === "vend" && i.isButton()) {
+    const { company, me } = await ctxOf(i, a);
+    if (!company || !me) return void (await say("❌ هذي مو شركتك."));
+    await i.deferReply(eph);
+    return void (await i.editReply(await buildVending(a, VEND_EDITORS.includes(me.title))));
+  }
+  if (act === "vendsel" && i.isStringSelectMenu()) {
+    const { company, me } = await ctxOf(i, a);
+    if (!company || !me) return void (await say("❌ هذي مو شركتك."));
+    await i.deferUpdate();
+    const canEdit = VEND_EDITORS.includes(me.title);
+    const reply = async (note: string) => void (await i.editReply({ ...(await buildVending(a, canEdit, note)), attachments: [] }));
+    const item = i.values[0] as VendItem;
+    const def = VEND[item];
+    if (!def) return await reply("❌ عنصر غير معروف.");
+    const price = vendPrices(company)[item];
+    const cd = COMPANY_RULES.shiftCooldownMs;
+    const last = me.lastShiftAt ? new Date(me.lastShiftAt).getTime() : 0;
+    const left = last ? cd - (me.cutMs ?? 0) - (Date.now() - last) : 0;
+    if (left <= 0) return await reply("✅ دوامك جاهز الحين، ما تحتاج مشروب.");
+    const paid = await UserProfile.findOneAndUpdate({ userId: uid, guildId, coins: { $gte: price } }, { $inc: { coins: -price } });
+    if (!paid) return await reply(`❌ ما تكفي محفظتك (السعر ${jenny(price)}).`);
+    const cut = Math.min(Math.round(cd * def.pct), left);
+    await CompanyMember.updateOne({ _id: me._id }, { $inc: { cutMs: cut } });
+    await Company.updateOne({ _id: a }, { $inc: { budget: price } });
+    await logTransaction(guildId, uid, "job_fee", price);
+    await addLog(guildId, a, `🥤 ${mention(uid)} اشترى ${def.name} من آلة البيع بمبلغ ${jenny(price)}`);
+    return await reply(`🥤 اشتريت **${def.name}** بـ ${jenny(price)} (راحت لميزانية الشركة).\nنقص دوامك ${fmtMs(Math.max(60_000, cut))}، الدوام القادم بعد ${fmtMs(Math.max(60_000, left - cut))}.`);
+  }
+  if (act === "vendp" && i.isButton()) {
+    const { company, me } = await ctxOf(i, a);
+    if (!company || !me || !VEND_EDITORS.includes(me.title)) return void (await say("❌ تعديل الأسعار لمدير الفرع وموظف القهوة فقط."));
+    const p = vendPrices(company);
+    const field = (id: string, label: string, v: number) =>
+      new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId(id).setLabel(label).setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(6).setValue(String(v)));
+    return void (await i.showModal(modal(`co|vendpm|${a}`, "أسعار آلة البيع", field("espresso", "سعر الإسبريسو", p.espresso), field("water", "سعر قارورة الماء", p.water))));
+  }
+  if (act === "vendpm" && i.isModalSubmit()) {
+    const { company, me } = await ctxOf(i, a);
+    if (!company || !me || !VEND_EDITORS.includes(me.title)) return void (await say("❌ تعديل الأسعار لمدير الفرع وموظف القهوة فقط."));
+    const espresso = num(i.fields.getTextInputValue("espresso"));
+    const water = num(i.fields.getTextInputValue("water"));
+    const ok = (n: number) => Number.isInteger(n) && n >= 1 && n <= 10_000;
+    if (!ok(espresso) || !ok(water)) return void (await say("❌ الأسعار لازم أرقام صحيحة بين 1 و 10,000."));
+    await Company.updateOne({ _id: a }, { $set: { vending: { water, espresso } } });
+    await addLog(guildId, a, `💲 ${mention(uid)} عدّل أسعار آلة البيع: إسبريسو ${espresso} • ماء ${water}`);
+    return void (await say(`✅ تم تحديث الأسعار: الإسبريسو ${jenny(espresso)} • الماء ${jenny(water)}. افتح الآلة من جديد لتشوفها.`));
   }
 
   /* --- قائمة سرقة الحرامي (!سرقة) --- */
