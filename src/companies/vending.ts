@@ -1,17 +1,18 @@
 import { createCanvas, type SKRSContext2D } from "@napi-rs/canvas";
 import { ensureFontsRegistered, FONT_BOLD } from "../quests/render/fonts";
 
-export type VendItem = "espresso" | "water";
+export type VendItem = "espresso" | "water" | "cheese";
 
-export const VEND_DEFAULTS: Record<VendItem, number> = { water: 2, espresso: 28 };
+export const VEND_DEFAULTS: Record<VendItem, number> = { water: 2, espresso: 28, cheese: 50 };
 
-export const VEND: Record<VendItem, { name: string; pct: number; effect: string; color: string; soft: string }> = {
-  espresso: { name: "الإسبريسو", pct: 0.2, effect: "يقلل وقت الدوام بنسبة 20٪", color: "#d4894a", soft: "#e8b27f" },
-  water: { name: "قارورة ماء", pct: 0.05, effect: "يقلل وقت الدوام بنسبة 5٪", color: "#6cb6f0", soft: "#9fd0f5" },
+export const VEND: Record<VendItem, { name: string; pct: number; bonus: number; effect: string; color: string; soft: string }> = {
+  espresso: { name: "الإسبريسو", pct: 0.2, bonus: 0, effect: "يقلل وقت الدوام بنسبة 20٪", color: "#d4894a", soft: "#e8b27f" },
+  cheese: { name: "تشيز كيك", pct: 0, bonus: 0.02, effect: "يزيد الميزانية 2٪ مع الدوام", color: "#e9879f", soft: "#f6b3c4" },
+  water: { name: "قارورة ماء", pct: 0.05, bonus: 0, effect: "يقلل وقت الدوام بنسبة 5٪", color: "#6cb6f0", soft: "#9fd0f5" },
 };
 
-const W = 980;
-const H = 760;
+const W = 1098;
+const H = 700;
 
 function rr(ctx: SKRSContext2D, x: number, y: number, w: number, h: number, r: number): void {
   ctx.beginPath();
@@ -32,11 +33,11 @@ function sparkle(ctx: SKRSContext2D, x: number, y: number, s: number, color: str
 function glow(ctx: SKRSContext2D, cx: number, cy: number, tint: string): void {
   ctx.fillStyle = tint;
   ctx.beginPath();
-  ctx.arc(cx, cy, 158, 0, Math.PI * 2);
+  ctx.arc(cx, cy, 138, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = "rgba(255,255,255,0.05)";
   ctx.beginPath();
-  ctx.arc(cx, cy, 112, 0, Math.PI * 2);
+  ctx.arc(cx, cy, 98, 0, Math.PI * 2);
   ctx.fill();
 }
 
@@ -125,9 +126,65 @@ function drawBottle(ctx: SKRSContext2D, cx: number, cy: number): void {
   sparkle(ctx, cx - 100, cy - 36, 10, "#ffffff");
 }
 
+function drawCheese(ctx: SKRSContext2D, cx: number, cy: number): void {
+  glow(ctx, cx, cy, "rgba(233,135,159,0.16)");
+  // الصحن
+  ctx.fillStyle = "#e4e0d8";
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + 96, 118, 16, 0, 0, Math.PI * 2);
+  ctx.fill();
+  const poly = (pts: number[][], fill: string) => {
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.moveTo(cx + pts[0][0], cy + pts[0][1]);
+    for (const [dx, dy] of pts.slice(1)) ctx.lineTo(cx + dx, cy + dy);
+    ctx.closePath();
+    ctx.fill();
+  };
+  // الجنب الأيمن، الواجهة، الوجه العلوي
+  poly([[62, 14], [92, -26], [92, 52], [62, 92]], "#e8cf94");
+  poly([[-70, 14], [62, 14], [62, 92], [-70, 92]], "#f7e6b8");
+  poly([[-70, 14], [62, 14], [92, -26], [-40, -26]], "#fff3d2");
+  // القاعدة (بسكويت)
+  ctx.fillStyle = "#9a6a3a";
+  ctx.fillRect(cx - 70, cy + 70, 132, 22);
+  poly([[62, 70], [92, 30], [92, 52], [62, 92]], "#7d5430");
+  // صوص الفراولة على الوجه
+  ctx.fillStyle = "#e23d4b";
+  ctx.beginPath();
+  ctx.moveTo(cx - 40, cy - 26);
+  ctx.lineTo(cx + 92, cy - 26);
+  ctx.lineTo(cx + 84, cy - 14);
+  ctx.quadraticCurveTo(cx + 60, cy + 4, cx + 40, cy - 10);
+  ctx.quadraticCurveTo(cx + 10, cy + 12, cx - 20, cy - 8);
+  ctx.quadraticCurveTo(cx - 36, cy - 12, cx - 40, cy - 26);
+  ctx.fill();
+  // فراولة فوق
+  ctx.fillStyle = "#ef4a5b";
+  ctx.beginPath();
+  ctx.moveTo(cx + 20, cy - 62);
+  ctx.quadraticCurveTo(cx + 52, cy - 62, cx + 40, cy - 28);
+  ctx.quadraticCurveTo(cx + 30, cy - 18, cx + 20, cy - 16);
+  ctx.quadraticCurveTo(cx + 6, cy - 22, cx + 0, cy - 40);
+  ctx.quadraticCurveTo(cx - 2, cy - 62, cx + 20, cy - 62);
+  ctx.fill();
+  ctx.fillStyle = "#3f9d4a";
+  ctx.beginPath();
+  ctx.moveTo(cx + 20, cy - 64);
+  ctx.lineTo(cx + 8, cy - 74);
+  ctx.lineTo(cx + 20, cy - 70);
+  ctx.lineTo(cx + 32, cy - 76);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "#ffd9a8";
+  for (const [dx, dy] of [[14, -46], [26, -42], [20, -32], [32, -52]]) ctx.fillRect(cx + dx, cy + dy, 3, 4);
+  sparkle(ctx, cx + 96, cy - 70, 18, "#ffd6e0");
+  sparkle(ctx, cx - 108, cy - 30, 10, "#ffd6e0");
+}
+
 function card(ctx: SKRSContext2D, x: number, item: VendItem, price: number, family: string): void {
   const d = VEND[item];
-  const cw = 430, ch = 700, y = 30;
+  const cw = 330, ch = 640, y = 30;
   ctx.fillStyle = "#171033";
   rr(ctx, x, y, cw, ch, 36);
   ctx.fill();
@@ -141,34 +198,35 @@ function card(ctx: SKRSContext2D, x: number, item: VendItem, price: number, fami
   ctx.stroke();
 
   const cx = x + cw / 2;
-  if (item === "espresso") drawCup(ctx, cx, y + 245);
-  else drawBottle(ctx, cx, y + 245);
+  if (item === "espresso") drawCup(ctx, cx, y + 235);
+  else if (item === "cheese") drawCheese(ctx, cx, y + 235);
+  else drawBottle(ctx, cx, y + 235);
 
   // لوحة الاسم والتأثير
   ctx.fillStyle = "rgba(0,0,0,0.38)";
-  rr(ctx, x + 32, y + 470, cw - 64, 176, 22);
+  rr(ctx, x + 24, y + 440, cw - 48, 168, 22);
   ctx.fill();
   ctx.strokeStyle = `${d.color}55`;
   ctx.lineWidth = 2;
-  rr(ctx, x + 32, y + 470, cw - 64, 176, 22);
+  rr(ctx, x + 24, y + 440, cw - 48, 168, 22);
   ctx.stroke();
 
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillStyle = "#fff";
-  ctx.font = `700 38px "${family}"`;
-  ctx.fillText(d.name, cx, y + 515);
+  ctx.font = `700 34px "${family}"`;
+  ctx.fillText(d.name, cx, y + 482);
   ctx.fillStyle = d.soft;
-  ctx.font = `700 20px "${family}"`;
-  ctx.fillText(d.effect, cx, y + 562);
+  ctx.font = `700 17px "${family}"`;
+  ctx.fillText(d.effect, cx, y + 527);
 
   // السعر
   ctx.fillStyle = d.color;
-  rr(ctx, cx - 70, y + 590, 140, 40, 20);
+  rr(ctx, cx - 70, y + 553, 140, 40, 20);
   ctx.fill();
   ctx.fillStyle = "#1a1030";
   ctx.font = `700 22px "${family}"`;
-  ctx.fillText(`${price.toLocaleString("en-US")} Jenny`, cx, y + 611);
+  ctx.fillText(`${price.toLocaleString("en-US")} Jenny`, cx, y + 574);
 }
 
 export async function renderVending(prices: Record<VendItem, number>): Promise<Buffer | null> {
@@ -182,8 +240,9 @@ export async function renderVending(prices: Record<VendItem, number>): Promise<B
     ctx.fillStyle = bg;
     rr(ctx, 0, 0, W, H, 30);
     ctx.fill();
-    card(ctx, 520, "water", prices.water, family);
     card(ctx, 30, "espresso", prices.espresso, family);
+    card(ctx, 384, "cheese", prices.cheese, family);
+    card(ctx, 738, "water", prices.water, family);
     return await canvas.encode("png");
   } catch {
     return null;
