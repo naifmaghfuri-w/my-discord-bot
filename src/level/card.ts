@@ -6,14 +6,13 @@ export interface LevelCardData {
   avatar?: string;
   level: number;
   rank: number;
-  points: number;
   messages: number;
   xp: number;
   need: number;
 }
 
 const W = 900;
-const H = 260;
+const H = 230;
 const fmt = (n: number): string => Math.round(n).toLocaleString("en-US");
 
 async function loadAvatar(url?: string): Promise<Image | null> {
@@ -35,14 +34,28 @@ export async function renderLevelCard(d: LevelCardData): Promise<Buffer | null> 
     const ctx = canvas.getContext("2d");
     ctx.textBaseline = "alphabetic";
 
-    ctx.fillStyle = "#0b0b0d";
-    ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = "#141418";
-    rr(ctx, 20, 20, W - 40, H - 40, 28);
+    // اللوحة بكامل الصورة (الزوايا شفافة، بدون إطار أسود حولها)
+    const bg = ctx.createLinearGradient(0, 0, W, H);
+    bg.addColorStop(0, "#17171c");
+    bg.addColorStop(1, "#0f0f13");
+    ctx.fillStyle = bg;
+    rr(ctx, 0, 0, W, H, 30);
     ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.07)";
+    ctx.lineWidth = 2;
+    rr(ctx, 1, 1, W - 2, H - 2, 29);
+    ctx.stroke();
 
-    // الصورة (يمين)
-    const cx = 784, cy = 129, r = 66;
+    // الصورة (يمين) مع حلقة تتدرج بحسب المستوى
+    const cx = 770, cy = 108, r = 70;
+    const hue = (d.level * 28) % 360;
+    const ring = ctx.createLinearGradient(cx - r, cy - r, cx + r, cy + r);
+    ring.addColorStop(0, `hsl(${hue}, 85%, 70%)`);
+    ring.addColorStop(1, `hsl(${(hue + 60) % 360}, 85%, 60%)`);
+    ctx.fillStyle = ring;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r + 5, 0, Math.PI * 2);
+    ctx.fill();
     const img = await loadAvatar(d.avatar);
     ctx.save();
     ctx.beginPath();
@@ -64,29 +77,36 @@ export async function renderLevelCard(d: LevelCardData): Promise<Buffer | null> 
       size -= 2;
       ctx.font = `700 ${size}px "${bold}"`;
     }
-    ctx.fillText(d.name, right, 92);
+    ctx.fillText(d.name, right, 70);
 
     ctx.font = `700 28px "${bold}"`;
-    ctx.fillText(`المستوى ${d.level}`, right, 132);
+    ctx.fillText(`المستوى ${d.level}`, right, 110);
 
     ctx.fillStyle = "#8b8b95";
     ctx.font = `400 19px "${reg}"`;
-    ctx.fillText(`الترتيب #${d.rank}  ·  ${fmt(d.points)} نقطة  ·  ${fmt(d.messages)} رسالة`, right, 161);
+    ctx.fillText(`الترتيب #${d.rank}  ·  ${fmt(d.messages)} رسالة`, right, 139);
 
     // شريط التقدم (يتعبّى من اليمين)
-    const bx = 60, bw = 600, by = 190, bh = 28;
+    const bx = 60, bw = 600, by = 160, bh = 26;
     ctx.fillStyle = "#2a2a31";
     rr(ctx, bx, by, bw, bh, bh / 2);
     ctx.fill();
     const pct = Math.max(0, Math.min(1, d.need > 0 ? d.xp / d.need : 0));
     const fw = Math.max(bh, bw * pct);
-    ctx.fillStyle = "#f1f1f4";
+    const bar = ctx.createLinearGradient(bx + bw - fw, 0, bx + bw, 0);
+    bar.addColorStop(0, "#d9d9e0");
+    bar.addColorStop(1, "#ffffff");
+    ctx.fillStyle = bar;
     rr(ctx, bx + bw - fw, by, fw, bh, bh / 2);
     ctx.fill();
 
-    ctx.fillStyle = "#6f6f79";
+    // نصوص تحت الشريط: كل جزء لحاله عشان ما ينعكس ترتيب الأرقام
+    ctx.fillStyle = "#7c7c87";
     ctx.font = `400 16px "${reg}"`;
-    ctx.fillText(`${fmt(d.xp)} / ${fmt(d.need)} للمستوى التالي`, right, 242);
+    ctx.textAlign = "right";
+    ctx.fillText(`للمستوى ${d.level + 1}  ·  ${Math.round(pct * 100)}%`, right, 211);
+    ctx.textAlign = "left";
+    ctx.fillText(`${fmt(d.xp)} / ${fmt(d.need)} XP`, bx, 211);
 
     return await canvas.encode("png");
   } catch {
