@@ -105,14 +105,21 @@ async function companyShift(guildId: string, userId: string): Promise<string | n
   const cd = COMPANY_RULES.shiftCooldownMs;
   const upd = await CompanyMember.findOneAndUpdate(
     { _id: m._id, $or: [{ lastShiftAt: null }, { $expr: { $lte: [{ $add: ["$lastShiftAt", { $subtract: [cd, { $ifNull: ["$cutMs", 0] }] }] }, new Date()] } }] },
-    { $set: { lastShiftAt: new Date(), cutMs: 0 } },
+    { $set: { lastShiftAt: new Date(), cutMs: 0, cakePending: 0 } },
   );
   if (!upd) {
     const last = m.lastShiftAt ? new Date(m.lastShiftAt).getTime() : 0;
     return `⏳ الدوام القادم بعد ${fmtMs(Math.max(60_000, cd - (m.cutMs ?? 0) - (Date.now() - last)))}.`;
   }
   const gain = isBoss(m) ? COMPANY_RULES.shiftGainOfficial : COMPANY_RULES.shiftGainEmployee;
-  const c = await Company.findOneAndUpdate({ _id: m.companyId }, { $inc: { budget: gain } }, { new: true });
+  // تشيز كيك مشتراة: زيادة 2٪ من الميزانية مرة وحدة مع فلوس الدوام
+  const cakes = upd.cakePending ?? 0;
+  let bonus = 0;
+  if (cakes > 0) {
+    const cur = await Company.findById(m.companyId, { budget: 1 });
+    bonus = Math.floor((cur?.budget ?? 0) * VEND.cheese.bonus * cakes);
+  }
+  const c = await Company.findOneAndUpdate({ _id: m.companyId }, { $inc: { budget: gain + bonus } }, { new: true });
   return `🏢 داومت في **${c?.name ?? "الشركة"}** كـ **${m.title}** وأضفت ${jenny(gain)} لميزانية الشركة.\nراتبك اليومي (${jenny(m.salary)}) يوصلك من الميزانية إذا داومت قبل موعد الرواتب.`;
 }
 
@@ -314,9 +321,10 @@ async function buildCompanyPanel(guildId: string, userId: string, client: Client
 
 const VEND_COOLDOWN_MS = 5 * 60 * 60_000;
 const VEND_EDITORS = [BRANCH_TITLE, "موظف القهوة"];
-const vendPrices = (c: { vending?: { water?: number; espresso?: number } }): Record<VendItem, number> => ({
+const vendPrices = (c: { vending?: { water?: number; espresso?: number; cheese?: number } }): Record<VendItem, number> => ({
   water: c.vending?.water ?? VEND_DEFAULTS.water,
   espresso: c.vending?.espresso ?? VEND_DEFAULTS.espresso,
+  cheese: c.vending?.cheese ?? VEND_DEFAULTS.cheese,
 });
 
 async function buildVending(cid: string, canEdit: boolean, note?: string): Promise<View> {
@@ -328,13 +336,14 @@ async function buildVending(cid: string, canEdit: boolean, note?: string): Promi
     .setPlaceholder("اختر عنصر")
     .addOptions(
       { label: `${VEND.espresso.name} — ${prices.espresso}`, value: "espresso", description: VEND.espresso.effect },
+      { label: `${VEND.cheese.name} — ${prices.cheese}`, value: "cheese", description: VEND.cheese.effect },
       { label: `${VEND.water.name} — ${prices.water}`, value: "water", description: VEND.water.effect },
     );
   const components: ActionRowBuilder<any>[] = [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
   if (canEdit) components.push(row(btn(`co|vendp|${cid}`, "تعديل الأسعار", ButtonStyle.Secondary, "💲")));
   const embed = new EmbedBuilder().setColor(COLOR);
   if (png) embed.setImage("attachment://vending.png");
-  else embed.setTitle("آلة البيع").setDescription(`${VEND.espresso.name}: ${prices.espresso}\n${VEND.water.name}: ${prices.water}`);
+  else embed.setTitle("آلة البيع").setDescription(`${VEND.espresso.name}: ${prices.espresso}\n${VEND.cheese.name}: ${prices.cheese}\n${VEND.water.name}: ${prices.water}`);
   if (note) embed.setDescription(note);
   return { embeds: [embed], components, files: png ? [new AttachmentBuilder(png, { name: "vending.png" })] : [] };
 }
@@ -728,7 +737,7 @@ async function route(i: AnyI): Promise<void> {
     const cd = COMPANY_RULES.shiftCooldownMs;
     const last = me.lastShiftAt ? new Date(me.lastShiftAt).getTime() : 0;
     const left = last ? cd - (me.cutMs ?? 0) - (Date.now() - last) : 0;
-    if (left <= 0) return await reply("✅ دوامك جاهز الحين، ما تحتاج مشروب.");
+    if (def.pct > 0 && left <= 0) return await reply("✅ دوامك جاهز الحين، ما تحتاج مشروب.");
     // مرة واحدة لكل عنصر كل 5 ساعات (نحجزها ذريًا قبل الدفع)
     const now = Date.now();
     const field = `vendAt.${item}`;
@@ -745,6 +754,14 @@ async function route(i: AnyI): Promise<void> {
       await CompanyMember.updateOne({ _id: me._id }, { $set: { [field]: before.vendAt?.[item] ?? null } });
       return await reply(`❌ ما تكفي محفظتك (السعر ${jenny(price)}).`);
     }
+    if (def.bonus > 0) {
+      // تشيز كيك: الثمن للميزانية، وزيادة 2٪ تنزل مرة وحدة مع فلوس دوامك القادم
+      await Company.updateOne({ _id: a }, { $inc: { budget: price } });
+      await CompanyMember.updateOne({ _id: me._id }, { $inc: { cakePending: 1 } });
+      await logTransaction(guildId, uid, "job_fee", price);
+      await addLog(guildId, a, `🍰 ${mention(uid)} اشترى ${def.name} بمبلغ ${jenny(price)}`);
+      return await reply(`🍰 اشتريت **${def.name}** بـ ${jenny(price)} (راحت لميزانية الشركة).\nأول ما تداوم، تنزاد الميزانية ${def.bonus * 100}٪ إضافية مع فلوس الدوام (مرة وحدة).`);
+    }
     const cut = Math.min(Math.round(cd * def.pct), left);
     await CompanyMember.updateOne({ _id: me._id }, { $inc: { cutMs: cut } });
     await Company.updateOne({ _id: a }, { $inc: { budget: price } });
@@ -758,18 +775,19 @@ async function route(i: AnyI): Promise<void> {
     const p = vendPrices(company);
     const field = (id: string, label: string, v: number) =>
       new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId(id).setLabel(label).setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(6).setValue(String(v)));
-    return void (await i.showModal(modal(`co|vendpm|${a}`, "أسعار آلة البيع", field("espresso", "سعر الإسبريسو", p.espresso), field("water", "سعر قارورة الماء", p.water))));
+    return void (await i.showModal(modal(`co|vendpm|${a}`, "أسعار آلة البيع", field("espresso", "سعر الإسبريسو", p.espresso), field("cheese", "سعر التشيز كيك", p.cheese), field("water", "سعر قارورة الماء", p.water))));
   }
   if (act === "vendpm" && i.isModalSubmit()) {
     const { company, me } = await ctxOf(i, a);
     if (!company || !me || !VEND_EDITORS.includes(me.title)) return void (await say("❌ تعديل الأسعار لمدير الفرع وموظف القهوة فقط."));
     const espresso = num(i.fields.getTextInputValue("espresso"));
     const water = num(i.fields.getTextInputValue("water"));
+    const cheese = num(i.fields.getTextInputValue("cheese"));
     const ok = (n: number) => Number.isInteger(n) && n >= 1 && n <= 10_000;
-    if (!ok(espresso) || !ok(water)) return void (await say("❌ الأسعار لازم أرقام صحيحة بين 1 و 10,000."));
-    await Company.updateOne({ _id: a }, { $set: { vending: { water, espresso } } });
-    await addLog(guildId, a, `💲 ${mention(uid)} عدّل أسعار آلة البيع: إسبريسو ${espresso} • ماء ${water}`);
-    return void (await say(`✅ تم تحديث الأسعار: الإسبريسو ${jenny(espresso)} • الماء ${jenny(water)}. افتح الآلة من جديد لتشوفها.`));
+    if (!ok(espresso) || !ok(water) || !ok(cheese)) return void (await say("❌ الأسعار لازم أرقام صحيحة بين 1 و 10,000."));
+    await Company.updateOne({ _id: a }, { $set: { vending: { water, espresso, cheese } } });
+    await addLog(guildId, a, `💲 ${mention(uid)} عدّل أسعار آلة البيع: إسبريسو ${espresso} • تشيز كيك ${cheese} • ماء ${water}`);
+    return void (await say(`✅ تم تحديث الأسعار: الإسبريسو ${jenny(espresso)} • التشيز كيك ${jenny(cheese)} • الماء ${jenny(water)}. افتح الآلة من جديد لتشوفها.`));
   }
 
   /* --- قائمة سرقة الحرامي (!سرقة) --- */
