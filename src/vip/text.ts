@@ -66,11 +66,11 @@ export async function handleVipMessage(message: Message<true>): Promise<void> {
     .setTitle("الرتب الخاصة")
     .setDescription(
       [
-        "✥ اشترك واصنع رتبتك الخاصة باسمك ولونك وصورتك، وتظهر فوق كل رتبك.",
-        "✥ رتبة وحدة فقط، تعدّل عليها متى شئت (الاسم واللون والصورة)، وتشيلها من نفسك وترجعها وقت ما تبي.",
+        "✥ واصنع رتبتك الخاصة باسمك ولونك وصورتك.",
+        "✥ تعدّل عليها متى شئت (الاسم واللون والصورة)، وتشيلها من نفسك وترجعها وقت ما تبي.",
         "✥ إذا انتهى الاشتراك تُحذف الرتبة، ولازم تشترك من جديد.",
         "",
-        VIP_PLANS.map((p) => `✦ **${p.label}** — ${p.price.toLocaleString("en-US")} جيني`).join("\n"),
+        VIP_PLANS.map((p) => `✦ **${p.label}** — ${p.price.toLocaleString("en-US")}`).join("\n"),
       ].join("\n"),
     )
     .setFooter({ text: message.guild.name });
@@ -146,7 +146,7 @@ async function onButton(i: ButtonInteraction, act: string): Promise<void> {
     const menu = new StringSelectMenuBuilder()
       .setCustomId(id("plan"))
       .setPlaceholder("اختر مدة الاشتراك")
-      .addOptions(VIP_PLANS.map((p) => ({ label: `${p.label} — ${p.price.toLocaleString("en-US")} جيني`, value: p.id })));
+      .addOptions(VIP_PLANS.map((p) => ({ label: `${p.label} — ${p.price.toLocaleString("en-US")}`, value: p.id })));
     await i.reply({
       content: doc ? `✅ اشتراكك فعّال، باقي ${left(doc.expiresAt)}. اختيارك الجديد يمدّد المدة.` : "اختر مدة الاشتراك:",
       components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)],
@@ -234,7 +234,7 @@ async function onPlan(i: StringSelectMenuInteraction): Promise<void> {
 
   const paid = await UserProfile.findOneAndUpdate({ userId: i.user.id, guildId: guild.id, coins: { $gte: plan.price } }, { $inc: { coins: -plan.price } });
   if (!paid) {
-    await i.editReply({ content: `❌ رصيدك ما يكفي، تحتاج ${plan.price.toLocaleString("en-US")} جيني في المحفظة.`, components: [] });
+    await i.editReply({ content: `❌ رصيدك ما يكفي، تحتاج ${plan.price.toLocaleString("en-US")} في المحفظة.`, components: [] });
     return;
   }
 
