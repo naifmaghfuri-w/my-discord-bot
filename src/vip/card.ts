@@ -2,9 +2,9 @@ import { createCanvas, type SKRSContext2D } from "@napi-rs/canvas";
 import { ensureFontsRegistered, FONT_BOLD } from "../quests/render/fonts";
 
 export const VIP_PLANS = [
-  { id: "d3", days: 3, price: 300, label: "3 أيام" },
-  { id: "d10", days: 10, price: 800, label: "10 أيام" },
-  { id: "d15", days: 15, price: 1500, label: "15 يوم" },
+  { id: "d3", days: 3, price: 1000, label: "3 أيام" },
+  { id: "d10", days: 10, price: 1500, label: "10 أيام" },
+  { id: "d15", days: 15, price: 2000, label: "15 يوم" },
 ] as const;
 
 const fmt = (n: number): string => n.toLocaleString("en-US");
