@@ -6,6 +6,7 @@ import { startBackupScheduler } from "../backup/scheduler";
 import { startChatCleaner } from "../chat/cleaner";
 import { loadTicketCache } from "../tickets/service";
 import { applyBotStatus } from "../botprofile/interactions";
+import { startVipChecker } from "../vip/text";
 import { logger } from "../utils/logger";
 
 import { startCompanyPayroll } from "../companies";
@@ -20,6 +21,7 @@ const event: BotEvent = {
     logger.info(`✅ البوت شغال باسم ${client.user?.tag}`);
     startBirthdayRoleChecker(client);
     startChatCleaner(client);
+    startVipChecker(client);
     startBackupScheduler(client);
     loadTicketCache().catch((err) => logger.error("فشل تحميل كاش التذاكر", err));
     // يرجّع حالة البوت المحفوظة (من لوحة !ايقونة البوت)
