@@ -118,6 +118,89 @@ function drawRing(ctx: SKRSContext2D, cx: number, cy: number, k = 1): void {
   ctx.restore();
 }
 
+/** رسم عقار (كوخ، شقة، بيوت، فلا) حول المركز */
+function drawProperty(ctx: SKRSContext2D, kind: string, cx: number, cy: number, k = 1): void {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(k, k);
+  const box = (x: number, y: number, w: number, h: number, c: string) => {
+    ctx.fillStyle = c;
+    ctx.fillRect(x, y, w, h);
+  };
+  const tri = (x1: number, y1: number, x2: number, y2: number, x3: number, y3: number, c: string) => {
+    ctx.fillStyle = c;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.lineTo(x3, y3);
+    ctx.closePath();
+    ctx.fill();
+  };
+  const win = (x: number, y: number, w = 20, h = 22) => {
+    box(x, y, w, h, "#fde68a");
+    ctx.strokeStyle = "#7c5a2a";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(x, y, w, h);
+  };
+  box(-120, 62, 240, 8, "rgba(0,0,0,0.3)");
+  if (kind === "cabin") {
+    box(-55, -5, 110, 67, "#a0693a");
+    for (let y = 8; y < 62; y += 14) box(-55, y, 110, 2, "#7a4a24");
+    tri(-72, -5, 0, -62, 72, -5, "#4a2f1c");
+    box(-14, 22, 28, 40, "#4a2f1c");
+    win(26, 14, 20, 20);
+  } else if (kind === "apartment") {
+    box(-45, -70, 90, 132, "#64748b");
+    box(-45, -70, 90, 10, "#475569");
+    for (let r = 0; r < 4; r++) for (let c = 0; c < 3; c++) win(-34 + c * 28, -48 + r * 26, 18, 16);
+    box(-12, 36, 24, 26, "#334155");
+  } else if (kind === "small_house") {
+    box(-55, -5, 110, 67, "#f5e1b8");
+    tri(-72, -5, 0, -58, 72, -5, "#c2410c");
+    box(28, -50, 14, 28, "#7f1d1d");
+    box(-14, 24, 28, 38, "#7c3f1d");
+    win(-46, 12);
+  } else if (kind === "medium_house") {
+    box(-75, -12, 150, 74, "#e7d2a8");
+    tri(-92, -12, 0, -68, 92, -12, "#b91c1c");
+    box(44, -58, 14, 30, "#7f1d1d");
+    box(-14, 24, 28, 38, "#6b3a1c");
+    win(-62, 8);
+    win(42, 8);
+  } else if (kind === "large_house") {
+    box(-80, -40, 160, 102, "#d6c3a0");
+    box(-80, -8, 160, 4, "#b49a6e");
+    tri(-96, -40, 0, -84, 96, -40, "#7f1d1d");
+    box(-14, 24, 28, 38, "#5b3317");
+    win(-66, -26);
+    win(-22, -26);
+    win(24, -26);
+    win(-66, 14);
+    win(40, 14);
+    box(58, 30, 22, 32, "#8b7e66");
+  } else {
+    // فلا
+    box(-95, -20, 190, 82, "#f1f5f9");
+    tri(-108, -20, 0, -64, 108, -20, "#334155");
+    for (const x of [-72, -36, 36, 72]) box(x - 6, -20, 12, 82, "#e2e8f0");
+    box(-16, 20, 32, 42, "#92400e");
+    win(-62, -4, 22, 24);
+    win(40, -4, 22, 24);
+    ctx.fillStyle = "#38bdf8";
+    ctx.beginPath();
+    ctx.ellipse(70, 70, 46, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/** يرسم أيقونة غرض مقتنيات/محل */
+function drawIcon(ctx: SKRSContext2D, icon: string, cx: number, cy: number, k: number): void {
+  if (icon === "ring") drawRing(ctx, cx, cy + 22 * k, k);
+  else if (icon === "flower") drawRose(ctx, cx, cy - 30 * k, k);
+  else drawProperty(ctx, icon, cx, cy, k);
+}
+
 function heart(ctx: SKRSContext2D, cx: number, cy: number, s: number, color: string): void {
   ctx.fillStyle = color;
   ctx.beginPath();
@@ -128,7 +211,7 @@ function heart(ctx: SKRSContext2D, cx: number, cy: number, s: number, color: str
 }
 
 /** قائمة المحلات */
-export async function renderShops(shops: { name: string; sub: string; icon: "flower" | "ring" }[]): Promise<Buffer | null> {
+export async function renderShops(shops: { name: string; sub: string; icon: string }[]): Promise<Buffer | null> {
   try {
     const family = ensureFontsRegistered() ? FONT_BOLD : "sans-serif";
     const H = 146 + shops.length * 140 + 20;
@@ -148,8 +231,7 @@ export async function renderShops(shops: { name: string; sub: string; icon: "flo
       ctx.fillStyle = "rgba(255,255,255,0.06)";
       rr(ctx, PAD, y, W - PAD * 2, 120, 24);
       ctx.fill();
-      if (s.icon === "ring") drawRing(ctx, W - PAD - 70, y + 52, 0.5);
-      else drawRose(ctx, W - PAD - 70, y + 40, 0.6);
+      drawIcon(ctx, s.icon, W - PAD - 70, y + 60, 0.55);
       ctx.textAlign = "right";
       ctx.fillStyle = "#f8fafc";
       ctx.font = `700 34px "${family}"`;
@@ -241,6 +323,56 @@ export async function renderJewelryShop(price: number, owned: number): Promise<B
   }
 }
 
+/** صفحة العقارات */
+export async function renderEstate(rows: { id: string; name: string; price: number; count: number }[]): Promise<Buffer | null> {
+  try {
+    const family = ensureFontsRegistered() ? FONT_BOLD : "sans-serif";
+    const H = 214 + rows.length * 96 + 20;
+    const canvas = createCanvas(W, H);
+    const ctx = canvas.getContext("2d");
+    ctx.textBaseline = "middle";
+    bg(ctx, H, "rgba(34,197,94,0.12)");
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#f8fafc";
+    ctx.font = `700 46px "${family}"`;
+    ctx.fillText("العقار", W - PAD, 62);
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = `700 21px "${family}"`;
+    ctx.fillText("اختر عقار من القائمة اللي تحت للشراء", W - PAD, 108);
+    ctx.fillStyle = "rgba(255,255,255,0.08)";
+    rr(ctx, PAD, 146, W - PAD * 2, 52, 16);
+    ctx.fill();
+    ctx.fillStyle = "#cbd5e1";
+    ctx.font = `700 21px "${family}"`;
+    ctx.textAlign = "right";
+    ctx.fillText("العقار", W - PAD - 150, 172);
+    ctx.textAlign = "center";
+    ctx.fillText("السعر", 420, 172);
+    ctx.fillText("عندك", 150, 172);
+    rows.forEach((r, i) => {
+      const y = 214 + i * 96;
+      ctx.fillStyle = i % 2 === 0 ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.02)";
+      rr(ctx, PAD, y, W - PAD * 2, 84, 18);
+      ctx.fill();
+      drawProperty(ctx, r.id, W - PAD - 82, y + 46, 0.4);
+      ctx.textAlign = "right";
+      ctx.fillStyle = "#f8fafc";
+      fit(ctx, r.name, family, 30, 330);
+      ctx.fillText(r.name, W - PAD - 150, y + 42);
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#fbbf24";
+      ctx.font = `700 30px "${family}"`;
+      ctx.fillText(`${fmt(r.price)} Jenny`, 420, y + 42);
+      ctx.fillStyle = r.count > 0 ? "#4ade80" : "#64748b";
+      ctx.font = `700 30px "${family}"`;
+      ctx.fillText(`× ${fmt(r.count)}`, 150, y + 42);
+    });
+    return await canvas.encode("png");
+  } catch {
+    return null;
+  }
+}
+
 /** مقتنياتي: خزانة بشبكة خانات (5×3) */
 export const INV_COLS = 5;
 export const INV_ROWS = 3;
@@ -248,7 +380,7 @@ export const INV_PER_PAGE = INV_COLS * INV_ROWS;
 
 export async function renderInventory(
   owner: string,
-  rows: { name: string; count: number; icon: "flower" | "ring" }[],
+  rows: { name: string; count: number; icon: string }[],
   page: number,
   pages: number,
 ): Promise<Buffer | null> {
@@ -340,8 +472,7 @@ export async function renderInventory(
       ctx.beginPath();
       ctx.arc(x + S / 2, y + 56, 46, 0, Math.PI * 2);
       ctx.fill();
-      if (it.icon === "ring") drawRing(ctx, x + S / 2, y + 66, 0.4);
-      else drawRose(ctx, x + S / 2, y + 36, 0.55);
+      drawIcon(ctx, it.icon, x + S / 2, y + 58, it.icon === "flower" ? 0.55 : it.icon === "ring" ? 0.4 : 0.36);
       // شريط الاسم
       ctx.fillStyle = "rgba(12,8,28,0.92)";
       ctx.beginPath();
