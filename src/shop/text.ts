@@ -7,7 +7,7 @@ import { Marriage } from "../database/models/Marriage";
 import { UserProfile } from "../database/models/UserProfile";
 import { jenny } from "../constants";
 import { logTransaction } from "../services/transactions";
-import { renderFlowerShop, renderInventory, renderMarriageCard, renderShops } from "./card";
+import { renderFlowerShop, renderInventory, renderJewelryShop, renderMarriageCard, renderShops } from "./card";
 import { ITEMS, lovePercent } from "./data";
 
 export const SHOPS_TRIGGER = /^!\s*محلات$/;
@@ -37,8 +37,11 @@ function view(png: Buffer | null, name: string, components: ActionRowBuilder<any
 /* ───────── المحلات ───────── */
 
 async function shopsView(owner: string): Promise<BaseMessageOptions> {
-  const png = await renderShops([{ name: "محل ورد", sub: `الوردة بـ ${ITEMS.flower.price} Jenny` }]);
-  return view(png, "shops.png", [row(btn(id(owner, "flower"), "محل ورد", ButtonStyle.Primary))], "المحلات: محل ورد");
+  const png = await renderShops([
+    { name: "محل ورد", sub: `الوردة بـ ${ITEMS.flower.price} Jenny`, icon: "flower" },
+    { name: "محل مجوهرات", sub: `${ITEMS.ring.name} بـ ${ITEMS.ring.price} Jenny`, icon: "ring" },
+  ]);
+  return view(png, "shops.png", [row(btn(id(owner, "flower"), "محل ورد", ButtonStyle.Primary), btn(id(owner, "jewelry"), "محل مجوهرات", ButtonStyle.Primary))], "المحلات: محل ورد، محل مجوهرات");
 }
 
 async function flowerView(owner: string, guildId: string, note?: string): Promise<BaseMessageOptions> {
@@ -46,9 +49,15 @@ async function flowerView(owner: string, guildId: string, note?: string): Promis
   const png = await renderFlowerShop(ITEMS.flower.price, have);
   return view(
     png, "flower.png",
-    [row(btn(id(owner, "buy", "1"), "شراء", ButtonStyle.Success))],
+    [row(btn(id(owner, "buy", "flower"), "شراء", ButtonStyle.Success))],
     `محل ورد — السعر ${ITEMS.flower.price}`, note,
   );
+}
+
+async function jewelryView(owner: string, guildId: string, note?: string): Promise<BaseMessageOptions> {
+  const have = await owned(owner, guildId, "ring");
+  const png = await renderJewelryShop(ITEMS.ring.price, have);
+  return view(png, "jewelry.png", [row(btn(id(owner, "buy", "ring"), "شراء", ButtonStyle.Success))], `محل مجوهرات — ${ITEMS.ring.name} ${ITEMS.ring.price}`, note);
 }
 
 /* ───────── مقتنياتي ───────── */
@@ -60,11 +69,14 @@ async function spouseIds(userId: string, guildId: string): Promise<string[]> {
 
 async function inventoryView(guild: Guild, owner: string, note?: string): Promise<BaseMessageOptions> {
   const flowers = await owned(owner, guild.id, "flower");
-  const rows = flowers > 0 ? [{ name: ITEMS.flower.name, count: flowers }] : [];
+  const rings = await owned(owner, guild.id, "ring");
+  const rows: { name: string; count: number; icon: "flower" | "ring" }[] = [];
+  if (flowers > 0) rows.push({ name: ITEMS.flower.name, count: flowers, icon: "flower" });
+  if (rings > 0) rows.push({ name: ITEMS.ring.name, count: rings, icon: "ring" });
   const png = await renderInventory(rows);
   const buttons: ButtonBuilder[] = [];
   if (flowers > 0 && (await spouseIds(owner, guild.id)).length > 0) buttons.push(btn(id(owner, "gift"), "إهداء", ButtonStyle.Success));
-  return view(png, "inv.png", buttons.length ? [row(...buttons)] : [], flowers ? `ورد × ${flowers}` : "ما عندك مقتنيات.", note);
+  return view(png, "inv.png", buttons.length ? [row(...buttons)] : [], rows.length ? rows.map((r) => `${r.name} × ${r.count}`).join("\n") : "ما عندك مقتنيات.", note);
 }
 
 /** يهدي وردة: ينقص من مقتنيات المهدي ويزيد عداد الورد في الزواج */
@@ -141,15 +153,17 @@ export async function handleShopComponent(i: ButtonInteraction | StringSelectMen
 
   if (act === "shops") return await edit(await shopsView(owner)), true;
   if (act === "flower") return await edit(await flowerView(owner, guild.id)), true;
+  if (act === "jewelry") return await edit(await jewelryView(owner, guild.id)), true;
 
   if (act === "buy") {
-    const qty = arg === "5" ? 5 : 1;
-    const cost = ITEMS.flower.price * qty;
+    const item = arg === "ring" ? "ring" : "flower";
+    const cost = ITEMS[item].price;
+    const back = (note: string) => (item === "ring" ? jewelryView(owner, guild.id, note) : flowerView(owner, guild.id, note));
     const paid = await UserProfile.findOneAndUpdate({ userId: owner, guildId: guild.id, coins: { $gte: cost } }, { $inc: { coins: -cost } });
-    if (!paid) return await edit(await flowerView(owner, guild.id, `❌ ما تكفي محفظتك (${cost}).`)), true;
-    await Inventory.updateOne({ userId: owner, guildId: guild.id }, { $inc: { "items.flower": qty } }, { upsert: true });
+    if (!paid) return await edit(await back(`❌ ما تكفي محفظتك (${cost}).`)), true;
+    await Inventory.updateOne({ userId: owner, guildId: guild.id }, { $inc: { [`items.${item}`]: 1 } }, { upsert: true });
     await logTransaction(guild.id, owner, "shop_purchase", cost);
-    return await edit(await flowerView(owner, guild.id, `✅ اشتريت ${qty} ورد بـ ${cost}. شوفها في !مقتنياتي`)), true;
+    return await edit(await back(`✅ اشتريت ${ITEMS[item].name} بـ ${cost}. شوفه في !مقتنياتي`)), true;
   }
 
   if (act === "gift") {
