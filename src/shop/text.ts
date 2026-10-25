@@ -7,10 +7,11 @@ import { Marriage } from "../database/models/Marriage";
 import { UserProfile } from "../database/models/UserProfile";
 import { jenny } from "../constants";
 import { logTransaction } from "../services/transactions";
-import { INV_PER_PAGE, renderFlowerShop, renderInventory, renderJewelryShop, renderMarriageCard, renderShops } from "./card";
-import { ITEMS, lovePercent } from "./data";
+import { INV_PER_PAGE, renderEstate, renderFlowerShop, renderInventory, renderJewelryShop, renderMarriageCard, renderShops } from "./card";
+import { ESTATE_IDS, ITEMS, lovePercent } from "./data";
 
 export const SHOPS_TRIGGER = /^!\s*محلات$/;
+export const ESTATE_TRIGGER = /^!\s*(?:العقار|العقارات|عقار)$/;
 export const INVENTORY_TRIGGER = /^!\s*مقتنياتي$/;
 export const MYMARRIAGE_TRIGGER = /^!\s*زواجي$/;
 
@@ -60,6 +61,18 @@ async function jewelryView(owner: string, guildId: string, note?: string): Promi
   return view(png, "jewelry.png", [row(btn(id(owner, "buy", "ring"), "شراء", ButtonStyle.Success))], `محل مجوهرات — ${ITEMS.ring.name} ${ITEMS.ring.price}`, note);
 }
 
+async function estateView(owner: string, guildId: string, note?: string): Promise<BaseMessageOptions> {
+  const inv = await Inventory.findOne({ userId: owner, guildId }, { items: 1 });
+  const have = (inv?.items ?? {}) as Record<string, number>;
+  const rows = ESTATE_IDS.map((k) => ({ id: k, name: ITEMS[k].name, price: ITEMS[k].price, count: Number(have[k] ?? 0) }));
+  const png = await renderEstate(rows);
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId(id(owner, "ebuy"))
+    .setPlaceholder("اختر عقار للشراء")
+    .addOptions(rows.map((r) => ({ label: r.name, value: r.id, description: `${r.price.toLocaleString("en-US")} Jenny` })));
+  return view(png, "estate.png", [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)], rows.map((r) => `${r.name}: ${r.price}`).join("\n"), note);
+}
+
 /* ───────── مقتنياتي ───────── */
 
 async function spouseIds(userId: string, guildId: string): Promise<string[]> {
@@ -68,10 +81,14 @@ async function spouseIds(userId: string, guildId: string): Promise<string[]> {
 }
 
 async function inventoryView(guild: Guild, owner: string, page = 0): Promise<BaseMessageOptions> {
-  const [flowers, rings, member] = await Promise.all([owned(owner, guild.id, "flower"), owned(owner, guild.id, "ring"), guild.members.fetch(owner).catch(() => null)]);
-  const all: { name: string; count: number; icon: "flower" | "ring" }[] = [];
-  if (flowers > 0) all.push({ name: ITEMS.flower.name, count: flowers, icon: "flower" });
-  if (rings > 0) all.push({ name: ITEMS.ring.name, count: rings, icon: "ring" });
+  const inv = await Inventory.findOne({ userId: owner, guildId: guild.id }, { items: 1 });
+  const member = await guild.members.fetch(owner).catch(() => null);
+  const have = (inv?.items ?? {}) as Record<string, number>;
+  const all: { name: string; count: number; icon: string }[] = [];
+  for (const [key, def] of Object.entries(ITEMS)) {
+    const n = Number(have[key] ?? 0);
+    if (n > 0) all.push({ name: def.name, count: n, icon: key });
+  }
   const pages = Math.max(1, Math.ceil(all.length / INV_PER_PAGE));
   const pg = Math.min(Math.max(0, page), pages - 1);
   const rows = all.slice(pg * INV_PER_PAGE, (pg + 1) * INV_PER_PAGE);
@@ -131,6 +148,7 @@ export async function handleShopMessage(message: Message<true>): Promise<void> {
   const owner = message.author.id;
   const send = (v: BaseMessageOptions) => message.channel.send(v).catch(() => undefined);
   if (SHOPS_TRIGGER.test(text)) return void (await send(await shopsView(owner)));
+  if (ESTATE_TRIGGER.test(text)) return void (await send(await estateView(owner, message.guildId)));
   if (INVENTORY_TRIGGER.test(text)) return void (await send(await inventoryView(message.guild, owner)));
   if (MYMARRIAGE_TRIGGER.test(text)) {
     const v = await marriageView(message.guild, owner);
@@ -167,6 +185,16 @@ export async function handleShopComponent(i: ButtonInteraction | StringSelectMen
     return await edit(await back(`✅ اشتريت ${ITEMS[item].name} بـ ${cost}. شوفه في !مقتنياتي`)), true;
   }
 
+  if (act === "ebuy" && i.isStringSelectMenu()) {
+    const key = i.values[0] as (typeof ESTATE_IDS)[number];
+    if (!ESTATE_IDS.includes(key)) return await edit(await estateView(owner, guild.id)), true;
+    const cost = ITEMS[key].price;
+    const paid = await UserProfile.findOneAndUpdate({ userId: owner, guildId: guild.id, coins: { $gte: cost } }, { $inc: { coins: -cost } });
+    if (!paid) return await edit(await estateView(owner, guild.id, `❌ ما تكفي محفظتك (${cost.toLocaleString("en-US")}).`)), true;
+    await Inventory.updateOne({ userId: owner, guildId: guild.id }, { $inc: { [`items.${key}`]: 1 } }, { upsert: true });
+    await logTransaction(guild.id, owner, "shop_purchase", cost);
+    return await edit(await estateView(owner, guild.id, `✅ اشتريت ${ITEMS[key].name} بـ ${cost.toLocaleString("en-US")}. شوفه في !مقتنياتي`)), true;
+  }
   if (act === "ipg") return await edit(await inventoryView(guild, owner, Number(arg) || 0)), true;
 
   if (act === "mgift") return await sendGift(i, guild, owner, arg, async () => {
