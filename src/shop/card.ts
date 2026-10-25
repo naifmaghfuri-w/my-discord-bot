@@ -153,10 +153,7 @@ export async function renderShops(shops: { name: string; sub: string; icon: "flo
       ctx.textAlign = "right";
       ctx.fillStyle = "#f8fafc";
       ctx.font = `700 34px "${family}"`;
-      ctx.fillText(s.name, W - PAD - 140, y + 46);
-      ctx.fillStyle = "#94a3b8";
-      ctx.font = `700 20px "${family}"`;
-      ctx.fillText(s.sub, W - PAD - 140, y + 86);
+      ctx.fillText(s.name, W - PAD - 140, y + 60);
     });
     return await canvas.encode("png");
   } catch {
