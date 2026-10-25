@@ -244,45 +244,142 @@ export async function renderJewelryShop(price: number, owned: number): Promise<B
   }
 }
 
-/** مقتنياتي */
-export async function renderInventory(rows: { name: string; count: number; icon: "flower" | "ring" }[]): Promise<Buffer | null> {
+/** مقتنياتي: خزانة بشبكة خانات (5×3) */
+export const INV_COLS = 5;
+export const INV_ROWS = 3;
+export const INV_PER_PAGE = INV_COLS * INV_ROWS;
+
+export async function renderInventory(
+  owner: string,
+  rows: { name: string; count: number; icon: "flower" | "ring" }[],
+  page: number,
+  pages: number,
+): Promise<Buffer | null> {
   try {
     const family = ensureFontsRegistered() ? FONT_BOLD : "sans-serif";
-    const empty = rows.length === 0;
-    const H = empty ? 330 : 214 + rows.length * 84 + 20;
-    const canvas = createCanvas(W, H);
+    const CW = 920, CH = 640;
+    const canvas = createCanvas(CW, CH);
     const ctx = canvas.getContext("2d");
     ctx.textBaseline = "middle";
-    bg(ctx, H, "rgba(168,85,247,0.12)");
-    ctx.textAlign = "right";
-    ctx.fillStyle = "#f8fafc";
-    ctx.font = `700 46px "${family}"`;
-    ctx.fillText("مقتنياتي", W - PAD, 62);
-    ctx.fillStyle = "#94a3b8";
-    ctx.font = `700 21px "${family}"`;
-    ctx.fillText("كل اللي تملكه من المحلات", W - PAD, 108);
-    if (empty) {
-      ctx.textAlign = "center";
-      ctx.font = `700 34px "${family}"`;
-      ctx.fillText("ما عندك مقتنيات. اكتب !محلات", W / 2, 230);
-      return await canvas.encode("png");
+
+    // خلفية الخزنة
+    ctx.save();
+    rr(ctx, 0, 0, CW, CH, 30);
+    ctx.clip();
+    const g = ctx.createLinearGradient(0, 0, CW, CH);
+    g.addColorStop(0, "#1a1424");
+    g.addColorStop(0.5, "#221a2c");
+    g.addColorStop(1, "#14161f");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, CW, CH);
+    // أعمدة وأقواس خفيفة
+    ctx.strokeStyle = "rgba(212,170,90,0.08)";
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath();
+      ctx.arc(120 + i * 230, 190, 110, Math.PI, 0);
+      ctx.stroke();
     }
-    rows.forEach((r, i) => {
-      const y = 146 + i * 84;
-      ctx.fillStyle = "rgba(255,255,255,0.06)";
-      rr(ctx, PAD, y, W - PAD * 2, 72, 20);
+    const glowC = ctx.createRadialGradient(CW / 2, CH * 0.55, 40, CW / 2, CH * 0.55, 420);
+    glowC.addColorStop(0, "rgba(168,85,247,0.16)");
+    glowC.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = glowC;
+    ctx.fillRect(0, 0, CW, CH);
+    // تعتيم الأطراف
+    const vig = ctx.createRadialGradient(CW / 2, CH / 2, 200, CW / 2, CH / 2, 560);
+    vig.addColorStop(0, "rgba(0,0,0,0)");
+    vig.addColorStop(1, "rgba(0,0,0,0.55)");
+    ctx.fillStyle = vig;
+    ctx.fillRect(0, 0, CW, CH);
+
+    // العنوان
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
+    ctx.fillRect(0, 0, CW, 108);
+    ctx.strokeStyle = "rgba(251,191,36,0.55)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, 108);
+    ctx.lineTo(CW, 108);
+    ctx.stroke();
+    ctx.textAlign = "center";
+    ctx.shadowColor = "rgba(251,191,36,0.8)";
+    ctx.shadowBlur = 18;
+    ctx.fillStyle = "#fcd34d";
+    ctx.font = `700 46px "${family}"`;
+    ctx.fillText(owner, CW / 2, 48);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#e5e7eb";
+    ctx.font = `700 20px "${family}"`;
+    ctx.fillText("المحلات", CW / 2, 86);
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#9ca3af";
+    ctx.font = `700 16px "${family}"`;
+    ctx.fillText(`[${page + 1}/${pages}]`, CW - 24, 30);
+
+    // الخانات
+    const S = 136, GAP = 34;
+    const x0 = (CW - (INV_COLS * S + (INV_COLS - 1) * GAP)) / 2;
+    const y0 = 140;
+    for (let i = 0; i < INV_PER_PAGE; i++) {
+      const col = i % INV_COLS, rowI = Math.floor(i / INV_COLS);
+      // الترتيب من اليمين لليسار
+      const x = x0 + (INV_COLS - 1 - col) * (S + GAP);
+      const y = y0 + rowI * (S + GAP);
+      ctx.fillStyle = "rgba(6,10,20,0.72)";
+      ctx.fillRect(x, y, S, S);
+      ctx.strokeStyle = "rgba(255,255,255,0.05)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, S, S);
+
+      const it = rows[i];
+      if (!it) continue;
+      // إطار الغرض
+      const fg = ctx.createLinearGradient(x, y, x + S, y + S);
+      fg.addColorStop(0, "#2a1d4a");
+      fg.addColorStop(1, "#150f2b");
+      ctx.fillStyle = fg;
+      ctx.fillRect(x, y, S, S);
+      ctx.strokeStyle = "#8b5cf6";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x + 1, y + 1, S - 2, S - 2);
+      ctx.fillStyle = "rgba(139,92,246,0.18)";
+      ctx.beginPath();
+      ctx.arc(x + S / 2, y + 56, 46, 0, Math.PI * 2);
       ctx.fill();
-      if (r.icon === "ring") drawRing(ctx, W - PAD - 54, y + 30, 0.3);
-      else drawRose(ctx, W - PAD - 54, y + 22, 0.38);
-      ctx.textAlign = "right";
-      ctx.fillStyle = "#f8fafc";
-      ctx.font = `700 30px "${family}"`;
-      ctx.fillText(r.name, W - PAD - 110, y + 36);
-      ctx.textAlign = "left";
-      ctx.fillStyle = "#fbbf24";
-      ctx.font = `700 34px "${family}"`;
-      ctx.fillText(`× ${fmt(r.count)}`, PAD + 28, y + 36);
-    });
+      if (it.icon === "ring") drawRing(ctx, x + S / 2, y + 66, 0.4);
+      else drawRose(ctx, x + S / 2, y + 36, 0.55);
+      // شريط الاسم
+      ctx.fillStyle = "rgba(12,8,28,0.92)";
+      ctx.beginPath();
+      ctx.moveTo(x - 6, y + S - 30);
+      ctx.lineTo(x + S + 6, y + S - 30);
+      ctx.lineTo(x + S, y + S - 15);
+      ctx.lineTo(x + S + 6, y + S);
+      ctx.lineTo(x - 6, y + S);
+      ctx.lineTo(x, y + S - 15);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "#a78bfa";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = "#f3f4f6";
+      ctx.textAlign = "center";
+      fit(ctx, it.name, family, 17, S - 14);
+      ctx.fillText(it.name, x + S / 2, y + S - 15);
+      // شارة العدد
+      ctx.fillStyle = "#0b0b14";
+      ctx.beginPath();
+      ctx.arc(x + S - 6, y + 6, 17, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#e5e7eb";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = "#fff";
+      ctx.textAlign = "center";
+      ctx.font = `700 ${it.count > 99 ? 12 : 17}px "${family}"`;
+      ctx.fillText(String(Math.min(it.count, 999)), x + S - 6, y + 7);
+    }
+    ctx.restore();
     return await canvas.encode("png");
   } catch {
     return null;
