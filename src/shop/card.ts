@@ -78,6 +78,46 @@ function drawRose(ctx: SKRSContext2D, cx: number, cy: number, k = 1): void {
   ctx.restore();
 }
 
+/** خاتم الفيروز */
+function drawRing(ctx: SKRSContext2D, cx: number, cy: number, k = 1): void {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(k, k);
+  ctx.strokeStyle = "#8b8fa3";
+  ctx.lineWidth = 34;
+  ctx.beginPath();
+  ctx.ellipse(0, 40, 62, 66, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeStyle = "#d4d7e3";
+  ctx.lineWidth = 22;
+  ctx.beginPath();
+  ctx.ellipse(0, 40, 62, 66, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = "#c3c7d6";
+  ctx.strokeStyle = "#8b8fa3";
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.ellipse(0, -34, 50, 36, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#4fb8ac";
+  ctx.beginPath();
+  ctx.ellipse(0, -34, 38, 25, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#2e8a80";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(-18, -36);
+  ctx.quadraticCurveTo(-4, -50, 6, -36);
+  ctx.quadraticCurveTo(14, -28, 22, -38);
+  ctx.stroke();
+  ctx.fillStyle = "rgba(255,255,255,0.7)";
+  ctx.beginPath();
+  ctx.ellipse(-22, -48, 12, 4, -0.4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 function heart(ctx: SKRSContext2D, cx: number, cy: number, s: number, color: string): void {
   ctx.fillStyle = color;
   ctx.beginPath();
@@ -88,10 +128,10 @@ function heart(ctx: SKRSContext2D, cx: number, cy: number, s: number, color: str
 }
 
 /** قائمة المحلات */
-export async function renderShops(shops: { name: string; sub: string }[]): Promise<Buffer | null> {
+export async function renderShops(shops: { name: string; sub: string; icon: "flower" | "ring" }[]): Promise<Buffer | null> {
   try {
     const family = ensureFontsRegistered() ? FONT_BOLD : "sans-serif";
-    const H = 300 + shops.length * 0;
+    const H = 146 + shops.length * 140 + 20;
     const canvas = createCanvas(W, H);
     const ctx = canvas.getContext("2d");
     ctx.textBaseline = "middle";
@@ -104,11 +144,12 @@ export async function renderShops(shops: { name: string; sub: string }[]): Promi
     ctx.font = `700 21px "${family}"`;
     ctx.fillText("اختر محل من الأزرار اللي تحت", W - PAD, 108);
     shops.forEach((s, i) => {
-      const y = 146 + i * 100;
+      const y = 146 + i * 140;
       ctx.fillStyle = "rgba(255,255,255,0.06)";
       rr(ctx, PAD, y, W - PAD * 2, 120, 24);
       ctx.fill();
-      drawRose(ctx, W - PAD - 70, y + 40, 0.6);
+      if (s.icon === "ring") drawRing(ctx, W - PAD - 70, y + 52, 0.5);
+      else drawRose(ctx, W - PAD - 70, y + 40, 0.6);
       ctx.textAlign = "right";
       ctx.fillStyle = "#f8fafc";
       ctx.font = `700 34px "${family}"`;
@@ -163,8 +204,48 @@ export async function renderFlowerShop(price: number, owned: number): Promise<Bu
   }
 }
 
+/** محل المجوهرات */
+export async function renderJewelryShop(price: number, owned: number): Promise<Buffer | null> {
+  try {
+    const family = ensureFontsRegistered() ? FONT_BOLD : "sans-serif";
+    const H = 420;
+    const canvas = createCanvas(W, H);
+    const ctx = canvas.getContext("2d");
+    ctx.textBaseline = "middle";
+    bg(ctx, H, "rgba(79,184,172,0.14)");
+    ctx.fillStyle = "rgba(255,255,255,0.06)";
+    ctx.beginPath();
+    ctx.arc(W - 190, 190, 130, 0, Math.PI * 2);
+    ctx.fill();
+    drawRing(ctx, W - 190, 180, 1);
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#f8fafc";
+    ctx.font = `700 50px "${family}"`;
+    ctx.fillText("محل مجوهرات", W - 380, 100);
+    ctx.fillStyle = "#5eead4";
+    ctx.font = `700 26px "${family}"`;
+    ctx.fillText("خاتم الفيروز", W - 380, 150);
+    ctx.fillStyle = "rgba(255,255,255,0.06)";
+    rr(ctx, PAD, 250, 560, 130, 24);
+    ctx.fill();
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = `700 22px "${family}"`;
+    ctx.fillText("السعر", 560 + PAD - 28, 292);
+    ctx.fillText("عندك", 560 + PAD - 28, 340);
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#fbbf24";
+    ctx.font = `700 34px "${family}"`;
+    ctx.fillText(`${fmt(price)} Jenny`, PAD + 28, 292);
+    ctx.fillStyle = "#f8fafc";
+    ctx.fillText(fmt(owned), PAD + 28, 340);
+    return await canvas.encode("png");
+  } catch {
+    return null;
+  }
+}
+
 /** مقتنياتي */
-export async function renderInventory(rows: { name: string; count: number }[]): Promise<Buffer | null> {
+export async function renderInventory(rows: { name: string; count: number; icon: "flower" | "ring" }[]): Promise<Buffer | null> {
   try {
     const family = ensureFontsRegistered() ? FONT_BOLD : "sans-serif";
     const empty = rows.length === 0;
@@ -191,7 +272,8 @@ export async function renderInventory(rows: { name: string; count: number }[]): 
       ctx.fillStyle = "rgba(255,255,255,0.06)";
       rr(ctx, PAD, y, W - PAD * 2, 72, 20);
       ctx.fill();
-      drawRose(ctx, W - PAD - 54, y + 22, 0.38);
+      if (r.icon === "ring") drawRing(ctx, W - PAD - 54, y + 30, 0.3);
+      else drawRose(ctx, W - PAD - 54, y + 22, 0.38);
       ctx.textAlign = "right";
       ctx.fillStyle = "#f8fafc";
       ctx.font = `700 30px "${family}"`;
