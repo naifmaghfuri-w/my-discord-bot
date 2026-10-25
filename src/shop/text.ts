@@ -70,7 +70,7 @@ async function inventoryView(guild: Guild, owner: string, note?: string): Promis
 /** يهدي وردة: ينقص من مقتنيات المهدي ويزيد عداد الورد في الزواج */
 async function giftFlower(guild: Guild, from: string, to: string): Promise<string> {
   const took = await Inventory.findOneAndUpdate({ userId: from, guildId: guild.id, "items.flower": { $gte: 1 } }, { $inc: { "items.flower": -1 } });
-  if (!took) return "❌ ما عندك ورد. اشتر من `!محلات`.";
+  if (!took) return "❌ ما عندك إهداء";
   await Marriage.updateOne(
     { guildId: guild.id, $or: [{ husbandId: from, wifeId: to }, { husbandId: to, wifeId: from }] },
     { $inc: { gifts: 1, lovePoints: ITEMS.flower.love } },
