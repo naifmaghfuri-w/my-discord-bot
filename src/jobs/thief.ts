@@ -19,7 +19,7 @@ export const THIEF = {
   /** شركة عشوائية: بدون حارس يسرق من ميزانيتها، وبحارس يُمسك ويدفع تعويض */
   company: { steal: 150, fine: 50, cooldownMs: 150 * MIN },
   /** الحارس يحسب فقط لو داوم خلال هذي المدة */
-  guardActiveMs: 3 * 60 * MIN,
+  guardActiveMs: 5 * 60 * MIN,
   /** محل صغير */
   shop: { gain: 50, cooldownMs: 30 * MIN },
   /** السجن بعد الإمساك مرتين ورا بعض: ساعة ونص أو كفالة */
