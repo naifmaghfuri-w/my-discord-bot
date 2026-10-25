@@ -7,7 +7,7 @@ import { Marriage } from "../database/models/Marriage";
 import { UserProfile } from "../database/models/UserProfile";
 import { jenny } from "../constants";
 import { logTransaction } from "../services/transactions";
-import { renderFlowerShop, renderInventory, renderJewelryShop, renderMarriageCard, renderShops } from "./card";
+import { INV_PER_PAGE, renderFlowerShop, renderInventory, renderJewelryShop, renderMarriageCard, renderShops } from "./card";
 import { ITEMS, lovePercent } from "./data";
 
 export const SHOPS_TRIGGER = /^!\s*محلات$/;
@@ -67,16 +67,17 @@ async function spouseIds(userId: string, guildId: string): Promise<string[]> {
   return ms.map((m) => (m.husbandId === userId ? m.wifeId : m.husbandId));
 }
 
-async function inventoryView(guild: Guild, owner: string, note?: string): Promise<BaseMessageOptions> {
-  const flowers = await owned(owner, guild.id, "flower");
-  const rings = await owned(owner, guild.id, "ring");
-  const rows: { name: string; count: number; icon: "flower" | "ring" }[] = [];
-  if (flowers > 0) rows.push({ name: ITEMS.flower.name, count: flowers, icon: "flower" });
-  if (rings > 0) rows.push({ name: ITEMS.ring.name, count: rings, icon: "ring" });
-  const png = await renderInventory(rows);
-  const buttons: ButtonBuilder[] = [];
-  if (flowers > 0 && (await spouseIds(owner, guild.id)).length > 0) buttons.push(btn(id(owner, "gift"), "إهداء", ButtonStyle.Success));
-  return view(png, "inv.png", buttons.length ? [row(...buttons)] : [], rows.length ? rows.map((r) => `${r.name} × ${r.count}`).join("\n") : "ما عندك مقتنيات.", note);
+async function inventoryView(guild: Guild, owner: string, page = 0): Promise<BaseMessageOptions> {
+  const [flowers, rings, member] = await Promise.all([owned(owner, guild.id, "flower"), owned(owner, guild.id, "ring"), guild.members.fetch(owner).catch(() => null)]);
+  const all: { name: string; count: number; icon: "flower" | "ring" }[] = [];
+  if (flowers > 0) all.push({ name: ITEMS.flower.name, count: flowers, icon: "flower" });
+  if (rings > 0) all.push({ name: ITEMS.ring.name, count: rings, icon: "ring" });
+  const pages = Math.max(1, Math.ceil(all.length / INV_PER_PAGE));
+  const pg = Math.min(Math.max(0, page), pages - 1);
+  const rows = all.slice(pg * INV_PER_PAGE, (pg + 1) * INV_PER_PAGE);
+  const png = await renderInventory(`مقتنيات ${member?.displayName ?? ""}`.trim(), rows, pg, pages);
+  const components = pages > 1 ? [row(btn(id(owner, "ipg", String(pg - 1)), "السابق").setDisabled(pg <= 0), btn(id(owner, "ipg", String(pg + 1)), "التالي").setDisabled(pg >= pages - 1))] : [];
+  return view(png, "inv.png", components, all.length ? all.map((r) => `${r.name} × ${r.count}`).join("\n") : "ما عندك مقتنيات.");
 }
 
 /** يهدي وردة: ينقص من مقتنيات المهدي ويزيد عداد الورد في الزواج */
@@ -166,15 +167,7 @@ export async function handleShopComponent(i: ButtonInteraction | StringSelectMen
     return await edit(await back(`✅ اشتريت ${ITEMS[item].name} بـ ${cost}. شوفه في !مقتنياتي`)), true;
   }
 
-  if (act === "gift") {
-    const ids = await spouseIds(owner, guild.id);
-    if (ids.length === 0) return await edit(await inventoryView(guild, owner, "❌ ما عندك شريك حياة.")), true;
-    if (ids.length === 1) return await sendGift(i, guild, owner, ids[0], () => inventoryView(guild, owner)), true;
-    const opts = await Promise.all(ids.map(async (p) => ({ label: ((await guild.members.fetch(p).catch(() => null))?.displayName ?? p).slice(0, 90), value: p })));
-    const menu = new StringSelectMenuBuilder().setCustomId(id(owner, "gsel")).setPlaceholder("لمن تبي تهدي الورد؟").addOptions(opts);
-    return await edit({ ...(await inventoryView(guild, owner)), components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)] }), true;
-  }
-  if (act === "gsel" && i.isStringSelectMenu()) return await sendGift(i, guild, owner, i.values[0], () => inventoryView(guild, owner)), true;
+  if (act === "ipg") return await edit(await inventoryView(guild, owner, Number(arg) || 0)), true;
 
   if (act === "mgift") return await sendGift(i, guild, owner, arg, async () => {
     const v = await marriageView(guild, owner, arg);
