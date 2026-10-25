@@ -1,5 +1,6 @@
 import { handleTopButton } from "../top/text";
 import { handleShopComponent } from "../shop/text";
+import { handleVipComponent } from "../vip/text";
 import { Collection, Events, MessageFlags, type Interaction } from "discord.js";
 import { handleAfkButton, handleAfkModal } from "../afk/interactions";
 import { handleBankButton, handleBankModal } from "../bank/interactions";
@@ -43,6 +44,7 @@ const event: BotEvent = {
           (await handleChatButton(interaction)) ||
           (await handleAfkButton(interaction)) ||
           (await handleMenuButton(interaction)) ||
+          (await handleVipComponent(interaction)) ||
           (await handleTopButton(interaction)) ||
           (await handleShopComponent(interaction)) ||
           (await handleBirthdayButton(interaction)) ||
@@ -59,7 +61,7 @@ const event: BotEvent = {
 
     if (interaction.isStringSelectMenu() || interaction.isUserSelectMenu()) {
       try {
-        const handled = (interaction.isStringSelectMenu() && (await handleShopComponent(interaction))) || (await handleChatSelect(interaction)) || (interaction.isStringSelectMenu() && ((await handleJobSelect(interaction)) || (await handleStreakSelect(interaction))));
+        const handled = (await handleVipComponent(interaction)) || (interaction.isStringSelectMenu() && (await handleShopComponent(interaction))) || (await handleChatSelect(interaction)) || (interaction.isStringSelectMenu() && ((await handleJobSelect(interaction)) || (await handleStreakSelect(interaction))));
         if (!handled && interaction.isStringSelectMenu()) await handleLabSelect(interaction);
       } catch (err) {
         logger.error("خطأ في قائمة منسدلة", err);
@@ -70,6 +72,7 @@ const event: BotEvent = {
     if (interaction.isModalSubmit()) {
       try {
         const handled =
+          (await handleVipComponent(interaction)) ||
           (await handleTicketModal(interaction)) ||
           (await handleChatModal(interaction)) ||
           (await handleAfkModal(interaction)) ||
