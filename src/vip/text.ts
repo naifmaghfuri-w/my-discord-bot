@@ -73,7 +73,7 @@ export async function handleVipMessage(message: Message<true>): Promise<void> {
         VIP_PLANS.map((p) => `✦ **${p.label}** — ${p.price.toLocaleString("en-US")}`).join("\n"),
       ].join("\n"),
     )
-    .setFooter({ text: message.guild.name });
+    .setFooter({ text: "SunRise" });
 
   const files: AttachmentBuilder[] = [];
   if (custom) embed.setImage(custom);
