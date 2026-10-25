@@ -20,10 +20,10 @@ import { buildThiefMenu, handleThiefMessage, runThief, type ThiefAction } from "
 
 export const COMPANY_RULES = {
   openCost: 10_000,
-  shiftCooldownMs: 3 * 60 * 60 * 1000,
+  shiftCooldownMs: 5 * 60 * 60 * 1000,
   payrollMs: 24 * 60 * 60 * 1000,
-  shiftGainEmployee: 100, // يضاف لميزانية الشركة بكل دوام موظف
-  shiftGainOfficial: 200, // دوام المسؤول/المالك
+  shiftGainEmployee: 500, // يضاف لميزانية الشركة بكل دوام موظف
+  shiftGainOfficial: 1000, // دوام المسؤول/المالك
   maxSlots: 20,
   maxSalary: 10_000,
   /** تكلفة تغيير الاسم أو الصورة (تُخصم من ميزانية الشركة) */
