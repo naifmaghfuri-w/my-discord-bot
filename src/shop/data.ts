@@ -2,6 +2,12 @@
 export const ITEMS = {
   flower: { name: "ورد", price: 100, love: 10 },
   ring: { name: "خاتم الفيروز", price: 1500, love: 0 },
+  cabin: { name: "كوخ", price: 600, love: 0 },
+  apartment: { name: "شقة سكنية", price: 1500, love: 0 },
+  small_house: { name: "بيت صغير", price: 10000, love: 0 },
+  medium_house: { name: "بيت متوسط", price: 15000, love: 0 },
+  large_house: { name: "بيت كبير", price: 25000, love: 0 },
+  villa: { name: "فِلاّ", price: 50000, love: 0 },
 } as const;
 export type ItemId = keyof typeof ITEMS;
 
@@ -10,3 +16,7 @@ export function lovePercent(lovePoints: number, days: number): number {
   const v = lovePoints / Math.max(1, days);
   return Math.min(100, Math.round(v * 10) / 10);
 }
+
+/** العقارات بترتيب العرض */
+export const ESTATE_IDS = ["cabin", "apartment", "small_house", "medium_house", "large_house", "villa"] as const;
+export type EstateId = (typeof ESTATE_IDS)[number];
