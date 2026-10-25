@@ -43,6 +43,7 @@ import { PROFILE_TRIGGER, handleProfileMessage } from "../profile/text";
 import { ESTATE_TRIGGER, INVENTORY_TRIGGER, MYMARRIAGE_TRIGGER, SHOPS_TRIGGER, handleShopMessage } from "../shop/text";
 import { TOP_TRIGGER, handleTopMessage } from "../top/text";
 import { CHATPANEL_TRIGGER, handleChatPanelMessage } from "../chat/text";
+import { VIP_TRIGGER, handleVipMessage } from "../vip/text";
 import { LEVEL_TRIGGER, awardMessageXp, handleLevelMessage } from "../level/text";
 import { STREAK_TRIGGER, handleStreakMessage } from "../streak/interactions";
 import { applyStreakNick } from "../streak/nick";
@@ -140,6 +141,10 @@ const event: BotEvent = {
     }
     if (TOP_TRIGGER.test(rawContent.trim())) {
       await handleTopMessage(message);
+      return;
+    }
+    if (VIP_TRIGGER.test(rawContent.trim())) {
+      await handleVipMessage(message);
       return;
     }
     if (CHATPANEL_TRIGGER.test(rawContent.trim())) {
