@@ -306,11 +306,8 @@ export async function renderInventory(
     ctx.shadowBlur = 18;
     ctx.fillStyle = "#fcd34d";
     ctx.font = `700 46px "${family}"`;
-    ctx.fillText(owner, CW / 2, 48);
+    ctx.fillText(owner, CW / 2, 58);
     ctx.shadowBlur = 0;
-    ctx.fillStyle = "#e5e7eb";
-    ctx.font = `700 20px "${family}"`;
-    ctx.fillText("المحلات", CW / 2, 86);
     ctx.textAlign = "right";
     ctx.fillStyle = "#9ca3af";
     ctx.font = `700 16px "${family}"`;
