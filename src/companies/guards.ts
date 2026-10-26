@@ -27,3 +27,5 @@ export function leftText(until: Date | null | undefined): string {
   const m = Math.floor((ms % 3_600_000) / 60_000);
   return h > 0 ? `${h} ساعة و${m} دقيقة` : `${m} دقيقة`;
 }
+
+er123
