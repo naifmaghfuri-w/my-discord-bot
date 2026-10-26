@@ -6,6 +6,7 @@ type Badge = { label: string; color: string };
 export interface CardMember {
   name: string;
   avatar?: string;
+  avatarBuf?: Buffer | null;
   badge: Badge;
   title: string;
   salary: number;
@@ -83,7 +84,7 @@ export async function renderCompanyCard(d: CompanyCardData): Promise<Buffer | nu
     const canvas = createCanvas(W, H);
     const ctx = canvas.getContext("2d");
     ctx.textBaseline = "middle";
-    const imgs = await Promise.all(d.members.map((m) => avatar(m.avatar)));
+    const imgs = await Promise.all(d.members.map((m) => (m.avatarBuf ? loadImage(Buffer.from(m.avatarBuf)).catch(() => null) : avatar(m.avatar))));
 
     const bg = ctx.createLinearGradient(0, 0, W, H);
     bg.addColorStop(0, "#0b1220");
