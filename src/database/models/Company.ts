@@ -174,3 +174,26 @@ const reportSchema = new Schema<ICompanyReport>({
 });
 
 export const CompanyReport = model<ICompanyReport>("CompanyReport", reportSchema);
+
+/** حراس البوابة (بوتات) توظّفهم الشركة بالساعات */
+export interface ICompanyBot {
+  guildId: string;
+  companyId: string;
+  key: string;
+  /** حارس شغّال لين هذا الوقت */
+  guardUntil: Date | null;
+  image?: Buffer | null;
+  hiredAt: Date;
+}
+
+const botSchema = new Schema<ICompanyBot>({
+  guildId: { type: String, required: true },
+  companyId: { type: String, required: true, index: true },
+  key: { type: String, required: true },
+  guardUntil: { type: Date, default: null },
+  image: { type: Buffer, default: null },
+  hiredAt: { type: Date, default: () => new Date() },
+});
+botSchema.index({ companyId: 1, key: 1 }, { unique: true });
+
+export const CompanyBot = model<ICompanyBot>("CompanyBot", botSchema);
