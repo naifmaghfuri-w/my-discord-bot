@@ -3,7 +3,7 @@ import {
   type BaseMessageOptions, type ButtonInteraction, type Client, type Interaction, type Message, type ModalSubmitInteraction, type StringSelectMenuInteraction,
 } from "discord.js";
 import { jenny } from "../constants";
-import { Company, CompanyApplication, CompanyComplaint, CompanyLog, CompanyMember, CompanyPosting, CompanyReport, type ICompany, type ICompanyMember } from "../database/models/Company";
+import { Company, CompanyApplication, CompanyBot, CompanyComplaint, CompanyLog, CompanyMember, CompanyPosting, CompanyReport, type ICompany, type ICompanyMember } from "../database/models/Company";
 import { UserProfile } from "../database/models/UserProfile";
 import { JOBS } from "../jobs/data";
 import { fmtMs } from "../jobs/views";
@@ -12,8 +12,9 @@ import { logTransaction } from "../services/transactions";
 import { renderHub, type HubCorpRow, type HubRegRow } from "./hub";
 import { VEND, VEND_DEFAULTS, renderVending, type VendItem } from "./vending";
 import { makeLogo, renderCompanyCard } from "./card";
+import { GUARD_BOTS, GUARD_RULES, guardByKey, hoursLeft, leftText } from "./guards";
 import { logger } from "../utils/logger";
-import { BOARD_TITLE, BRANCH_TITLE, CEO_TITLE, HR_TITLE, PROMOTIONS, TITLES, assignable, badgeOf, canControl, levelOf, titleByKey, titleLevel } from "./titles";
+import { BOARD_TITLE, BRANCH_TITLE, CEO_TITLE, GUARD_TITLE, HR_TITLE, PROMOTIONS, TITLES, assignable, badgeOf, canControl, levelOf, titleByKey, titleLevel } from "./titles";
 import { buildThiefMenu, handleThiefMessage, runThief, type ThiefAction } from "../jobs/thief";
 
 /* ───────────── الثوابت ───────────── */
@@ -94,6 +95,7 @@ async function dissolveCompany(company: ICompany & { _id: unknown }, splitBudget
     if (share > 0) for (const m of staff) await UserProfile.updateOne({ userId: m.userId, guildId: m.guildId }, { $inc: { coins: share } }, { upsert: true });
   }
   await CompanyMember.deleteMany({ companyId: cid });
+  await CompanyBot.deleteMany({ companyId: cid });
   await CompanyApplication.deleteMany({ companyId: cid });
   await CompanyPosting.updateMany({ companyId: cid }, { $set: { open: false } });
 }
@@ -249,14 +251,17 @@ async function buildCompanyPanel(guildId: string, userId: string, client: Client
     const a = rankKey(p), b = rankKey(q);
     return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
   });
-  const pages = Math.max(1, Math.ceil(members.length / MEMBERS_PER_PAGE));
+  const bots = (await CompanyBot.find({ companyId: cid })).sort((p, q) => GUARD_BOTS.findIndex((g) => g.key === p.key) - GUARD_BOTS.findIndex((g) => g.key === q.key));
+  type Entry = { m: ICompanyMember } | { b: (typeof bots)[number] };
+  const entries: Entry[] = [...members.map((x) => ({ m: x })), ...bots.map((x) => ({ b: x }))];
+  const pages = Math.max(1, Math.ceil(entries.length / MEMBERS_PER_PAGE));
   const page = Math.min(Math.max(0, pageArg), pages - 1);
   const payroll = members.reduce((s, x) => s + x.salary, 0);
   const lines = members.slice(0, 15).map((x) => `${roleLabel(x)} ${mention(x.userId)} — ${x.title} • ${jenny(x.salary)}`);
   const since = new Date(c.lastPayrollAt).getTime();
-  const shown = members.slice(page * MEMBERS_PER_PAGE, (page + 1) * MEMBERS_PER_PAGE);
-  const infos = await Promise.all(shown.map((x) => memberInfo(client, guildId, x.userId)));
-  const ownerIdx = shown.findIndex((x) => x.role === "owner");
+  const shown = entries.slice(page * MEMBERS_PER_PAGE, (page + 1) * MEMBERS_PER_PAGE);
+  const infos = await Promise.all(shown.map((e) => (("m" in e) ? memberInfo(client, guildId, e.m.userId) : Promise.resolve({ name: guardByKey(e.b.key)?.name ?? e.b.key } as { name: string; avatar?: string }))));
+  const ownerIdx = shown.findIndex((e) => "m" in e && e.m.role === "owner");
   const ownerName = ownerIdx >= 0 ? infos[ownerIdx].name : (await memberInfo(client, guildId, c.ownerId)).name;
   const shiftLeft = m.lastShiftAt ? COMPANY_RULES.shiftCooldownMs - (m.cutMs ?? 0) - (Date.now() - new Date(m.lastShiftAt).getTime()) : 0;
   const png = await renderCompanyCard({
@@ -265,18 +270,29 @@ async function buildCompanyPanel(guildId: string, userId: string, client: Client
     createdAt: new Date(c.createdAt).toLocaleDateString("en-GB"),
     budget: c.budget,
     payroll,
-    memberCount: members.length,
-    pageInfo: pages > 1 ? `صفحة ${page + 1} من ${pages} • ${members.length} موظف` : undefined,
+    memberCount: entries.length,
+    pageInfo: pages > 1 ? `صفحة ${page + 1} من ${pages} • ${entries.length} موظف` : undefined,
     logo: c.logo ?? null,
     payrollIn: fmtMs(Math.max(60_000, since + COMPANY_RULES.payrollMs - Date.now())),
-    members: shown.map((x, idx) => ({
-      name: infos[idx].name,
-      avatar: infos[idx].avatar,
-      badge: badgeOf(x),
-      title: x.title,
-      salary: x.salary,
-      active: Boolean(x.lastShiftAt && new Date(x.lastShiftAt).getTime() > since),
-    })),
+    members: shown.map((e, idx) =>
+      "m" in e
+        ? {
+            name: infos[idx].name,
+            avatar: infos[idx].avatar,
+            badge: badgeOf(e.m),
+            title: e.m.title,
+            salary: e.m.salary,
+            active: Boolean(e.m.lastShiftAt && new Date(e.m.lastShiftAt).getTime() > since),
+          }
+        : {
+            name: infos[idx].name,
+            avatarBuf: e.b.image ?? null,
+            badge: { label: "حارس", color: "#ef4444" },
+            title: GUARD_TITLE,
+            salary: GUARD_RULES.costPerHour * 24,
+            active: hoursLeft(e.b.guardUntil) > 0,
+          },
+    ),
     me: { badge: badgeOf(m), title: m.title, salary: m.salary, penalty: m.penalty ?? 0, shiftReady: shiftLeft <= 0, shiftIn: fmtMs(Math.max(60_000, shiftLeft)) },
   });
   const embed = new EmbedBuilder()
@@ -317,6 +333,34 @@ async function buildCompanyPanel(guildId: string, userId: string, client: Client
     ));
   }
   return { embeds: [embed], components: rows, files };
+}
+
+
+async function buildGuardsView(cid: string, sel: string | null): Promise<View> {
+  const c = await Company.findById(cid).select("-logo");
+  const bots = await CompanyBot.find({ companyId: cid }).select("-image");
+  const by = new Map(bots.map((x) => [x.key, x]));
+  const lines = GUARD_BOTS.map((g) => {
+    const d = by.get(g.key);
+    return `🛡️ **${g.name}** — ${d ? (hoursLeft(d.guardUntil) > 0 ? `يداوم، باقي ${leftText(d.guardUntil)}` : "موظف (انتهت ساعاته)") : "غير موظف"}`;
+  });
+  const embed = new EmbedBuilder()
+    .setColor(COLOR)
+    .setTitle("🛡️ حراس البوابة")
+    .setDescription([`كل ${GUARD_RULES.costPerHour} = ساعة دوام، والحد ${GUARD_RULES.maxHours} ساعة للحارس.`, `💰 الميزانية: ${jenny(c?.budget ?? 0)}`, "", ...lines].join("\n"));
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId(`co|gsel|${cid}`)
+    .setPlaceholder("اختر حارس")
+    .addOptions(GUARD_BOTS.map((g) => ({ label: g.name, value: g.key, description: by.has(g.key) ? "موظف" : "غير موظف", default: g.key === sel })));
+  const rows: ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>[] = [new ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>().addComponents(menu)];
+  const g = sel ? guardByKey(sel) : undefined;
+  if (g) {
+    const hired = by.has(g.key);
+    const bs = [btn(`co|gpay|${cid}|${g.key}`, hired ? "زيادة الساعات" : "توظيف", ButtonStyle.Success, "⏱️")];
+    if (hired) bs.push(btn(`co|gimg|${cid}|${g.key}`, "اختيار صورة", ButtonStyle.Secondary, "🖼️"), btn(`co|gfire|${cid}|${g.key}`, "فصل", ButtonStyle.Danger, "🚪"));
+    rows.push(new ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>().addComponents(...bs));
+  }
+  return { embeds: [embed], components: rows, content: "" };
 }
 
 const VEND_COOLDOWN_MS = 5 * 60 * 60_000;
@@ -614,7 +658,7 @@ async function route(i: AnyI): Promise<void> {
     if (lvl === 0) imgRow.push(btn(`co|rename|${a}`, `تغيير الاسم (${cost})`, ButtonStyle.Secondary, "✏️"));
     if (imgRow.length) rows.push(row(...imgRow));
     const second: ButtonBuilder[] = [];
-    if (isBoss(me)) second.push(btn(`co|mng|${a}`, "إدارة الموظفين", ButtonStyle.Secondary, "👥"), btn(`co|reqs|${a}`, "قائمة الطلبات", ButtonStyle.Secondary, "📋"));
+    if (isBoss(me)) second.push(btn(`co|mng|${a}`, "إدارة الموظفين", ButtonStyle.Secondary, "👥"), btn(`co|reqs|${a}`, "قائمة الطلبات", ButtonStyle.Secondary, "📋"), btn(`co|guards|${a}`, "توظيف", ButtonStyle.Primary, "🛡️"));
     if (lvl <= 1) second.push(btn(`co|logs|${a}`, "السجلات", ButtonStyle.Secondary, "📜"));
     if (second.length) rows.push(row(...second));
     if (me.role === "owner") rows.push(row(btn(`co|sell|${a}`, "بيع الشركة", ButtonStyle.Secondary, "🤝"), btn(`co|close|${a}`, "إغلاق الشركة", ButtonStyle.Danger, "🔒")));
@@ -622,6 +666,74 @@ async function route(i: AnyI): Promise<void> {
     if (me.role !== "owner") rows.push(row(btn(`co|leave|${a}`, "استقالة من الشركة", ButtonStyle.Danger, "🚪")));
     const embed = new EmbedBuilder().setColor(COLOR).setTitle(`🏢 ${company.name}`).setDescription(`💰 الميزانية: ${jenny(company.budget)}\nتغيير الاسم أو الصورة يخصم ${jenny(cost)} من الميزانية.`);
     return void (await i.reply({ embeds: [embed], components: rows, ...eph }));
+  }
+
+
+  /* --- توظيف حراس البوابة (بوتات) --- */
+  if ((act === "guards" && i.isButton()) || (act === "gsel" && i.isStringSelectMenu())) {
+    const { company, me } = await ctxOf(i, a);
+    if (!company || !me || !isBoss(me)) return void (await say("❌ هذا للإدارة فقط."));
+    const sel = act === "gsel" && i.isStringSelectMenu() ? i.values[0] : null;
+    const view = await buildGuardsView(a, sel);
+    return void (act === "gsel" ? await (i as StringSelectMenuInteraction).update(view) : await i.reply({ ...view, ...eph }));
+  }
+  if (act === "gpay" && i.isButton()) {
+    const { company, me } = await ctxOf(i, a);
+    if (!company || !me || !isBoss(me) || !guardByKey(b ?? "")) return void (await say("❌ هذا للإدارة فقط."));
+    return void (await i.showModal(modal(`co|gpaym|${a}|${b}`, "ساعات الحراسة", input("hours", `عدد الساعات (كل ساعة ${GUARD_RULES.costPerHour})`, "24", TextInputStyle.Short, true, 3))));
+  }
+  if (act === "gpaym" && i.isModalSubmit()) {
+    const { company, me } = await ctxOf(i, a);
+    const g = guardByKey(b ?? "");
+    if (!company || !me || !isBoss(me) || !g) return void (await say("❌ هذا للإدارة فقط."));
+    const hours = num(i.fields.getTextInputValue("hours"));
+    if (!(hours >= 1 && hours <= GUARD_RULES.maxHours)) return void (await say(`❌ الساعات من 1 إلى ${GUARD_RULES.maxHours}.`));
+    const cur = await CompanyBot.findOne({ companyId: a, key: g.key });
+    const have = hoursLeft(cur?.guardUntil);
+    if (have + hours > GUARD_RULES.maxHours) return void (await say(`❌ ${g.name} عنده ${have} ساعة، والحد الأعلى ${GUARD_RULES.maxHours} ساعة (تقدر تزيد ${GUARD_RULES.maxHours - have} فقط).`));
+    const cost = hours * GUARD_RULES.costPerHour;
+    const paid = await Company.findOneAndUpdate({ _id: a, budget: { $gte: cost } }, { $inc: { budget: -cost } });
+    if (!paid) return void (await say(`❌ ميزانية الشركة ما تكفي (${jenny(cost)}).`));
+    try {
+      const base = cur?.guardUntil && new Date(cur.guardUntil).getTime() > Date.now() ? new Date(cur.guardUntil).getTime() : Date.now();
+      await CompanyBot.updateOne({ companyId: a, key: g.key }, { $set: { guardUntil: new Date(base + hours * 3_600_000), guildId }, $setOnInsert: { hiredAt: new Date() } }, { upsert: true });
+    } catch (err) {
+      await Company.updateOne({ _id: a }, { $inc: { budget: cost } });
+      logger.error("فشل تشغيل الحارس", err);
+      return void (await say("❌ صار خطأ، رجعت الميزانية."));
+    }
+    await addLog(guildId, a, `🛡️ ${mention(uid)} ${cur ? "زاد ساعات" : "وظّف"} الحارس ${g.name} (${hours} ساعة، خصم ${jenny(cost)})`);
+    return void (await i.reply({ content: `✅ ${cur ? "تمت زيادة" : "تم توظيف"} **${g.name}** ${hours} ساعة (خصمنا ${jenny(cost)} من الميزانية). اضغط 🔄 تحديث.`, ...eph }));
+  }
+  if (act === "gimg" && i.isButton()) {
+    const { company, me } = await ctxOf(i, a);
+    const g = guardByKey(b ?? "");
+    if (!company || !me || !isBoss(me) || !g) return void (await say("❌ هذا للإدارة فقط."));
+    if (!(await CompanyBot.exists({ companyId: a, key: g.key }))) return void (await say(`❌ وظّف ${g.name} أول.`));
+    const ch = i.channel;
+    if (!ch || !("awaitMessages" in ch)) return void (await say("❌ تعذّر استقبال الصورة هنا."));
+    await i.reply({ content: `🖼️ ارسل صورة ${g.name} في هذا الروم خلال دقيقة.`, ...eph });
+    const got = await ch
+      .awaitMessages({ filter: (m) => m.author.id === uid && m.attachments.some((x) => Boolean(x.contentType?.startsWith("image/"))), max: 1, time: 60_000 })
+      .catch(() => null);
+    const msg = got?.first();
+    if (!msg) return void (await i.editReply({ content: "⏰ انتهى الوقت بدون صورة." }));
+    const att = msg.attachments.find((x) => Boolean(x.contentType?.startsWith("image/")));
+    if (!att || att.size > 8 * 1024 * 1024) return void (await i.editReply({ content: "❌ الصورة كبيرة (الحد 8 ميغا)." }));
+    const res = await fetch(att.url).catch(() => null);
+    const image = res && res.ok ? await makeLogo(Buffer.from(await res.arrayBuffer())) : null;
+    if (!image) return void (await i.editReply({ content: "❌ ما قدرت أقرأ الصورة." }));
+    await CompanyBot.updateOne({ companyId: a, key: g.key }, { $set: { image } });
+    msg.delete().catch(() => undefined);
+    return void (await i.editReply({ content: `✅ تم تغيير صورة ${g.name}. اضغط 🔄 تحديث.` }));
+  }
+  if (act === "gfire" && i.isButton()) {
+    const { company, me } = await ctxOf(i, a);
+    const g = guardByKey(b ?? "");
+    if (!company || !me || !isBoss(me) || !g) return void (await say("❌ هذا للإدارة فقط."));
+    await CompanyBot.deleteOne({ companyId: a, key: g.key });
+    await addLog(guildId, a, `🛡️ ${mention(uid)} فصل الحارس ${g.name}`);
+    return void (await i.update({ ...(await buildGuardsView(a, null)) }));
   }
 
   /* --- دعم ميزانية الشركة (زر في القائمة) --- */
