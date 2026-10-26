@@ -2,7 +2,7 @@ import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedB
 import { jenny } from "../constants";
 import { renderThiefJail, renderThiefMenu, renderThiefResult } from "./thiefCard";
 import { GUARD_TITLE } from "../companies/titles";
-import { Company, CompanyLog, CompanyMember } from "../database/models/Company";
+import { Company, CompanyBot, CompanyLog, CompanyMember } from "../database/models/Company";
 import { JobProfile } from "../database/models/JobProfile";
 import { ThiefState } from "../database/models/ThiefState";
 import { UserProfile } from "../database/models/UserProfile";
@@ -166,7 +166,8 @@ export async function runThief(userId: string, guildId: string, action: ThiefAct
     }
     const cid = String(c._id);
     const guarded = await CompanyMember.exists({ companyId: cid, title: GUARD_TITLE, lastShiftAt: { $gte: new Date(Date.now() - THIEF.guardActiveMs) } });
-    if (guarded) {
+    const botGuard = guarded ? true : Boolean(await CompanyBot.exists({ companyId: cid, guardUntil: { $gt: new Date() } }));
+    if (botGuard) {
       // انمسك: يدفع تعويض لميزانية الشركة (أو كل اللي معه لو أقل)
       const prof = await UserProfile.findOne({ userId, guildId }, { coins: 1 });
       const pay = Math.min(THIEF.company.fine, prof?.coins ?? 0);
