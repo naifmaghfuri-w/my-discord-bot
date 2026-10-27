@@ -1,5 +1,6 @@
 import { createCanvas, loadImage, type Image, type SKRSContext2D } from "@napi-rs/canvas";
 import { ensureFontsRegistered, FONT_BOLD } from "../quests/render/fonts";
+import { bgById, colorById } from "./styles";
 
 export type IconKind = "coin" | "bank" | "chat" | "flame" | "bag" | "building" | "heart" | "home" | "level" | "dagger" | "star";
 
@@ -7,7 +8,7 @@ export interface Tile {
   label: string;
   value: string;
   sub?: string;
-  /** 0..1 شريط صغير أسفل البطاقة */
+  /** 0..1 خط التقدم أسفل البطاقة */
   bar?: number;
   icon: IconKind;
 }
@@ -32,16 +33,12 @@ export interface ProfileData {
   tags: Tag[];
   ranks: RankCell[];
   tiles: Tile[];
+  bg: string;
+  color: string;
 }
 
 const W = 1100;
-const H = 640;
-const RED = "#ef4444";
-const RED_D = "#b91c1c";
-const TXT = "#fde8e8";
-const MUTED = "#e9a3a3";
-const fmtN = (n: number): string => Math.round(n).toLocaleString("en-US");
-void fmtN;
+const H = 660;
 
 async function loadAvatar(url?: string): Promise<Image | null> {
   if (!url) return null;
@@ -57,28 +54,147 @@ function fit(ctx: SKRSContext2D, text: string, family: string, size: number, max
   }
 }
 
-/** مستطيل بزوايا مقصوصة (طابع HUD) */
-function chamfer(ctx: SKRSContext2D, x: number, y: number, w: number, h: number, c = 12): void {
+function rrect(ctx: SKRSContext2D, x: number, y: number, w: number, h: number, r: number): void {
   ctx.beginPath();
-  ctx.moveTo(x + c, y);
-  ctx.lineTo(x + w - c, y);
-  ctx.lineTo(x + w, y + c);
-  ctx.lineTo(x + w, y + h - c);
-  ctx.lineTo(x + w - c, y + h);
-  ctx.lineTo(x + c, y + h);
-  ctx.lineTo(x, y + h - c);
-  ctx.lineTo(x, y + c);
-  ctx.closePath();
+  ctx.roundRect(x, y, w, h, r);
 }
 
-function panel(ctx: SKRSContext2D, x: number, y: number, w: number, h: number): void {
-  chamfer(ctx, x, y, w, h);
-  ctx.fillStyle = "rgba(24,6,10,0.62)";
+function glass(ctx: SKRSContext2D, x: number, y: number, w: number, h: number, r = 22): void {
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.35)";
+  ctx.shadowBlur = 18;
+  ctx.shadowOffsetY = 6;
+  rrect(ctx, x, y, w, h, r);
+  ctx.fillStyle = "rgba(8,10,20,0.58)";
   ctx.fill();
+  ctx.restore();
+  rrect(ctx, x, y, w, h, r);
   ctx.lineWidth = 1.5;
-  ctx.strokeStyle = "rgba(239,68,68,0.45)";
+  ctx.strokeStyle = "rgba(255,255,255,0.12)";
   ctx.stroke();
 }
+
+/* ───────────── استوديو الخلفيات ───────────── */
+
+function rng(seed: number): () => number {
+  let s = seed;
+  return () => {
+    s = (s * 1664525 + 1013904223) % 4294967296;
+    return s / 4294967296;
+  };
+}
+
+function paintBackground(ctx: SKRSContext2D, id: string): void {
+  const lin = (a: string, b: string, c?: string) => {
+    const g = ctx.createLinearGradient(0, 0, W, H);
+    g.addColorStop(0, a);
+    if (c) g.addColorStop(0.5, c);
+    g.addColorStop(1, b);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  };
+  const r = rng(id.length * 7919 + id.charCodeAt(0));
+
+  switch (id) {
+    case "sunset": {
+      lin("#2b1055", "#f59e0b", "#d4507a");
+      const sun = ctx.createRadialGradient(820, 470, 10, 820, 470, 260);
+      sun.addColorStop(0, "rgba(255,236,170,0.95)");
+      sun.addColorStop(0.35, "rgba(251,146,60,0.55)");
+      sun.addColorStop(1, "rgba(251,146,60,0)");
+      ctx.fillStyle = sun;
+      ctx.fillRect(0, 0, W, H);
+      break;
+    }
+    case "forest": {
+      lin("#04150f", "#14532d", "#0b3a26");
+      for (let k = 0; k < 3; k++) {
+        ctx.fillStyle = `rgba(2,${24 + k * 14},${16 + k * 8},${0.55 + k * 0.1})`;
+        ctx.beginPath();
+        ctx.moveTo(0, H);
+        for (let x = 0; x <= W; x += 20) ctx.lineTo(x, 430 + k * 60 + Math.sin(x / (130 - k * 20) + k) * 40);
+        ctx.lineTo(W, H);
+        ctx.closePath();
+        ctx.fill();
+      }
+      break;
+    }
+    case "ocean": {
+      lin("#03141f", "#0e7490", "#064e63");
+      ctx.lineWidth = 2;
+      for (let k = 0; k < 9; k++) {
+        ctx.strokeStyle = `rgba(165,243,252,${0.05 + k * 0.012})`;
+        ctx.beginPath();
+        for (let x = 0; x <= W; x += 10) {
+          const y = 250 + k * 46 + Math.sin(x / 80 + k) * 16;
+          if (x === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+      break;
+    }
+    case "rose": {
+      lin("#25091a", "#9d174d", "#5b0f35");
+      for (let k = 0; k < 18; k++) {
+        ctx.fillStyle = `rgba(251,207,232,${0.04 + r() * 0.09})`;
+        ctx.beginPath();
+        ctx.arc(r() * W, r() * H, 20 + r() * 80, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    }
+    case "gold": {
+      lin("#100d07", "#3b2f10", "#1c160a");
+      ctx.strokeStyle = "rgba(250,204,21,0.10)";
+      ctx.lineWidth = 2;
+      for (let x = -H; x < W; x += 46) {
+        ctx.beginPath();
+        ctx.moveTo(x, H);
+        ctx.lineTo(x + H, 0);
+        ctx.stroke();
+      }
+      break;
+    }
+    case "carbon": {
+      lin("#07070a", "#1c1c24");
+      ctx.fillStyle = "rgba(255,255,255,0.05)";
+      for (let y = 10; y < H; y += 22) for (let x = 10 + ((y / 22) % 2) * 11; x < W; x += 22) ctx.fillRect(x, y, 3, 3);
+      break;
+    }
+    case "aurora": {
+      lin("#050b16", "#0a1424");
+      for (const [x, y, rad, col] of [
+        [260, 160, 320, "rgba(52,211,153,0.35)"],
+        [700, 120, 340, "rgba(129,140,248,0.33)"],
+        [980, 420, 300, "rgba(56,189,248,0.28)"],
+        [420, 520, 260, "rgba(217,70,239,0.20)"],
+      ] as const) {
+        const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
+        g.addColorStop(0, col);
+        g.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
+      }
+      break;
+    }
+    default: {
+      lin("#080c22", "#1d2255", "#111538");
+      for (let k = 0; k < 90; k++) {
+        ctx.fillStyle = `rgba(255,255,255,${0.15 + r() * 0.6})`;
+        const s = r() < 0.15 ? 2.4 : 1.3;
+        ctx.fillRect(r() * W, r() * H, s, s);
+      }
+    }
+  }
+  const vg = ctx.createRadialGradient(W / 2, H / 2, 260, W / 2, H / 2, 760);
+  vg.addColorStop(0, "rgba(0,0,0,0)");
+  vg.addColorStop(1, "rgba(0,0,0,0.5)");
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, W, H);
+}
+
+/* ───────────── الأيقونات ───────────── */
 
 function icon(ctx: SKRSContext2D, kind: IconKind, cx: number, cy: number, s: number, color: string): void {
   ctx.save();
@@ -98,7 +214,7 @@ function icon(ctx: SKRSContext2D, kind: IconKind, cx: number, cy: number, s: num
       ctx.arc(0, 0, h * 0.5, 0, Math.PI * 2);
       ctx.stroke();
       break;
-    case "star": {
+    case "star":
       ctx.beginPath();
       for (let i = 0; i < 10; i++) {
         const a = -Math.PI / 2 + (i * Math.PI) / 5;
@@ -108,7 +224,6 @@ function icon(ctx: SKRSContext2D, kind: IconKind, cx: number, cy: number, s: num
       ctx.closePath();
       ctx.fill();
       break;
-    }
     case "bank":
       ctx.beginPath();
       ctx.moveTo(-h, -h * 0.35);
@@ -132,9 +247,9 @@ function icon(ctx: SKRSContext2D, kind: IconKind, cx: number, cy: number, s: num
       ctx.roundRect(-h, -h * 0.8, s, s * 0.7, 5);
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(-h * 0.4, h * 0.0);
+      ctx.moveTo(-h * 0.4, 0);
       ctx.lineTo(-h * 0.6, h * 0.8);
-      ctx.lineTo(h * 0.1, h * 0.0);
+      ctx.lineTo(h * 0.1, 0);
       ctx.stroke();
       break;
     case "flame":
@@ -192,7 +307,7 @@ function icon(ctx: SKRSContext2D, kind: IconKind, cx: number, cy: number, s: num
       ctx.stroke();
       ctx.beginPath();
       ctx.moveTo(-h * 0.1, -h * 0.1);
-      ctx.lineTo(-h * 0.7, -h * 0.1 + h * 0.6);
+      ctx.lineTo(-h * 0.7, h * 0.5);
       ctx.moveTo(-h * 0.5, h * 0.5);
       ctx.lineTo(-h * 0.9, h * 0.9);
       ctx.stroke();
@@ -201,252 +316,165 @@ function icon(ctx: SKRSContext2D, kind: IconKind, cx: number, cy: number, s: num
   ctx.restore();
 }
 
-function bat(ctx: SKRSContext2D, x: number, y: number, s: number): void {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(s, s);
-  ctx.fillStyle = "rgba(10,2,4,0.85)";
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.quadraticCurveTo(-8, -9, -22, -4);
-  ctx.quadraticCurveTo(-16, -1, -14, 5);
-  ctx.quadraticCurveTo(-9, 1, -5, 4);
-  ctx.quadraticCurveTo(-2, 2, 0, 6);
-  ctx.quadraticCurveTo(2, 2, 5, 4);
-  ctx.quadraticCurveTo(9, 1, 14, 5);
-  ctx.quadraticCurveTo(16, -1, 22, -4);
-  ctx.quadraticCurveTo(8, -9, 0, 0);
+/** خط تقدّم برأس متوهج */
+function progressLine(ctx: SKRSContext2D, x: number, y: number, w: number, pct: number, color: string): void {
+  ctx.fillStyle = "rgba(255,255,255,0.14)";
+  rrect(ctx, x, y - 2.5, w, 5, 3);
   ctx.fill();
-  ctx.restore();
-}
-
-function castle(ctx: SKRSContext2D): void {
-  ctx.fillStyle = "rgba(8,1,3,0.72)";
-  const base = 600;
-  const block = (x: number, y: number, w: number) => ctx.fillRect(x, y, w, base - y);
-  const tower = (x: number, y: number, w: number, roof: number) => {
-    block(x, y, w);
-    ctx.beginPath();
-    ctx.moveTo(x - 6, y);
-    ctx.lineTo(x + w / 2, y - roof);
-    ctx.lineTo(x + w + 6, y);
-    ctx.closePath();
+  if (pct > 0) {
+    const fw = Math.max(6, w * Math.min(1, pct));
+    ctx.save();
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = color;
+    rrect(ctx, x, y - 2.5, fw, 5, 3);
     ctx.fill();
-  };
-  block(430, 300, 240);
-  tower(400, 210, 50, 90);
-  tower(650, 230, 50, 80);
-  tower(500, 150, 70, 120);
-  tower(590, 190, 46, 90);
-  block(470, 250, 160);
-  // نوافذ
-  ctx.fillStyle = "rgba(251,146,60,0.35)";
-  for (const [x, y] of [[525, 210], [545, 210], [608, 250], [414, 270], [664, 290], [480, 340], [560, 340], [610, 340]] as const) ctx.fillRect(x, y, 6, 12);
+    ctx.beginPath();
+    ctx.arc(x + fw, y, 6.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
 }
 
 export async function renderProfile(d: ProfileData): Promise<Buffer | null> {
   try {
     const family = ensureFontsRegistered() ? FONT_BOLD : "sans-serif";
+    const accent = colorById(d.color).hex;
     const canvas = createCanvas(W, H);
     const ctx = canvas.getContext("2d");
     ctx.textBaseline = "middle";
 
-    // ── الخلفية ──
-    const g = ctx.createLinearGradient(0, 0, W, H);
-    g.addColorStop(0, "#140408");
-    g.addColorStop(0.5, "#1d0509");
-    g.addColorStop(1, "#0a0204");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, H);
+    paintBackground(ctx, bgById(d.bg).id);
 
-    const moon = ctx.createRadialGradient(760, 150, 10, 760, 150, 230);
-    moon.addColorStop(0, "rgba(220,38,38,0.55)");
-    moon.addColorStop(0.45, "rgba(153,27,27,0.28)");
-    moon.addColorStop(1, "rgba(153,27,27,0)");
-    ctx.fillStyle = moon;
-    ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = "rgba(185,28,28,0.38)";
+    /* ── اللوحة اليسرى: الصورة + المستوى + الاسم + الألقاب ── */
+    const lx = 36, ly = 36, lw = 320, lh = H - 72;
+    glass(ctx, lx, ly, lw, lh, 30);
+    const cx = lx + lw / 2;
+    const ay = 176, ar = 82, gr = 106;
+
+    // عداد المستوى (قوس 270° حول الصورة)
+    const a0 = Math.PI * 0.75, sweep = Math.PI * 1.5;
+    ctx.lineWidth = 12;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(255,255,255,0.12)";
     ctx.beginPath();
-    ctx.arc(760, 150, 92, 0, Math.PI * 2);
-    ctx.fill();
-
-    castle(ctx);
-    for (const [x, y, s] of [[300, 90, 1], [380, 130, 0.7], [860, 70, 0.9], [980, 190, 0.6], [180, 250, 0.8], [700, 260, 0.6]] as const) bat(ctx, x, y, s);
-
-    const vg = ctx.createRadialGradient(W / 2, H / 2, 200, W / 2, H / 2, 700);
-    vg.addColorStop(0, "rgba(0,0,0,0)");
-    vg.addColorStop(1, "rgba(0,0,0,0.65)");
-    ctx.fillStyle = vg;
-    ctx.fillRect(0, 0, W, H);
-
-    // ── أقواس الزوايا ──
-    ctx.save();
-    ctx.strokeStyle = RED;
-    ctx.lineWidth = 4;
-    ctx.shadowColor = RED;
-    ctx.shadowBlur = 12;
-    const m = 18, L = 52;
-    for (const [x, y, dx, dy] of [[m, m, 1, 1], [W - m, m, -1, 1], [m, H - m, 1, -1], [W - m, H - m, -1, -1]] as const) {
-      ctx.beginPath();
-      ctx.moveTo(x, y + dy * L);
-      ctx.lineTo(x, y);
-      ctx.lineTo(x + dx * L, y);
-      ctx.stroke();
-    }
-    ctx.restore();
-
-    // ── الصورة (يسار) ──
-    const ax = 138, ay = 122, ar = 76;
-    ctx.strokeStyle = "rgba(239,68,68,0.35)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(ax, ay, ar + 14, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.save();
-    ctx.shadowColor = RED;
-    ctx.shadowBlur = 18;
-    ctx.fillStyle = RED;
-    ctx.beginPath();
-    ctx.arc(ax, ay, ar + 5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-    const img = await loadAvatar(d.avatar);
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(ax, ay, ar, 0, Math.PI * 2);
-    ctx.clip();
-    if (img) ctx.drawImage(img, ax - ar, ay - ar, ar * 2, ar * 2);
-    else {
-      ctx.fillStyle = "#2a0a0f";
-      ctx.fillRect(ax - ar, ay - ar, ar * 2, ar * 2);
-    }
-    ctx.restore();
-
-    // ── الاسم ──
-    ctx.textAlign = "left";
-    ctx.fillStyle = "#ffffff";
-    icon(ctx, "level", 262, 70, 26, "#ffffff");
-    fit(ctx, d.name, family, 46, 470);
-    ctx.save();
-    ctx.shadowColor = "rgba(239,68,68,0.6)";
-    ctx.shadowBlur = 10;
-    ctx.fillText(d.name, 290, 70);
-    ctx.restore();
-
-    // ── شريط الألقاب (وظيفة/شركة/زواج) ──
-    const sx = 238, sy = 120, sw = 558, sh = 54;
-    panel(ctx, sx, sy, sw, sh);
-    const cw = sw / Math.max(1, d.tags.length);
-    d.tags.forEach((t, i) => {
-      const cx = sx + sw - cw * i - cw / 2;
-      if (i > 0) {
-        ctx.strokeStyle = "rgba(239,68,68,0.25)";
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(sx + sw - cw * i, sy + 10);
-        ctx.lineTo(sx + sw - cw * i, sy + sh - 10);
-        ctx.stroke();
-      }
-      ctx.textAlign = "right";
-      ctx.fillStyle = TXT;
-      fit(ctx, t.text, family, 20, cw - 56);
-      const tw = ctx.measureText(t.text).width;
-      const total = tw + 30;
-      ctx.fillText(t.text, cx + total / 2 - 28, sy + sh / 2 + 1);
-      icon(ctx, t.icon, cx + total / 2 - 10, sy + sh / 2, 20, RED);
-    });
-
-    // ── حلقة المستوى (يمين) ──
-    const rx = 950, ry = 122, rr0 = 80;
-    ctx.lineWidth = 13;
-    ctx.strokeStyle = "rgba(255,255,255,0.08)";
-    ctx.beginPath();
-    ctx.arc(rx, ry, rr0, 0, Math.PI * 2);
+    ctx.arc(cx, ay, gr, a0, a0 + sweep);
     ctx.stroke();
     const pct = Math.max(0, Math.min(1, d.need > 0 ? d.xp / d.need : 0));
     if (pct > 0) {
       ctx.save();
-      const rg = ctx.createLinearGradient(rx - rr0, ry - rr0, rx + rr0, ry + rr0);
-      rg.addColorStop(0, "#f87171");
-      rg.addColorStop(1, RED_D);
-      ctx.strokeStyle = rg;
-      ctx.lineCap = "round";
-      ctx.shadowColor = RED;
+      ctx.strokeStyle = accent;
+      ctx.shadowColor = accent;
       ctx.shadowBlur = 16;
       ctx.beginPath();
-      ctx.arc(rx, ry, rr0, -Math.PI / 2, -Math.PI / 2 + pct * Math.PI * 2);
+      ctx.arc(cx, ay, gr, a0, a0 + sweep * pct);
       ctx.stroke();
       ctx.restore();
     }
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#ffffff";
-    fit(ctx, String(d.level), family, 58, 100);
-    ctx.fillText(String(d.level), rx, ry - 12);
-    ctx.fillStyle = "#f87171";
-    ctx.font = `700 18px "${family}"`;
-    ctx.fillText("المستوى", rx, ry + 26);
-    ctx.fillStyle = MUTED;
-    ctx.font = `700 13px "${family}"`;
-    ctx.fillText(`${d.xp.toLocaleString("en-US")} / ${d.need.toLocaleString("en-US")}`, rx, ry + 46);
 
-    // ── شريط التصنيفات ──
-    const ry0 = 218, rh = 72, rx0 = 40, rw = W - 80;
-    panel(ctx, rx0, ry0, rw, rh);
-    const rcw = rw / Math.max(1, d.ranks.length);
-    d.ranks.forEach((r, i) => {
-      const cx = rx0 + rw - rcw * i - rcw / 2;
-      if (i > 0) {
-        ctx.strokeStyle = "rgba(239,68,68,0.25)";
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(rx0 + rw - rcw * i, ry0 + 10);
-        ctx.lineTo(rx0 + rw - rcw * i, ry0 + rh - 10);
-        ctx.stroke();
-      }
-      ctx.textAlign = "center";
-      ctx.fillStyle = TXT;
-      ctx.font = `700 19px "${family}"`;
-      ctx.fillText(r.label, cx, ry0 + 22);
-      ctx.fillStyle = "#ffffff";
-      ctx.font = `700 34px "${family}"`;
-      const vw = ctx.measureText(r.value).width;
-      ctx.fillText(r.value, cx + 14, ry0 + 52);
-      icon(ctx, r.icon, cx - vw / 2 - 12, ry0 + 52, 26, RED);
+    const img = await loadAvatar(d.avatar);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, ay, ar, 0, Math.PI * 2);
+    ctx.clip();
+    if (img) ctx.drawImage(img, cx - ar, ay - ar, ar * 2, ar * 2);
+    else {
+      ctx.fillStyle = "#1f2937";
+      ctx.fillRect(cx - ar, ay - ar, ar * 2, ar * 2);
+    }
+    ctx.restore();
+
+    // شارة المستوى بين طرفي القوس
+    const bw = 168, bh = 46, by = ay + gr + 2;
+    ctx.save();
+    ctx.shadowColor = accent;
+    ctx.shadowBlur = 14;
+    ctx.fillStyle = accent;
+    rrect(ctx, cx - bw / 2, by - bh / 2, bw, bh, 23);
+    ctx.fill();
+    ctx.restore();
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#0b0b10";
+    ctx.font = `800 24px "${family}"`;
+    ctx.fillText(`المستوى ${d.level}`, cx, by + 1);
+
+    ctx.fillStyle = "#cbd5e1";
+    ctx.font = `700 16px "${family}"`;
+    ctx.fillText(`${d.xp.toLocaleString("en-US")} / ${d.need.toLocaleString("en-US")} XP`, cx, by + 40);
+
+    // الاسم
+    ctx.fillStyle = "#ffffff";
+    fit(ctx, d.name, family, 36, lw - 40);
+    ctx.fillText(d.name, cx, by + 84);
+
+    // الألقاب (شرائح عمودية)
+    const chipW = lw - 40, chipH = 44;
+    d.tags.slice(0, 3).forEach((t, i) => {
+      const y = by + 118 + i * (chipH + 10);
+      rrect(ctx, lx + 20, y, chipW, chipH, 14);
+      ctx.fillStyle = "rgba(255,255,255,0.07)";
+      ctx.fill();
+      icon(ctx, t.icon, lx + 20 + chipW - 26, y + chipH / 2, 20, accent);
+      ctx.textAlign = "right";
+      ctx.fillStyle = "#f1f5f9";
+      fit(ctx, t.text, family, 20, chipW - 66);
+      ctx.fillText(t.text, lx + 20 + chipW - 50, y + chipH / 2 + 1);
     });
 
-    // ── البطاقات (4 × صفين) ──
-    const gap = 14;
-    const tw = (W - 80 - gap * 3) / 4;
-    const th = 146;
-    d.tiles.slice(0, 8).forEach((t, i) => {
-      const col = i % 4, rw2 = Math.floor(i / 4);
-      const x = 40 + (3 - col) * (tw + gap);
-      const y = 308 + rw2 * (th + gap);
-      panel(ctx, x, y, tw, th);
-      icon(ctx, t.icon, x + 28, y + 30, 24, RED);
-      ctx.textAlign = "right";
-      ctx.fillStyle = TXT;
-      ctx.font = `700 21px "${family}"`;
-      ctx.fillText(t.label, x + tw - 20, y + 30);
+    /* ── المنطقة اليمنى ── */
+    const rx = lx + lw + 20;
+    const rw = W - 36 - rx;
+
+    // التصنيفات (4 شرائح)
+    const gapR = 12;
+    const cw = (rw - gapR * 3) / 4;
+    d.ranks.slice(0, 4).forEach((r, i) => {
+      const x = rx + rw - (i + 1) * cw - i * gapR;
+      glass(ctx, x, 36, cw, 92, 20);
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#cbd5e1";
+      ctx.font = `700 17px "${family}"`;
+      ctx.fillText(r.label, x + cw / 2, 36 + 26);
       ctx.fillStyle = "#ffffff";
-      fit(ctx, t.value, family, 38, tw - 40);
-      ctx.fillText(t.value, x + tw - 20, y + 74);
+      ctx.font = `800 32px "${family}"`;
+      const vw = ctx.measureText(r.value).width;
+      ctx.fillText(r.value, x + cw / 2 + 14, 36 + 64);
+      icon(ctx, r.icon, x + cw / 2 - vw / 2 - 8, 36 + 64, 24, accent);
+    });
+
+    // البطاقات (2 عمود × 4 صفوف)
+    const top = 144;
+    const th = (H - 36 - top - 3 * gapR) / 4;
+    const tw = (rw - gapR) / 2;
+    d.tiles.slice(0, 8).forEach((t, i) => {
+      const col = i % 2, row = Math.floor(i / 2);
+      const x = rx + (1 - col) * (tw + gapR);
+      const y = top + row * (th + gapR);
+      glass(ctx, x, y, tw, th, 22);
+
+      // مربع الأيقونة (يمين)
+      const isz = 50;
+      const ix = x + tw - 16 - isz, iy = y + 16;
+      rrect(ctx, ix, iy, isz, isz, 14);
+      ctx.fillStyle = "rgba(255,255,255,0.08)";
+      ctx.fill();
+      icon(ctx, t.icon, ix + isz / 2, iy + isz / 2, 26, accent);
+
+      const textRight = ix - 14;
+      const textW = textRight - (x + 16);
+      ctx.textAlign = "right";
+      ctx.fillStyle = "#cbd5e1";
+      ctx.font = `700 18px "${family}"`;
+      ctx.fillText(t.label, textRight, y + 25);
+      ctx.fillStyle = "#ffffff";
+      fit(ctx, t.value, family, 34, textW);
+      ctx.fillText(t.value, textRight, y + 56);
       if (t.sub) {
-        ctx.fillStyle = MUTED;
-        fit(ctx, t.sub, family, 18, tw - 40);
-        ctx.fillText(t.sub, x + tw - 20, y + 104);
+        ctx.fillStyle = "#94a3b8";
+        fit(ctx, t.sub, family, 16, tw - 32);
+        ctx.fillText(t.sub, x + tw - 16, y + 81);
       }
-      // الشريط
-      const bx = x + 20, bw = tw - 40, by = y + th - 22;
-      ctx.fillStyle = "rgba(255,255,255,0.1)";
-      ctx.fillRect(bx, by, bw, 6);
-      if (t.bar && t.bar > 0) {
-        const bg2 = ctx.createLinearGradient(bx, 0, bx + bw, 0);
-        bg2.addColorStop(0, RED_D);
-        bg2.addColorStop(1, "#f87171");
-        ctx.fillStyle = bg2;
-        ctx.fillRect(bx, by, bw * Math.min(1, t.bar), 6);
-      }
+      progressLine(ctx, x + 16, y + th - 13, tw - 32, t.bar ?? 0, accent);
     });
 
     return await canvas.encode("png");
