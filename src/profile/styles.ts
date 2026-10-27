@@ -1,15 +1,4 @@
-/** استوديو الخلفيات (تُرسم بالكود) وألوان الخطوط والمستوى */
-export const BACKGROUNDS = [
-  { id: "midnight", name: "منتصف الليل", desc: "سماء داكنة بنجوم" },
-  { id: "sunset", name: "غروب", desc: "شمس بين البنفسجي والبرتقالي" },
-  { id: "forest", name: "غابة", desc: "تلال خضراء هادئة" },
-  { id: "ocean", name: "محيط", desc: "أمواج بحرية" },
-  { id: "rose", name: "وردي", desc: "فقاعات ضوء وردية" },
-  { id: "gold", name: "ذهبي", desc: "خطوط ذهبية على الأسود" },
-  { id: "carbon", name: "كربون", desc: "أسود عصري منقّط" },
-  { id: "aurora", name: "شفق", desc: "أضواء قطبية ملوّنة" },
-] as const;
-
+/** ألوان الخطوط والمستوى */
 export const COLORS = [
   { id: "sky", name: "سماوي", hex: "#38bdf8" },
   { id: "red", name: "أحمر", hex: "#ef4444" },
@@ -21,5 +10,4 @@ export const COLORS = [
   { id: "pink", name: "وردي", hex: "#f472b6" },
 ] as const;
 
-export const bgById = (id: string) => BACKGROUNDS.find((b) => b.id === id) ?? BACKGROUNDS[0];
 export const colorById = (id: string) => COLORS.find((c) => c.id === id) ?? COLORS[0];
