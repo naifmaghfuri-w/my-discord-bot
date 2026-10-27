@@ -1,17 +1,18 @@
 import { Schema, model } from "mongoose";
 
-/** تخصيص بطاقة !ملفي (الخلفية واللون) لكل عضو */
+/** تخصيص بطاقة !ملفي (صورة الخلفية واللون) لكل عضو */
 export interface IProfileStyle {
   guildId: string;
   userId: string;
-  bg: string;
+  /** صورة الخلفية اللي رفعها العضو (JPEG مصغّر) */
+  bgImage?: Buffer | null;
   color: string;
 }
 
 const schema = new Schema<IProfileStyle>({
   guildId: { type: String, required: true },
   userId: { type: String, required: true },
-  bg: { type: String, default: "midnight" },
+  bgImage: { type: Buffer, default: null },
   color: { type: String, default: "sky" },
 });
 schema.index({ guildId: 1, userId: 1 }, { unique: true });
