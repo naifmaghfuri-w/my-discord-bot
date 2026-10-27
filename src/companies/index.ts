@@ -1,6 +1,6 @@
 import {
-  ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle,
-  type BaseMessageOptions, type ButtonInteraction, type Client, type Interaction, type Message, type ModalSubmitInteraction, type StringSelectMenuInteraction,
+  ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle, UserSelectMenuBuilder,
+  type BaseMessageOptions, type ButtonInteraction, type Client, type Interaction, type Message, type ModalSubmitInteraction, type StringSelectMenuInteraction, type UserSelectMenuInteraction,
 } from "discord.js";
 import { jenny } from "../constants";
 import { Company, CompanyApplication, CompanyBot, CompanyComplaint, CompanyLog, CompanyMember, CompanyPosting, CompanyReport, type ICompany, type ICompanyMember } from "../database/models/Company";
@@ -493,7 +493,7 @@ export async function handleCompanyWorkMessage(message: Message, kind: "work" | 
 /* ───────────── التفاعلات ───────────── */
 
 export async function handleCompanyInteraction(i: Interaction): Promise<boolean> {
-  if (!(i.isButton() || i.isModalSubmit() || i.isStringSelectMenu())) return false;
+  if (!(i.isButton() || i.isModalSubmit() || i.isStringSelectMenu() || i.isUserSelectMenu())) return false;
   if (!i.customId.startsWith("co|")) return false;
   if (!i.inGuild()) return true;
   try {
@@ -505,7 +505,7 @@ export async function handleCompanyInteraction(i: Interaction): Promise<boolean>
   return true;
 }
 
-type AnyI = ButtonInteraction | ModalSubmitInteraction | StringSelectMenuInteraction;
+type AnyI = ButtonInteraction | ModalSubmitInteraction | StringSelectMenuInteraction | UserSelectMenuInteraction;
 
 async function ctxOf(i: AnyI, cid: string) {
   const guildId = i.guildId as string;
@@ -905,12 +905,37 @@ async function route(i: AnyI): Promise<void> {
   /* --- قائمة سرقة الحرامي (!سرقة) --- */
   if (act === "thf" && i.isButton()) {
     if (uid !== a) return void (await say("❌ هذي مو قائمتك. اكتب `!سرقة`."));
+    if (b === "member") {
+      const pick = new UserSelectMenuBuilder().setCustomId(`co|thfu|${uid}|${i.message.id}`).setPlaceholder("اختر العضو اللي تبي تسرقه").setMinValues(1).setMaxValues(1);
+      return void (await i.reply({ content: "🎯 اختر العضو اللي تسرقه:", components: [new ActionRowBuilder<UserSelectMenuBuilder>().addComponents(pick)], ...eph }));
+    }
+    if (b === "company") {
+      const list = await Company.find({ guildId }, { name: 1 }).sort({ budget: -1 }).limit(25);
+      if (list.length === 0) return void (await say("❌ ما فيه شركات في السيرفر الحين."));
+      const pick = new StringSelectMenuBuilder()
+        .setCustomId(`co|thfc|${uid}|${i.message.id}`)
+        .setPlaceholder("اختر الشركة اللي تسرقها")
+        .addOptions(list.map((x) => ({ label: x.name.slice(0, 100), value: idOf(x) })));
+      return void (await i.reply({ content: "🎯 اختر الشركة اللي تسرقها:", components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(pick)], ...eph }));
+    }
     await i.deferUpdate();
     const result = await runThief(uid, guildId, b as ThiefAction, i.client);
     return void (await i.editReply({ ...(await buildThiefMenu(uid, guildId, result)), attachments: [] }));
   }
 
   /* --- قائمة الطلبات: طلبات التوظيف المعلقة ومتقدميها --- */
+  if ((act === "thfu" && i.isUserSelectMenu()) || (act === "thfc" && i.isStringSelectMenu())) {
+    if (uid !== a) return void (await say("❌ هذي مو قائمتك. اكتب `!سرقة`."));
+    const target = i.values[0];
+    await i.update({ content: "⏳ جاري التنفيذ...", components: [] });
+    const result = await runThief(uid, guildId, act === "thfu" ? "member" : "company", i.client, target);
+    const view = { ...(await buildThiefMenu(uid, guildId, result)), attachments: [] };
+    const menuMsg = await i.channel?.messages.fetch(b).catch(() => null);
+    if (menuMsg) await menuMsg.edit(view).catch(() => undefined);
+    else if (i.channel && "send" in i.channel) await i.channel.send(view).catch(() => undefined);
+    return void (await i.editReply({ content: "✅ تمت العملية.", components: [] }));
+  }
+
   if (act === "reqs" && (i.isButton() || i.isStringSelectMenu())) {
     const { me } = await ctxOf(i, a);
     if (!me || !isBoss(me)) return void (await say("❌ هذا للإدارة فقط."));
