@@ -374,7 +374,7 @@ export async function renderProfile(d: ProfileData): Promise<Buffer | null> {
 
       // مربع الأيقونة (يمين)
       const isz = 50;
-      const ix = x + tw - 16 - isz, iy = y + 16;
+      const ix = x + tw - 16 - isz, iy = y + (th - 26 - isz) / 2 + 6;
       rrect(ctx, ix, iy, isz, isz, 14);
       ctx.fillStyle = "rgba(255,255,255,0.08)";
       ctx.fill();
@@ -385,10 +385,10 @@ export async function renderProfile(d: ProfileData): Promise<Buffer | null> {
       ctx.textAlign = "right";
       ctx.fillStyle = "#cbd5e1";
       ctx.font = `700 18px "${family}"`;
-      ctx.fillText(t.label, textRight, y + 25);
+      ctx.fillText(t.label, textRight, iy + 10);
       ctx.fillStyle = "#ffffff";
-      fit(ctx, t.value, family, 34, textW);
-      ctx.fillText(t.value, textRight, y + 56);
+      fit(ctx, t.value, family, t.sub ? 34 : 40, textW);
+      ctx.fillText(t.value, textRight, iy + 42);
       if (t.sub) {
         ctx.fillStyle = "#94a3b8";
         fit(ctx, t.sub, family, 16, tw - 32);
