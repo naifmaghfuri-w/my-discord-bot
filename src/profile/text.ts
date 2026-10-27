@@ -59,21 +59,17 @@ async function buildProfile(guild: Guild, targetId: string): Promise<{ png: Buff
 
   // الوظيفة
   const jobDef = jp?.jobId ? JOB_MAP[jp.jobId] : undefined;
-  const jobRank = jobDef && jobDef.kind !== "thief" ? (jobDef.ranks[jp?.rank ?? 0]?.title ?? "") : "";
   const jobBar = jobDef && jobDef.ranks.length > 1 ? ((jp?.rank ?? 0) + 1) / jobDef.ranks.length : undefined;
 
   // الشركة
   let companyName = "بدون شركة";
-  let companyTitle: string | undefined;
   if (cm) {
     const c = await Company.findById(cm.companyId, { name: 1 });
     companyName = c?.name ?? "شركة";
-    companyTitle = cm.title;
   }
 
   // الزواج
   let spouse = "غير متزوج";
-  let marriageSub: string | undefined;
   let loveBar: number | undefined;
   if (marriages.length > 0) {
     const mm = marriages[0];
@@ -82,7 +78,6 @@ async function buildProfile(guild: Guild, targetId: string): Promise<{ png: Buff
     const days = Math.max(0, Math.floor((Date.now() - new Date(mm.createdAt).getTime()) / 86_400_000));
     const love = lovePercent(mm.lovePoints ?? (mm.flowers ?? 0) * ITEMS.flower.love, days);
     spouse = sp?.displayName ?? "عضو غادر";
-    marriageSub = `نسبة الحب ${love}%${marriages.length > 1 ? `  ·  +${marriages.length - 1}` : ""}`;
     loveBar = Math.min(1, love / 100);
   }
 
@@ -117,14 +112,14 @@ async function buildProfile(guild: Guild, targetId: string): Promise<{ png: Buff
     bgImage: style?.bgImage ?? null,
     color: style?.color ?? "sky",
     tiles: [
-      { icon: "star", label: "إجمالي الثروة", value: fmt(total + estateValue), sub: estateValue > 0 ? `منها عقارات ${fmt(estateValue)}` : undefined, bar: total + estateValue > 0 ? total / (total + estateValue) : undefined },
-      { icon: "coin", label: "المحفظة", value: fmt(coins), sub: `البنك ${fmt(bank)}`, bar: total > 0 ? coins / total : undefined },
-      { icon: "chat", label: "الرسائل", value: fmt(msgs), sub: `المستوى ${level}` },
+      { icon: "star", label: "إجمالي الثروة", value: fmt(total + estateValue), bar: total + estateValue > 0 ? total / (total + estateValue) : undefined },
+      { icon: "coin", label: "المحفظة", value: fmt(coins), bar: total > 0 ? coins / total : undefined },
+      { icon: "chat", label: "الرسائل", value: fmt(msgs) },
       { icon: "flame", label: "الستريك", value: `${p?.streak ?? 0} يوم`, bar: Math.min(1, (p?.streak ?? 0) / 30) },
-      { icon: "bag", label: "الوظيفة", value: jobDef ? jobDef.name : "عاطل", sub: jobRank || undefined, bar: jobBar },
-      { icon: "building", label: "الشركة", value: companyName, sub: companyTitle },
-      { icon: "heart", label: "الزواج", value: spouse, sub: marriageSub, bar: loveBar },
-      { icon: "home", label: "العقارات", value: estateCount > 0 ? `${estateCount} ${estateCount === 1 ? "عقار" : "عقارات"}` : "لا يوجد", sub: estateCount > 0 ? `قيمتها ${fmt(estateValue)}` : undefined },
+      { icon: "bag", label: "الوظيفة", value: jobDef ? jobDef.name : "عاطل", bar: jobBar },
+      { icon: "building", label: "الشركة", value: companyName },
+      { icon: "heart", label: "الزواج", value: spouse, bar: loveBar },
+      { icon: "home", label: "العقارات", value: estateCount > 0 ? `${estateCount} ${estateCount === 1 ? "عقار" : "عقارات"}` : "لا يوجد" },
     ],
   });
   return { png, fallback: `**${member.displayName}** — المستوى ${level} • الرصيد ${fmt(coins)} • البنك ${fmt(bank)}` };
