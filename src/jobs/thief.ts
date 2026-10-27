@@ -14,14 +14,14 @@ const MIN = 60_000;
 
 export const THIEF = {
   jobId: "thief",
-  /** عضو عشوائي: ياخذ اللي في محفظته (الحد الأعلى 100) */
+  /** عضو تختاره: ياخذ اللي في محفظته (الحد الأعلى 100) */
   member: { max: 100, cooldownMs: 90 * MIN },
-  /** شركة عشوائية: بدون حارس يسرق من ميزانيتها، وبحارس يُمسك ويدفع تعويض */
+  /** شركة تختارها: بدون حارس يسرق من ميزانيتها، وبحارس يُمسك ويدفع تعويض */
   company: { steal: 150, fine: 50, cooldownMs: 150 * MIN },
   /** الحارس يحسب فقط لو داوم خلال هذي المدة */
   guardActiveMs: 5 * 60 * MIN,
   /** محل صغير */
-  shop: { gain: 50, cooldownMs: 30 * MIN },
+  shop: { min: 20, max: 30, cooldownMs: 30 * MIN },
   /** السجن بعد الإمساك مرتين ورا بعض: ساعة ونص أو كفالة */
   jail: { catches: 2, ms: 90 * MIN, bail: 100 },
 } as const;
@@ -59,7 +59,7 @@ export async function buildThiefMenu(userId: string, guildId: string, result?: T
   const jail = await jailLeft(userId, guildId);
   const btn = (a: "member" | "company" | "shop", label: string) =>
     new ButtonBuilder().setCustomId(`co|thf|${userId}|${a}`).setLabel(label).setStyle(ButtonStyle.Danger).setDisabled(cd[a] > 0 || jail > 0);
-  const components = [new ActionRowBuilder<ButtonBuilder>().addComponents(btn("member", "عضو عشوائي"), btn("company", "شركة عشوائية"), btn("shop", "محل صغير"))];
+  const components = [new ActionRowBuilder<ButtonBuilder>().addComponents(btn("member", "سرقة عضو"), btn("company", "سرقة شركة"), btn("shop", "محل صغير"))];
   if (jail > 0) components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`co|thf|${userId}|bail`).setLabel(`ادفع ${THIEF.jail.bail} واطلع`).setStyle(ButtonStyle.Success)));
 
   let png: Buffer | null = null;
@@ -73,9 +73,9 @@ export async function buildThiefMenu(userId: string, guildId: string, result?: T
   }
   if (!png && !(result && result.kind === "info" && result.text)) {
     const rows = [
-      { place: "عضو عشوائي", max: THIEF.member.max, wait: cd.member > 0 ? fmtMs(Math.max(MIN, cd.member)) : null },
-      { place: "شركة عشوائية", max: THIEF.company.steal, wait: cd.company > 0 ? fmtMs(Math.max(MIN, cd.company)) : null },
-      { place: "محل صغير", max: THIEF.shop.gain, wait: cd.shop > 0 ? fmtMs(Math.max(MIN, cd.shop)) : null },
+      { place: "عضو", max: THIEF.member.max, wait: cd.member > 0 ? fmtMs(Math.max(MIN, cd.member)) : null },
+      { place: "شركة", max: THIEF.company.steal, wait: cd.company > 0 ? fmtMs(Math.max(MIN, cd.company)) : null },
+      { place: "محل صغير", max: THIEF.shop.max, wait: cd.shop > 0 ? fmtMs(Math.max(MIN, cd.shop)) : null },
     ];
     png = await renderThiefMenu(rows);
     name = "thief.png";
@@ -83,7 +83,7 @@ export async function buildThiefMenu(userId: string, guildId: string, result?: T
   const embed = new EmbedBuilder().setColor(0x2c2f33);
   if (result?.kind === "info" && result.text) embed.setDescription(result.text);
   else if (png) embed.setImage(`attachment://${name}`);
-  else embed.setTitle("اختر سرقتك").setDescription(`عضو عشوائي — حد أقصى ${jenny(THIEF.member.max)}\nشركة عشوائية — حد أقصى ${jenny(THIEF.company.steal)}\nمحل صغير — حد أقصى ${jenny(THIEF.shop.gain)}`);
+  else embed.setTitle("اختر سرقتك").setDescription(`عضو — حد أقصى ${jenny(THIEF.member.max)}\nشركة — حد أقصى ${jenny(THIEF.company.steal)}\nمحل صغير — من ${THIEF.shop.min} إلى ${THIEF.shop.max}`);
   return { content: "", embeds: [embed], files: png ? [new AttachmentBuilder(png, { name })] : [], components };
 }
 
@@ -106,7 +106,7 @@ async function payThief(userId: string, guildId: string, amount: number): Promis
 }
 
 /** ينفّذ السرقة ويرجع نص النتيجة */
-export async function runThief(userId: string, guildId: string, action: ThiefAction, client?: Client): Promise<ThiefResult> {
+export async function runThief(userId: string, guildId: string, action: ThiefAction, client?: Client, target?: string): Promise<ThiefResult> {
   const info = (text: string): ThiefResult => ({ kind: "info", text });
   const jp = await getJob(userId, guildId);
   if (jp.jobId !== THIEF.jobId) return info("❌ هذي القائمة للحرامية فقط.");
@@ -138,31 +138,34 @@ export async function runThief(userId: string, guildId: string, action: ThiefAct
   const revert = () => ThiefState.updateOne({ userId, guildId }, { $set: { [action]: before[action] ?? null } });
   await JobProfile.updateOne({ userId, guildId }, { $set: { lastActiveAt: new Date(now) }, $inc: { shifts: 1 } }).catch(() => undefined);
 
-  /* ----- عضو عشوائي ----- */
+  /* ----- عضو تختاره ----- */
   if (action === "member") {
-    const cands = await UserProfile.aggregate<{ userId: string; coins: number }>([
-      { $match: { guildId, userId: { $ne: userId }, coins: { $gte: 1 } } },
-      { $sample: { size: 8 } },
-    ]);
-    for (const c of cands) {
-      const take = Math.min(THIEF.member.max, c.coins);
-      const ok = await UserProfile.findOneAndUpdate({ userId: c.userId, guildId, coins: { $gte: take } }, { $inc: { coins: -take } });
-      if (ok) {
-        await payThief(userId, guildId, take);
-        const gm = await client?.guilds.cache.get(guildId)?.members.fetch(c.userId).catch(() => null);
-        return { kind: "success", place: gm?.displayName ?? "عضو", amount: take };
-      }
+    if (!target || target === userId) {
+      await revert();
+      return info("❌ اختر عضو غيرك (ما انحسبت عليك مهلة).");
     }
-    await revert();
-    return info("دورت وما لقيت عضو معه فلوس. جرّب بعدين (ما انحسبت عليك مهلة).");
+    const gm = await client?.guilds.cache.get(guildId)?.members.fetch(target).catch(() => null);
+    if (!gm || gm.user.bot) {
+      await revert();
+      return info("❌ اختر عضو صالح (ما انحسبت عليك مهلة).");
+    }
+    const prof = await UserProfile.findOne({ userId: target, guildId }, { coins: 1 });
+    const take = Math.min(THIEF.member.max, prof?.coins ?? 0);
+    const ok = take > 0 ? await UserProfile.findOneAndUpdate({ userId: target, guildId, coins: { $gte: take } }, { $inc: { coins: -take } }) : null;
+    if (!ok) {
+      await revert();
+      return info(`**${gm.displayName}** ما معه فلوس في محفظته. اختر غيره (ما انحسبت عليك مهلة).`);
+    }
+    await payThief(userId, guildId, take);
+    return { kind: "success", place: gm.displayName, amount: take };
   }
 
-  /* ----- شركة عشوائية ----- */
+  /* ----- شركة تختارها ----- */
   if (action === "company") {
-    const [c] = await Company.aggregate<{ _id: unknown; name: string; budget: number }>([{ $match: { guildId } }, { $sample: { size: 1 } }, { $project: { name: 1, budget: 1 } }]);
+    const c = target && /^[a-f\d]{24}$/i.test(target) ? await Company.findOne({ _id: target, guildId }, { name: 1, budget: 1 }) : null;
     if (!c) {
       await revert();
-      return info("ما فيه شركات في السيرفر الحين (ما انحسبت عليك مهلة).");
+      return info("❌ اختر شركة صالحة (ما انحسبت عليك مهلة).");
     }
     const cid = String(c._id);
     const guarded = await CompanyMember.exists({ companyId: cid, title: GUARD_TITLE, lastShiftAt: { $gte: new Date(Date.now() - THIEF.guardActiveMs) } });
@@ -196,6 +199,7 @@ export async function runThief(userId: string, guildId: string, action: ThiefAct
   }
 
   /* ----- محل صغير ----- */
-  await payThief(userId, guildId, THIEF.shop.gain);
-  return { kind: "success", place: "محل صغير", amount: THIEF.shop.gain };
+  const gain = THIEF.shop.min + Math.floor(Math.random() * (THIEF.shop.max - THIEF.shop.min + 1));
+  await payThief(userId, guildId, gain);
+  return { kind: "success", place: "محل صغير", amount: gain };
 }
