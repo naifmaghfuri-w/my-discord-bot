@@ -115,7 +115,7 @@ async function buildProfile(guild: Guild, targetId: string): Promise<{ png: Buff
       { icon: "star", label: "إجمالي الثروة", value: fmt(total + estateValue), bar: total + estateValue > 0 ? total / (total + estateValue) : undefined },
       { icon: "coin", label: "المحفظة", value: fmt(coins), bar: total > 0 ? coins / total : undefined },
       { icon: "chat", label: "الرسائل", value: fmt(msgs) },
-      { icon: "flame", label: "الستريك", value: `${p?.streak ?? 0} يوم`, bar: Math.min(1, (p?.streak ?? 0) / 30) },
+      { icon: "bank", label: "البنك", value: fmt(bank), bar: total > 0 ? bank / total : undefined },
       { icon: "bag", label: "الوظيفة", value: jobDef ? jobDef.name : "عاطل", bar: jobBar },
       { icon: "building", label: "الشركة", value: companyName },
       { icon: "heart", label: "الزواج", value: spouse, bar: loveBar },
