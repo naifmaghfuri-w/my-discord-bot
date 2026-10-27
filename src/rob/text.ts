@@ -11,8 +11,27 @@ import { jenny } from "../constants";
 import { logger } from "../utils/logger";
 import { TRAP_FEE, resolveRob, startRob, type Outcome } from "./service";
 
-/** "!نهب @شخص" */
-export const ROB_TRIGGER = /^!\s*نهب\s+<@!?(\d+)>$/;
+/** "!نهب @شخص" أو "!نهب 123456789" أو "!نهب اسم_اليوزر" */
+export const ROB_TRIGGER = /^!\s*نهب\s+(\S.*)$/;
+
+/** يحوّل منشن / ايدي / يوزر (أو اسم العرض) إلى ايدي عضو في السيرفر */
+async function resolveVictimId(message: Message<true>, query: string): Promise<string | null> {
+  const q = query.trim();
+  const mention = /^<@!?(\d{15,21})>$/.exec(q);
+  if (mention) return mention[1];
+  if (/^\d{15,21}$/.test(q)) return q;
+
+  const name = q.replace(/^@/, "").trim().toLowerCase();
+  if (!name) return null;
+  const members = message.guild.members;
+  const match = (m: { user: { username: string; globalName?: string | null }; displayName: string }) =>
+    m.user.username.toLowerCase() === name || m.displayName.toLowerCase() === name || (m.user.globalName ?? "").toLowerCase() === name;
+  const cached = members.cache.find((m) => !m.user.bot && match(m));
+  if (cached) return cached.id;
+  const found = await members.search({ query: name, limit: 10 }).catch(() => null);
+  const hit = found?.find((m) => !m.user.bot && match(m)) ?? (found && found.filter((m) => !m.user.bot).size === 1 ? found.find((m) => !m.user.bot) : undefined);
+  return hit?.id ?? null;
+}
 
 const PICK_MS = 30 * 1000;
 const NO_PINGS = { parse: [] as never[] };
@@ -50,15 +69,17 @@ function buttons(id: string, layout: Outcome[], picked?: number): ActionRowBuild
   return [row];
 }
 
-export async function handleRobMessage(message: Message<true>, victimId: string): Promise<void> {
+export async function handleRobMessage(message: Message<true>, query: string): Promise<void> {
   const robberId = message.author.id;
   const guildId = message.guildId;
   const reply = (content: string) =>
     message.reply({ content, allowedMentions: { parse: [], repliedUser: false } }).catch(() => undefined);
 
-  const victim = await message.client.users.fetch(victimId).catch(() => null);
-  if (!victim || victim.bot) {
-    await reply("❌ ما لقيت هذا العضو.");
+  const victimId = await resolveVictimId(message, query);
+  const victim = victimId ? await message.client.users.fetch(victimId).catch(() => null) : null;
+  const inGuild = victimId ? await message.guild.members.fetch(victimId).then(() => true).catch(() => false) : false;
+  if (!victimId || !victim || victim.bot || !inGuild) {
+    await reply("❌ ما لقيت هذا العضو. اكتب منشنه أو الايدي أو اليوزر.");
     return;
   }
 
