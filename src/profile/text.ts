@@ -11,7 +11,7 @@ import {
   type StringSelectMenuInteraction,
 } from "discord.js";
 import { ProfileStyle } from "../database/models/ProfileStyle";
-import { BACKGROUNDS, COLORS, bgById, colorById } from "./styles";
+import { COLORS, colorById } from "./styles";
 import { Company, CompanyMember } from "../database/models/Company";
 import { Inventory } from "../database/models/Inventory";
 import { JobProfile } from "../database/models/JobProfile";
@@ -21,7 +21,7 @@ import { JOB_MAP } from "../jobs/data";
 import { xpNeeded } from "../services/economy";
 import { ESTATE_IDS, ITEMS, lovePercent } from "../shop/data";
 import { ThiefState } from "../database/models/ThiefState";
-import { renderProfile } from "./card";
+import { makeBackground, renderProfile } from "./card";
 
 export const PROFILE_TRIGGER = /^!\s*(?:ملفي|ملف)(?:\s+<@!?(\d+)>)?$/;
 
@@ -114,7 +114,7 @@ async function buildProfile(guild: Guild, targetId: string): Promise<{ png: Buff
       { label: "تصنيف الرسائل", value: `#${msgAhead + 1}`, icon: "chat" },
       { label: "تصنيف الحرامية", value: thiefAhead < 0 ? "-" : `#${thiefAhead + 1}`, icon: "dagger" },
     ],
-    bg: style?.bg ?? "midnight",
+    bgImage: style?.bgImage ?? null,
     color: style?.color ?? "sky",
     tiles: [
       { icon: "star", label: "إجمالي الثروة", value: fmt(total + estateValue), sub: estateValue > 0 ? `منها عقارات ${fmt(estateValue)}` : undefined, bar: total + estateValue > 0 ? total / (total + estateValue) : undefined },
@@ -156,7 +156,7 @@ export async function handleProfileMessage(message: Message<true>): Promise<void
 
 const eph = { flags: MessageFlags.Ephemeral } as const;
 
-/** أزرار تغيير الخلفية/اللون وقوائمها (pf|...) */
+/** أزرار تغيير الخلفية (صورتك) واللون (pf|...) */
 export async function handleProfileComponent(i: ButtonInteraction | StringSelectMenuInteraction): Promise<boolean> {
   if (!i.customId.startsWith("pf|")) return false;
   const [, act, owner, msgId] = i.customId.split("|");
@@ -166,32 +166,76 @@ export async function handleProfileComponent(i: ButtonInteraction | StringSelect
     return true;
   }
 
-  if (i.isButton() && (act === "bg" || act === "col")) {
-    const cur = await ProfileStyle.findOne({ userId: owner, guildId: i.guildId });
-    const menu = new StringSelectMenuBuilder().setCustomId(`pf|${act}s|${owner}|${i.message.id}`);
-    if (act === "bg") {
-      menu.setPlaceholder("اختر خلفية من الاستوديو").addOptions(BACKGROUNDS.map((b) => ({ label: b.name, description: b.desc, value: b.id, default: b.id === (cur?.bg ?? "midnight") })));
-    } else {
-      menu.setPlaceholder("اختر لون الخطوط والمستوى").addOptions(COLORS.map((c) => ({ label: c.name, value: c.id, default: c.id === (cur?.color ?? "sky") })));
+  const refresh = async (guild: NonNullable<typeof i.guild>, msgId: string) => {
+    const res = await buildProfile(guild, owner);
+    if (!res?.png) return;
+    const payload = { files: [new AttachmentBuilder(res.png, { name: "profile.png" })], attachments: [], components: [styleRow(owner)] };
+    const target = await i.channel?.messages.fetch(msgId).catch(() => null);
+    if (target) await target.edit(payload).catch(() => undefined);
+    else if (i.channel && "send" in i.channel) await i.channel.send({ files: payload.files, components: payload.components }).catch(() => undefined);
+  };
+
+  // زر الخلفية: يرسل صورته بنفسه
+  if (i.isButton() && act === "bg") {
+    const ch = i.channel;
+    if (!ch || !("awaitMessages" in ch)) {
+      await i.reply({ content: "❌ تعذّر استقبال الصورة هنا.", ...eph });
+      return true;
     }
-    await i.reply({ content: act === "bg" ? "🖼️ استوديو الخلفيات:" : "🎨 ألوان الخطوط والمستوى:", components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)], ...eph });
+    const del = new ButtonBuilder().setCustomId(`pf|bgdel|${owner}|${i.message.id}`).setLabel("حذف خلفيتي").setStyle(ButtonStyle.Danger);
+    await i.reply({ content: "🖼️ ارسل صورتك في هذا الروم خلال دقيقة وتصير خلفية بطاقتك.", components: [new ActionRowBuilder<ButtonBuilder>().addComponents(del)], ...eph });
+    const got = await ch
+      .awaitMessages({ filter: (m) => m.author.id === owner && (m.attachments.some((x) => Boolean(x.contentType?.startsWith("image/"))) || /https?:\/\/\S+/.test(m.content)), max: 1, time: 60_000 })
+      .catch(() => null);
+    const msg = got?.first();
+    if (!msg) {
+      await i.editReply({ content: "⏰ انتهى الوقت بدون صورة.", components: [] }).catch(() => undefined);
+      return true;
+    }
+    const att = msg.attachments.find((x) => Boolean(x.contentType?.startsWith("image/")));
+    const url = att?.url ?? /https?:\/\/\S+/.exec(msg.content)?.[0];
+    if (att && att.size > 8 * 1024 * 1024) {
+      await i.editReply({ content: "❌ الصورة كبيرة (الحد 8 ميغا).", components: [] }).catch(() => undefined);
+      return true;
+    }
+    const res = url ? await fetch(url).catch(() => null) : null;
+    const buf = res && res.ok ? Buffer.from(await res.arrayBuffer()) : null;
+    const bgImage = buf && buf.length <= 8 * 1024 * 1024 ? await makeBackground(buf) : null;
+    if (!bgImage) {
+      await i.editReply({ content: "❌ ما قدرت أقرأ الصورة.", components: [] }).catch(() => undefined);
+      return true;
+    }
+    await ProfileStyle.updateOne({ userId: owner, guildId: i.guildId }, { $set: { bgImage } }, { upsert: true });
+    msg.delete().catch(() => undefined);
+    await refresh(i.guild, i.message.id);
+    await i.editReply({ content: "✅ تم تغيير خلفية بطاقتك.", components: [] }).catch(() => undefined);
+    return true;
+  }
+  if (i.isButton() && act === "bgdel") {
+    await i.update({ content: "⏳ جاري الحذف...", components: [] });
+    await ProfileStyle.updateOne({ userId: owner, guildId: i.guildId }, { $set: { bgImage: null } }, { upsert: true });
+    await refresh(i.guild, msgId);
+    await i.editReply({ content: "✅ انحذفت خلفيتك." });
     return true;
   }
 
-  if (i.isStringSelectMenu() && (act === "bgs" || act === "cols")) {
+  if (i.isButton() && act === "col") {
+    const cur = await ProfileStyle.findOne({ userId: owner, guildId: i.guildId }, { color: 1 });
+    const menu = new StringSelectMenuBuilder()
+      .setCustomId(`pf|cols|${owner}|${i.message.id}`)
+      .setPlaceholder("اختر لون الخطوط والمستوى")
+      .addOptions(COLORS.map((c) => ({ label: c.name, value: c.id, default: c.id === (cur?.color ?? "sky") })));
+    await i.reply({ content: "🎨 ألوان الخطوط والمستوى:", components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)], ...eph });
+    return true;
+  }
+
+  if (i.isStringSelectMenu() && act === "cols") {
     const value = i.values[0];
-    const valid = act === "bgs" ? BACKGROUNDS.some((b) => b.id === value) : COLORS.some((c) => c.id === value);
-    if (!valid) return true;
+    if (!COLORS.some((c) => c.id === value)) return true;
     await i.update({ content: "⏳ جاري التطبيق...", components: [] });
-    await ProfileStyle.updateOne({ userId: owner, guildId: i.guildId }, { $set: act === "bgs" ? { bg: value } : { color: value } }, { upsert: true });
-    const res = await buildProfile(i.guild, owner);
-    if (res?.png) {
-      const target = await i.channel?.messages.fetch(msgId).catch(() => null);
-      const payload = { files: [new AttachmentBuilder(res.png, { name: "profile.png" })], attachments: [], components: [styleRow(owner)] };
-      if (target) await target.edit(payload).catch(() => undefined);
-      else if (i.channel && "send" in i.channel) await i.channel.send({ files: payload.files, components: payload.components }).catch(() => undefined);
-    }
-    await i.editReply({ content: `✅ تم: ${act === "bgs" ? bgById(value).name : colorById(value).name}` });
+    await ProfileStyle.updateOne({ userId: owner, guildId: i.guildId }, { $set: { color: value } }, { upsert: true });
+    await refresh(i.guild, msgId);
+    await i.editReply({ content: `✅ تم: ${colorById(value).name}` });
     return true;
   }
   return true;
