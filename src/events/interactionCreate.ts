@@ -15,7 +15,6 @@ import { handleLabButton, handleLabSelect } from "../lab/interactions";
 import { handleCompanyInteraction } from "../companies";
 import { handleTalkInteraction } from "../talk";
 import { handleJobButton, handleJobSelect } from "../jobs/interactions";
-import { handleStreakButton, handleStreakSelect } from "../streak/interactions";
 import { handleGamesInteraction } from "../games";
 import { handleWhisperInteraction } from "../whisper/interactions";
 import { handleBotProfileInteraction } from "../botprofile/interactions";
@@ -51,7 +50,6 @@ const event: BotEvent = {
           (await handleShopComponent(interaction)) ||
           (await handleBirthdayButton(interaction)) ||
           (await handleJobButton(interaction)) ||
-          (await handleStreakButton(interaction)) ||
           (await handleBankButton(interaction)) ||
           (await handleFamilyButton(interaction));
         if (!handled) await handleLabButton(interaction);
@@ -63,7 +61,7 @@ const event: BotEvent = {
 
     if (interaction.isStringSelectMenu() || interaction.isUserSelectMenu()) {
       try {
-        const handled = (await handleVipComponent(interaction)) || (interaction.isStringSelectMenu() && (await handleProfileComponent(interaction))) || (interaction.isStringSelectMenu() && (await handleShopComponent(interaction))) || (await handleChatSelect(interaction)) || (interaction.isStringSelectMenu() && ((await handleJobSelect(interaction)) || (await handleStreakSelect(interaction))));
+        const handled = (await handleVipComponent(interaction)) || (interaction.isStringSelectMenu() && (await handleProfileComponent(interaction))) || (interaction.isStringSelectMenu() && (await handleShopComponent(interaction))) || (await handleChatSelect(interaction)) || (interaction.isStringSelectMenu() && (await handleJobSelect(interaction)));
         if (!handled && interaction.isStringSelectMenu()) await handleLabSelect(interaction);
       } catch (err) {
         logger.error("خطأ في قائمة منسدلة", err);
