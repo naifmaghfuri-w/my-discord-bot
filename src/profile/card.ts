@@ -1,6 +1,6 @@
 import { createCanvas, loadImage, type Image, type SKRSContext2D } from "@napi-rs/canvas";
 import { ensureFontsRegistered, FONT_BOLD } from "../quests/render/fonts";
-import { bgById, colorById } from "./styles";
+import { colorById } from "./styles";
 
 export type IconKind = "coin" | "bank" | "chat" | "flame" | "bag" | "building" | "heart" | "home" | "level" | "dagger" | "star";
 
@@ -33,7 +33,8 @@ export interface ProfileData {
   tags: Tag[];
   ranks: RankCell[];
   tiles: Tile[];
-  bg: string;
+  /** صورة الخلفية (لو العضو رفع وحدة) */
+  bgImage?: Buffer | null;
   color: string;
 }
 
@@ -74,124 +75,43 @@ function glass(ctx: SKRSContext2D, x: number, y: number, w: number, h: number, r
   ctx.stroke();
 }
 
-/* ───────────── استوديو الخلفيات ───────────── */
+/* ───────────── الخلفية ───────────── */
 
-function rng(seed: number): () => number {
-  let s = seed;
-  return () => {
-    s = (s * 1664525 + 1013904223) % 4294967296;
-    return s / 4294967296;
-  };
+/** خلفية افتراضية هادئة لو العضو ما رفع صورة */
+function paintDefault(ctx: SKRSContext2D): void {
+  const g = ctx.createLinearGradient(0, 0, W, H);
+  g.addColorStop(0, "#0b1026");
+  g.addColorStop(1, "#1b2147");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
 }
 
-function paintBackground(ctx: SKRSContext2D, id: string): void {
-  const lin = (a: string, b: string, c?: string) => {
-    const g = ctx.createLinearGradient(0, 0, W, H);
-    g.addColorStop(0, a);
-    if (c) g.addColorStop(0.5, c);
-    g.addColorStop(1, b);
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, H);
-  };
-  const r = rng(id.length * 7919 + id.charCodeAt(0));
-
-  switch (id) {
-    case "sunset": {
-      lin("#2b1055", "#f59e0b", "#d4507a");
-      const sun = ctx.createRadialGradient(820, 470, 10, 820, 470, 260);
-      sun.addColorStop(0, "rgba(255,236,170,0.95)");
-      sun.addColorStop(0.35, "rgba(251,146,60,0.55)");
-      sun.addColorStop(1, "rgba(251,146,60,0)");
-      ctx.fillStyle = sun;
-      ctx.fillRect(0, 0, W, H);
-      break;
-    }
-    case "forest": {
-      lin("#04150f", "#14532d", "#0b3a26");
-      for (let k = 0; k < 3; k++) {
-        ctx.fillStyle = `rgba(2,${24 + k * 14},${16 + k * 8},${0.55 + k * 0.1})`;
-        ctx.beginPath();
-        ctx.moveTo(0, H);
-        for (let x = 0; x <= W; x += 20) ctx.lineTo(x, 430 + k * 60 + Math.sin(x / (130 - k * 20) + k) * 40);
-        ctx.lineTo(W, H);
-        ctx.closePath();
-        ctx.fill();
-      }
-      break;
-    }
-    case "ocean": {
-      lin("#03141f", "#0e7490", "#064e63");
-      ctx.lineWidth = 2;
-      for (let k = 0; k < 9; k++) {
-        ctx.strokeStyle = `rgba(165,243,252,${0.05 + k * 0.012})`;
-        ctx.beginPath();
-        for (let x = 0; x <= W; x += 10) {
-          const y = 250 + k * 46 + Math.sin(x / 80 + k) * 16;
-          if (x === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-      }
-      break;
-    }
-    case "rose": {
-      lin("#25091a", "#9d174d", "#5b0f35");
-      for (let k = 0; k < 18; k++) {
-        ctx.fillStyle = `rgba(251,207,232,${0.04 + r() * 0.09})`;
-        ctx.beginPath();
-        ctx.arc(r() * W, r() * H, 20 + r() * 80, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      break;
-    }
-    case "gold": {
-      lin("#100d07", "#3b2f10", "#1c160a");
-      ctx.strokeStyle = "rgba(250,204,21,0.10)";
-      ctx.lineWidth = 2;
-      for (let x = -H; x < W; x += 46) {
-        ctx.beginPath();
-        ctx.moveTo(x, H);
-        ctx.lineTo(x + H, 0);
-        ctx.stroke();
-      }
-      break;
-    }
-    case "carbon": {
-      lin("#07070a", "#1c1c24");
-      ctx.fillStyle = "rgba(255,255,255,0.05)";
-      for (let y = 10; y < H; y += 22) for (let x = 10 + ((y / 22) % 2) * 11; x < W; x += 22) ctx.fillRect(x, y, 3, 3);
-      break;
-    }
-    case "aurora": {
-      lin("#050b16", "#0a1424");
-      for (const [x, y, rad, col] of [
-        [260, 160, 320, "rgba(52,211,153,0.35)"],
-        [700, 120, 340, "rgba(129,140,248,0.33)"],
-        [980, 420, 300, "rgba(56,189,248,0.28)"],
-        [420, 520, 260, "rgba(217,70,239,0.20)"],
-      ] as const) {
-        const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
-        g.addColorStop(0, col);
-        g.addColorStop(1, "rgba(0,0,0,0)");
-        ctx.fillStyle = g;
-        ctx.fillRect(0, 0, W, H);
-      }
-      break;
-    }
-    default: {
-      lin("#080c22", "#1d2255", "#111538");
-      for (let k = 0; k < 90; k++) {
-        ctx.fillStyle = `rgba(255,255,255,${0.15 + r() * 0.6})`;
-        const s = r() < 0.15 ? 2.4 : 1.3;
-        ctx.fillRect(r() * W, r() * H, s, s);
-      }
-    }
-  }
-  const vg = ctx.createRadialGradient(W / 2, H / 2, 260, W / 2, H / 2, 760);
-  vg.addColorStop(0, "rgba(0,0,0,0)");
-  vg.addColorStop(1, "rgba(0,0,0,0.5)");
-  ctx.fillStyle = vg;
+async function paintBackground(ctx: SKRSContext2D, image?: Buffer | null): Promise<void> {
+  const img = image ? await loadImage(Buffer.from(image)).catch(() => null) : null;
+  if (!img) return paintDefault(ctx);
+  // تعبئة كاملة (قص من المنتصف)
+  const k = Math.max(W / img.width, H / img.height);
+  const dw = img.width * k, dh = img.height * k;
+  ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+  // تعتيم خفيف يحافظ على وضوح الخطوط
+  ctx.fillStyle = "rgba(0,0,0,0.32)";
   ctx.fillRect(0, 0, W, H);
+}
+
+/** يجهّز صورة الخلفية: قص من المنتصف إلى 1100×660 وتخزين JPEG */
+export async function makeBackground(buf: Buffer): Promise<Buffer | null> {
+  try {
+    const img = await loadImage(buf);
+    if (!img.width || !img.height) return null;
+    const canvas = createCanvas(W, H);
+    const c = canvas.getContext("2d");
+    const k = Math.max(W / img.width, H / img.height);
+    const dw = img.width * k, dh = img.height * k;
+    c.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+    return await canvas.encode("jpeg", 85);
+  } catch {
+    return null;
+  }
 }
 
 /* ───────────── الأيقونات ───────────── */
@@ -344,7 +264,7 @@ export async function renderProfile(d: ProfileData): Promise<Buffer | null> {
     const ctx = canvas.getContext("2d");
     ctx.textBaseline = "middle";
 
-    paintBackground(ctx, bgById(d.bg).id);
+    await paintBackground(ctx, d.bgImage);
 
     /* ── اللوحة اليسرى: الصورة + المستوى + الاسم + الألقاب ── */
     const lx = 36, ly = 36, lw = 320, lh = H - 72;
