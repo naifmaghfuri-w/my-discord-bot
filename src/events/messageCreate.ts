@@ -38,15 +38,13 @@ import { MARRIAGE_TRIGGER, buildMarriageGuide } from "../family/guide";
 import { canAdopt, canPropose, canSibling, disown, getParents, khulaDivorce, runAway, talaqDivorce } from "../family/service";
 import { getBirthday, parseBirthdayInput, setBirthday } from "../services/birthday";
 import { recordMessage } from "../services/stats";
-import { tickStreak } from "../services/streak";
 import { PROFILE_TRIGGER, handleProfileMessage } from "../profile/text";
 import { ESTATE_TRIGGER, INVENTORY_TRIGGER, MYMARRIAGE_TRIGGER, SHOPS_TRIGGER, handleShopMessage } from "../shop/text";
 import { TOP_TRIGGER, handleTopMessage } from "../top/text";
 import { CHATPANEL_TRIGGER, handleChatPanelMessage } from "../chat/text";
 import { VIP_TRIGGER, handleVipMessage } from "../vip/text";
 import { LEVEL_TRIGGER, awardMessageXp, handleLevelMessage } from "../level/text";
-import { STREAK_TRIGGER, handleStreakMessage } from "../streak/interactions";
-import { applyStreakNick } from "../streak/nick";
+import { cleanStreakNick } from "../streak/nick";
 import type { BotEvent } from "../types";
 import { logger } from "../utils/logger";
 
@@ -78,11 +76,8 @@ const event: BotEvent = {
   async execute(client: BotClient, message: Message) {
     if (!message.inGuild() || message.author.bot || message.webhookId) return;
 
-    // 🔥 شعلة النشاط: أي رسالة (نص/صورة/ايموجي/ستيكر) في أي روم تحسب يوم (تظهر بجانب الاسم فقط)
-    void tickStreak(message.author.id, message.guildId).then((t) => {
-      if (!t) return;
-      if (message.member) void applyStreakNick(message.member, t.streak, t.sep, t.hidden);
-    });
+    // تنظيف بقايا شعلة الستريك القديمة من لقب العضو (نظام الستريك انحذف)
+    if (message.member) void cleanStreakNick(message.member);
 
     // --- قناة العد: رقم صحيح (أو عملية ناتجها الرقم الصحيح) يتعلّم، وأي شيء ثاني يُمسح بدون ما يحسب لأي مهمة ---
     if (countingChannels().includes(message.channelId)) {
@@ -153,10 +148,6 @@ const event: BotEvent = {
     }
     if (LEVEL_TRIGGER.test(rawContent.trim())) {
       await handleLevelMessage(message);
-      return;
-    }
-    if (STREAK_TRIGGER.test(rawContent.trim())) {
-      await handleStreakMessage(message);
       return;
     }
     if (JOBS_GUIDE_TRIGGER.test(rawContent.trim())) {
