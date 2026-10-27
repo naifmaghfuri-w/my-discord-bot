@@ -83,8 +83,8 @@ export const JOBS: JobDef[] = [
 ];
 
 JOBS.push({
-  id: "thief", name: "حرامي", icon: "", kind: "thief",
-  desc: "اكتب `!سرقة` واختر: عضو عشوائي، شركة عشوائية، أو محل صغير.",
+  id: "thief", name: "حرامي", icon: "🦹", kind: "thief",
+  desc: "اكتب `!سرقة` واختر: سرقة عضو أو شركة (تختارها بنفسك)، أو محل صغير.",
   req: {},
   ranks: [{ title: "حرامي", pay: 0, shiftsNeeded: 0 }],
 });
