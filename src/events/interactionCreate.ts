@@ -1,6 +1,7 @@
 import { handleTopButton } from "../top/text";
 import { handleShopComponent } from "../shop/text";
 import { handleVipComponent } from "../vip/text";
+import { handleRolesComponent } from "../roles/text";
 import { handleProfileComponent } from "../profile/text";
 import { Collection, Events, MessageFlags, type Interaction } from "discord.js";
 import { handleAfkButton, handleAfkModal } from "../afk/interactions";
@@ -61,7 +62,7 @@ const event: BotEvent = {
 
     if (interaction.isStringSelectMenu() || interaction.isUserSelectMenu()) {
       try {
-        const handled = (await handleVipComponent(interaction)) || (interaction.isStringSelectMenu() && (await handleProfileComponent(interaction))) || (interaction.isStringSelectMenu() && (await handleShopComponent(interaction))) || (await handleChatSelect(interaction)) || (interaction.isStringSelectMenu() && (await handleJobSelect(interaction)));
+        const handled = (await handleVipComponent(interaction)) || (interaction.isStringSelectMenu() && (await handleRolesComponent(interaction))) || (interaction.isStringSelectMenu() && (await handleProfileComponent(interaction))) || (interaction.isStringSelectMenu() && (await handleShopComponent(interaction))) || (await handleChatSelect(interaction)) || (interaction.isStringSelectMenu() && (await handleJobSelect(interaction)));
         if (!handled && interaction.isStringSelectMenu()) await handleLabSelect(interaction);
       } catch (err) {
         logger.error("خطأ في قائمة منسدلة", err);
