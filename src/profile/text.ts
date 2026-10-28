@@ -12,14 +12,14 @@ import {
 } from "discord.js";
 import { ProfileStyle } from "../database/models/ProfileStyle";
 import { COLORS, colorById } from "./styles";
-import { Company, CompanyMember } from "../database/models/Company";
+import { CompanyMember } from "../database/models/Company";
 import { Inventory } from "../database/models/Inventory";
 import { JobProfile } from "../database/models/JobProfile";
 import { Marriage } from "../database/models/Marriage";
 import { UserProfile } from "../database/models/UserProfile";
 import { JOB_MAP } from "../jobs/data";
 import { xpNeeded } from "../services/economy";
-import { ESTATE_IDS, ITEMS, lovePercent } from "../shop/data";
+import { CAR_IDS, ESTATE_IDS, ITEMS, lovePercent } from "../shop/data";
 import { ThiefState } from "../database/models/ThiefState";
 import { makeBackground, renderProfile } from "./card";
 
@@ -61,12 +61,12 @@ async function buildProfile(guild: Guild, targetId: string): Promise<{ png: Buff
   const jobDef = jp?.jobId ? JOB_MAP[jp.jobId] : undefined;
   const jobBar = jobDef && jobDef.ranks.length > 1 ? ((jp?.rank ?? 0) + 1) / jobDef.ranks.length : undefined;
 
-  // الشركة
-  let companyName = "بدون شركة";
-  if (cm) {
-    const c = await Company.findById(cm.companyId, { name: 1 });
-    companyName = c?.name ?? "شركة";
-  }
+  // لو يشتغل في شركة يطلع منصبه فيها، وإلا وظيفته العادية
+  const jobText = cm ? cm.title : jobDef ? jobDef.name : "عاطل";
+
+  // السيارة (الأغلى لو عنده أكثر من وحدة)
+  const carId = [...CAR_IDS].reverse().find((k) => Number(items[k] ?? 0) > 0);
+  const carName = carId ? ITEMS[carId].name : "لا يوجد";
 
   // الزواج
   let spouse = "غير متزوج";
@@ -99,9 +99,9 @@ async function buildProfile(guild: Guild, targetId: string): Promise<{ png: Buff
     xp,
     need: xpNeeded(level),
     tags: [
-      { icon: "bag", text: jobDef ? jobDef.name : "عاطل" },
-      { icon: "building", text: companyName },
+      { icon: "bag", text: jobText },
       { icon: "heart", text: spouse },
+      { icon: "car", text: carName },
     ],
     ranks: [
       { label: "تصنيف المستوى", value: `#${ahead + 1}`, icon: "level" },
@@ -116,10 +116,10 @@ async function buildProfile(guild: Guild, targetId: string): Promise<{ png: Buff
       { icon: "coin", label: "المحفظة", value: fmt(coins), bar: total > 0 ? coins / total : undefined },
       { icon: "chat", label: "الرسائل", value: fmt(msgs) },
       { icon: "bank", label: "البنك", value: fmt(bank), bar: total > 0 ? bank / total : undefined },
-      { icon: "bag", label: "الوظيفة", value: jobDef ? jobDef.name : "عاطل", bar: jobBar },
-      { icon: "building", label: "الشركة", value: companyName },
+      { icon: "bag", label: "الوظيفة", value: jobText, bar: cm ? undefined : jobBar },
       { icon: "heart", label: "الزواج", value: spouse, bar: loveBar },
       { icon: "home", label: "العقارات", value: estateCount > 0 ? `${estateCount} ${estateCount === 1 ? "عقار" : "عقارات"}` : "لا يوجد" },
+      { icon: "car", label: "السيارة", value: carName },
     ],
   });
   return { png, fallback: `**${member.displayName}** — المستوى ${level} • الرصيد ${fmt(coins)} • البنك ${fmt(bank)}` };
