@@ -39,7 +39,7 @@ import { canAdopt, canPropose, canSibling, disown, getParents, khulaDivorce, run
 import { getBirthday, parseBirthdayInput, setBirthday } from "../services/birthday";
 import { recordMessage } from "../services/stats";
 import { PROFILE_TRIGGER, handleProfileMessage } from "../profile/text";
-import { ESTATE_TRIGGER, INVENTORY_TRIGGER, MYMARRIAGE_TRIGGER, SHOPS_TRIGGER, handleShopMessage } from "../shop/text";
+import { CARS_TRIGGER, ESTATE_TRIGGER, INVENTORY_TRIGGER, MYMARRIAGE_TRIGGER, SHOPS_TRIGGER, handleShopMessage } from "../shop/text";
 import { TOP_TRIGGER, handleTopMessage } from "../top/text";
 import { CHATPANEL_TRIGGER, handleChatPanelMessage } from "../chat/text";
 import { VIP_TRIGGER, handleVipMessage } from "../vip/text";
@@ -128,7 +128,7 @@ const event: BotEvent = {
     if (await handleModerationText(message)) return;
 
     // --- الوظائف: "وظائف" / "دوام" / "استقالة" ---
-    if (SHOPS_TRIGGER.test(rawContent.trim()) || ESTATE_TRIGGER.test(rawContent.trim()) || INVENTORY_TRIGGER.test(rawContent.trim()) || MYMARRIAGE_TRIGGER.test(rawContent.trim())) {
+    if (SHOPS_TRIGGER.test(rawContent.trim()) || ESTATE_TRIGGER.test(rawContent.trim()) || CARS_TRIGGER.test(rawContent.trim()) || INVENTORY_TRIGGER.test(rawContent.trim()) || MYMARRIAGE_TRIGGER.test(rawContent.trim())) {
       await handleShopMessage(message);
       return;
     }
