@@ -14,6 +14,7 @@ import type { BotClient } from "../client";
 import { handleFamilyButton } from "../family/interactions";
 import { handleLabButton, handleLabSelect } from "../lab/interactions";
 import { handleCompanyInteraction } from "../companies";
+import { handleCompanyAdminInteraction } from "../companies/admin";
 import { handleTalkInteraction } from "../talk";
 import { handleJobButton, handleJobSelect } from "../jobs/interactions";
 import { handleGamesInteraction } from "../games";
@@ -32,6 +33,7 @@ const event: BotEvent = {
   async execute(client: BotClient, interaction: Interaction) {
     if (await handleAdminSettingsInteraction(interaction)) return;
     if (await handleCompanyInteraction(interaction)) return;
+    if (await handleCompanyAdminInteraction(interaction)) return;
     if (await handleTalkInteraction(interaction)) return;
     if (await handleBotProfileInteraction(interaction)) return;
     if (await handleWhisperInteraction(interaction)) return;
