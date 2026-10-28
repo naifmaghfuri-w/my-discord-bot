@@ -194,10 +194,95 @@ function drawProperty(ctx: SKRSContext2D, kind: string, cx: number, cy: number, 
   ctx.restore();
 }
 
+
+/** يرسم سيارة جانبية (شيري / لاندكروزر / رولز رويس) */
+function drawCar(ctx: SKRSContext2D, kind: string, cx: number, cy: number, k = 1): void {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(k, k);
+  const poly = (pts: [number, number][], c: string) => {
+    ctx.fillStyle = c;
+    ctx.beginPath();
+    pts.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
+    ctx.closePath();
+    ctx.fill();
+  };
+  const rbox = (x: number, y: number, w: number, h: number, r: number, c: string) => {
+    ctx.fillStyle = c;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
+    ctx.fill();
+  };
+  const wheel = (x: number, y: number, r: number) => {
+    ctx.fillStyle = "#0f172a";
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#cbd5e1";
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.55, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#64748b";
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.2, 0, Math.PI * 2);
+    ctx.fill();
+  };
+  ctx.fillStyle = "rgba(0,0,0,0.3)";
+  ctx.beginPath();
+  ctx.ellipse(0, 66, 118, 9, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (kind === "land_cruiser") {
+    rbox(-110, -12, 220, 56, 10, "#e5e7eb");
+    poly([[-86, -12], [-76, -50], [72, -50], [90, -12]], "#e5e7eb");
+    poly([[-72, -14], [-66, -44], [-6, -44], [-6, -14]], "#7dd3fc");
+    poly([[2, -14], [2, -44], [66, -44], [80, -14]], "#7dd3fc");
+    ctx.fillStyle = "#475569";
+    ctx.fillRect(-80, -56, 150, 4);
+    rbox(96, -2, 14, 14, 4, "#fde68a");
+    rbox(-110, 30, 220, 8, 3, "#475569");
+    ctx.fillStyle = "#334155";
+    ctx.beginPath();
+    ctx.arc(-116, 8, 14, 0, Math.PI * 2);
+    ctx.fill();
+    wheel(-68, 42, 26);
+    wheel(68, 42, 26);
+  } else if (kind === "rolls_royce") {
+    rbox(-114, 0, 228, 42, 10, "#111827");
+    poly([[-74, 0], [-52, -34], [26, -34], [62, 0]], "#111827");
+    poly([[-62, -2], [-46, -28], [-6, -28], [-6, -2]], "#7dd3fc");
+    poly([[2, -2], [2, -28], [22, -28], [50, -2]], "#7dd3fc");
+    ctx.fillStyle = "#d4af37";
+    ctx.fillRect(-114, 18, 228, 3);
+    rbox(100, -4, 12, 40, 3, "#e2e8f0");
+    ctx.fillStyle = "#94a3b8";
+    for (let y = 2; y < 34; y += 6) ctx.fillRect(101, y, 10, 2);
+    poly([[104, -4], [110, -4], [107, -16]], "#e2e8f0");
+    rbox(96, 8, 6, 8, 2, "#fde68a");
+    wheel(-72, 42, 23);
+    wheel(72, 42, 23);
+  } else {
+    rbox(-106, 0, 212, 42, 14, "#dc2626");
+    poly([[-62, 0], [-40, -36], [36, -36], [68, 0]], "#dc2626");
+    poly([[-50, -2], [-36, -30], [-4, -30], [-4, -2]], "#7dd3fc");
+    poly([[4, -2], [4, -30], [32, -30], [54, -2]], "#7dd3fc");
+    rbox(94, 6, 12, 10, 3, "#fde68a");
+    rbox(-106, 10, 10, 10, 3, "#fca5a5");
+    ctx.fillStyle = "#991b1b";
+    ctx.fillRect(-100, 28, 200, 4);
+    wheel(-62, 42, 22);
+    wheel(62, 42, 22);
+  }
+  ctx.restore();
+}
+
+const CAR_KEYS = ["cherry_arrizo", "land_cruiser", "rolls_royce"];
+
 /** يرسم أيقونة غرض مقتنيات/محل */
 function drawIcon(ctx: SKRSContext2D, icon: string, cx: number, cy: number, k: number): void {
   if (icon === "ring") drawRing(ctx, cx, cy + 22 * k, k);
   else if (icon === "flower") drawRose(ctx, cx, cy - 30 * k, k);
+  else if (CAR_KEYS.includes(icon)) drawCar(ctx, icon, cx, cy, k);
   else drawProperty(ctx, icon, cx, cy, k);
 }
 
@@ -355,6 +440,56 @@ export async function renderEstate(rows: { id: string; name: string; price: numb
       rr(ctx, PAD, y, W - PAD * 2, 84, 18);
       ctx.fill();
       drawProperty(ctx, r.id, W - PAD - 82, y + 46, 0.4);
+      ctx.textAlign = "right";
+      ctx.fillStyle = "#f8fafc";
+      fit(ctx, r.name, family, 30, 330);
+      ctx.fillText(r.name, W - PAD - 150, y + 42);
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#fbbf24";
+      ctx.font = `700 30px "${family}"`;
+      ctx.fillText(`${fmt(r.price)} Jenny`, 420, y + 42);
+      ctx.fillStyle = r.count > 0 ? "#4ade80" : "#64748b";
+      ctx.font = `700 30px "${family}"`;
+      ctx.fillText(`× ${fmt(r.count)}`, 150, y + 42);
+    });
+    return await canvas.encode("png");
+  } catch {
+    return null;
+  }
+}
+
+/** مقتنياتي: خزانة بشبكة خانات (5×3) */
+export async function renderCars(rows: { id: string; name: string; price: number; count: number }[]): Promise<Buffer | null> {
+  try {
+    const family = ensureFontsRegistered() ? FONT_BOLD : "sans-serif";
+    const H = 214 + rows.length * 96 + 20;
+    const canvas = createCanvas(W, H);
+    const ctx = canvas.getContext("2d");
+    ctx.textBaseline = "middle";
+    bg(ctx, H, "rgba(56,189,248,0.12)");
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#f8fafc";
+    ctx.font = `700 46px "${family}"`;
+    ctx.fillText("معرض السيارات", W - PAD, 62);
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = `700 21px "${family}"`;
+    ctx.fillText("اختر سيارة من القائمة اللي تحت للشراء", W - PAD, 108);
+    ctx.fillStyle = "rgba(255,255,255,0.08)";
+    rr(ctx, PAD, 146, W - PAD * 2, 52, 16);
+    ctx.fill();
+    ctx.fillStyle = "#cbd5e1";
+    ctx.font = `700 21px "${family}"`;
+    ctx.textAlign = "right";
+    ctx.fillText("السيارة", W - PAD - 150, 172);
+    ctx.textAlign = "center";
+    ctx.fillText("السعر", 420, 172);
+    ctx.fillText("عندك", 150, 172);
+    rows.forEach((r, i) => {
+      const y = 214 + i * 96;
+      ctx.fillStyle = i % 2 === 0 ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.02)";
+      rr(ctx, PAD, y, W - PAD * 2, 84, 18);
+      ctx.fill();
+      drawCar(ctx, r.id, W - PAD - 82, y + 40, 0.38);
       ctx.textAlign = "right";
       ctx.fillStyle = "#f8fafc";
       fit(ctx, r.name, family, 30, 330);
