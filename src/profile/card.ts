@@ -2,7 +2,7 @@ import { createCanvas, loadImage, type Image, type SKRSContext2D } from "@napi-r
 import { ensureFontsRegistered, FONT_BOLD } from "../quests/render/fonts";
 import { colorById } from "./styles";
 
-export type IconKind = "coin" | "bank" | "chat" | "flame" | "bag" | "building" | "heart" | "home" | "level" | "dagger" | "star";
+export type IconKind = "coin" | "bank" | "chat" | "flame" | "bag" | "building" | "heart" | "home" | "level" | "dagger" | "star" | "car";
 
 export interface Tile {
   label: string;
@@ -218,6 +218,22 @@ function icon(ctx: SKRSContext2D, kind: IconKind, cx: number, cy: number, s: num
         ctx.lineTo(0, dy - h * 0.2);
         ctx.lineTo(h * 0.8, dy + h * 0.4);
         ctx.stroke();
+      }
+      break;
+    case "car":
+      ctx.beginPath();
+      ctx.roundRect(-h, -h * 0.05, s, h * 0.85, 4);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-h * 0.55, -h * 0.05);
+      ctx.lineTo(-h * 0.3, -h * 0.6);
+      ctx.lineTo(h * 0.35, -h * 0.6);
+      ctx.lineTo(h * 0.6, -h * 0.05);
+      ctx.stroke();
+      for (const x of [-h * 0.5, h * 0.5]) {
+        ctx.beginPath();
+        ctx.arc(x, h * 0.8, h * 0.18, 0, Math.PI * 2);
+        ctx.fill();
       }
       break;
     case "dagger":
