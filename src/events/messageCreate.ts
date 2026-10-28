@@ -44,6 +44,7 @@ import { TOP_TRIGGER, handleTopMessage } from "../top/text";
 import { CHATPANEL_TRIGGER, handleChatPanelMessage } from "../chat/text";
 import { VIP_TRIGGER, handleVipMessage } from "../vip/text";
 import { ROLES_TRIGGER, handleRolesPanelMessage } from "../roles/text";
+import { COMPANY_ADMIN_TRIGGER, handleCompanyAdminMessage } from "../companies/admin";
 import { LEVEL_TRIGGER, awardMessageXp, handleLevelMessage } from "../level/text";
 import { cleanStreakNick } from "../streak/nick";
 import type { BotEvent } from "../types";
@@ -137,6 +138,10 @@ const event: BotEvent = {
     }
     if (TOP_TRIGGER.test(rawContent.trim())) {
       await handleTopMessage(message);
+      return;
+    }
+    if (COMPANY_ADMIN_TRIGGER.test(rawContent.trim())) {
+      await handleCompanyAdminMessage(message);
       return;
     }
     if (ROLES_TRIGGER.test(rawContent.trim())) {
