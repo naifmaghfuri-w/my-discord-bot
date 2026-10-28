@@ -7,11 +7,12 @@ import { Marriage } from "../database/models/Marriage";
 import { UserProfile } from "../database/models/UserProfile";
 import { jenny } from "../constants";
 import { logTransaction } from "../services/transactions";
-import { INV_PER_PAGE, renderEstate, renderFlowerShop, renderInventory, renderJewelryShop, renderMarriageCard, renderShops } from "./card";
-import { ESTATE_IDS, ITEMS, lovePercent } from "./data";
+import { INV_PER_PAGE, renderCars, renderEstate, renderFlowerShop, renderInventory, renderJewelryShop, renderMarriageCard, renderShops } from "./card";
+import { CAR_IDS, ESTATE_IDS, ITEMS, lovePercent } from "./data";
 
 export const SHOPS_TRIGGER = /^!\s*محلات$/;
 export const ESTATE_TRIGGER = /^!\s*(?:العقار|العقارات|عقار)$/;
+export const CARS_TRIGGER = /^!\s*(?:السيارات|سيارات|معرض(?:\s+السيارات)?|محل\s+سيارات)$/;
 export const INVENTORY_TRIGGER = /^!\s*مقتنياتي$/;
 export const MYMARRIAGE_TRIGGER = /^!\s*زواجي$/;
 
@@ -41,8 +42,9 @@ async function shopsView(owner: string): Promise<BaseMessageOptions> {
   const png = await renderShops([
     { name: "محل ورد", sub: `الوردة بـ ${ITEMS.flower.price} Jenny`, icon: "flower" },
     { name: "محل مجوهرات", sub: `${ITEMS.ring.name} بـ ${ITEMS.ring.price} Jenny`, icon: "ring" },
+    { name: "معرض سيارات", sub: `من ${ITEMS.cherry_arrizo.price.toLocaleString("en-US")} Jenny`, icon: "land_cruiser" },
   ]);
-  return view(png, "shops.png", [row(btn(id(owner, "flower"), "محل ورد", ButtonStyle.Primary), btn(id(owner, "jewelry"), "محل مجوهرات", ButtonStyle.Primary))], "المحلات: محل ورد، محل مجوهرات");
+  return view(png, "shops.png", [row(btn(id(owner, "flower"), "محل ورد", ButtonStyle.Primary), btn(id(owner, "jewelry"), "محل مجوهرات", ButtonStyle.Primary), btn(id(owner, "cars"), "معرض سيارات", ButtonStyle.Primary))], "المحلات: محل ورد، محل مجوهرات، معرض سيارات");
 }
 
 async function flowerView(owner: string, guildId: string, note?: string): Promise<BaseMessageOptions> {
@@ -71,6 +73,18 @@ async function estateView(owner: string, guildId: string, note?: string): Promis
     .setPlaceholder("اختر عقار للشراء")
     .addOptions(rows.map((r) => ({ label: r.name, value: r.id, description: `${r.price.toLocaleString("en-US")} Jenny` })));
   return view(png, "estate.png", [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)], rows.map((r) => `${r.name}: ${r.price}`).join("\n"), note);
+}
+
+async function carsView(owner: string, guildId: string, note?: string): Promise<BaseMessageOptions> {
+  const inv = await Inventory.findOne({ userId: owner, guildId }, { items: 1 });
+  const have = (inv?.items ?? {}) as Record<string, number>;
+  const rows = CAR_IDS.map((k) => ({ id: k, name: ITEMS[k].name, price: ITEMS[k].price, count: Number(have[k] ?? 0) }));
+  const png = await renderCars(rows);
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId(id(owner, "cbuy"))
+    .setPlaceholder("اختر سيارة للشراء")
+    .addOptions(rows.map((r) => ({ label: r.name, value: r.id, description: `${r.price.toLocaleString("en-US")} Jenny` })));
+  return view(png, "cars.png", [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)], rows.map((r) => `${r.name}: ${r.price}`).join("\n"), note);
 }
 
 /* ───────── مقتنياتي ───────── */
@@ -149,6 +163,7 @@ export async function handleShopMessage(message: Message<true>): Promise<void> {
   const send = (v: BaseMessageOptions) => message.channel.send(v).catch(() => undefined);
   if (SHOPS_TRIGGER.test(text)) return void (await send(await shopsView(owner)));
   if (ESTATE_TRIGGER.test(text)) return void (await send(await estateView(owner, message.guildId)));
+  if (CARS_TRIGGER.test(text)) return void (await send(await carsView(owner, message.guildId)));
   if (INVENTORY_TRIGGER.test(text)) return void (await send(await inventoryView(message.guild, owner)));
   if (MYMARRIAGE_TRIGGER.test(text)) {
     const v = await marriageView(message.guild, owner);
@@ -173,6 +188,7 @@ export async function handleShopComponent(i: ButtonInteraction | StringSelectMen
   if (act === "shops") return await edit(await shopsView(owner)), true;
   if (act === "flower") return await edit(await flowerView(owner, guild.id)), true;
   if (act === "jewelry") return await edit(await jewelryView(owner, guild.id)), true;
+  if (act === "cars") return await edit(await carsView(owner, guild.id)), true;
 
   if (act === "buy") {
     const item = arg === "ring" ? "ring" : "flower";
@@ -194,6 +210,21 @@ export async function handleShopComponent(i: ButtonInteraction | StringSelectMen
     await Inventory.updateOne({ userId: owner, guildId: guild.id }, { $inc: { [`items.${key}`]: 1 } }, { upsert: true });
     await logTransaction(guild.id, owner, "shop_purchase", cost);
     return await edit(await estateView(owner, guild.id, `✅ اشتريت ${ITEMS[key].name} بـ ${cost.toLocaleString("en-US")}. شوفه في !مقتنياتي`)), true;
+  }
+  if (act === "cbuy" && i.isStringSelectMenu()) {
+    const key = i.values[0] as (typeof CAR_IDS)[number];
+    if (!CAR_IDS.includes(key)) return await edit(await carsView(owner, guild.id)), true;
+    const cost = ITEMS[key].price;
+    // نحجز السيارة أول (مرة وحدة لكل موديل)، وبعدها ندفع
+    const reserved = await Inventory.findOneAndUpdate({ userId: owner, guildId: guild.id, [`items.${key}`]: { $not: { $gte: 1 } } }, { $inc: { [`items.${key}`]: 1 } }, { upsert: true }).then(() => true, () => false);
+    if (!reserved) return await edit(await carsView(owner, guild.id, `❌ عندك ${ITEMS[key].name} من قبل.`)), true;
+    const paid = await UserProfile.findOneAndUpdate({ userId: owner, guildId: guild.id, coins: { $gte: cost } }, { $inc: { coins: -cost } });
+    if (!paid) {
+      await Inventory.updateOne({ userId: owner, guildId: guild.id }, { $inc: { [`items.${key}`]: -1 } });
+      return await edit(await carsView(owner, guild.id, `❌ ما تكفي محفظتك (${cost.toLocaleString("en-US")}).`)), true;
+    }
+    await logTransaction(guild.id, owner, "shop_purchase", cost);
+    return await edit(await carsView(owner, guild.id, `✅ اشتريت ${ITEMS[key].name} بـ ${cost.toLocaleString("en-US")}. شوفها في !مقتنياتي`)), true;
   }
   if (act === "ipg") return await edit(await inventoryView(guild, owner, Number(arg) || 0)), true;
 
