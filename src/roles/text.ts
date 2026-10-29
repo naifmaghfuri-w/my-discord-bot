@@ -9,10 +9,9 @@ import {
 } from "discord.js";
 import { config } from "../config";
 import { logger } from "../utils/logger";
-import { renderGenderBanner } from "./card";
 
-/** !لوحة الرتب — لمالك البوت/السيرفر فقط */
-export const ROLES_TRIGGER = /^!\s*لوحة\s+(?:ال)?رتب$/;
+/** !لوحة الرتب [صورة مرفقة أو رابط] — لمالك البوت/السيرفر فقط */
+export const ROLES_TRIGGER = /^!\s*لوحة\s+(?:ال)?رتب(?:\s+[\s\S]+)?$/;
 
 /** رتب الجنس */
 export const GENDER_ROLES = {
@@ -30,35 +29,33 @@ export async function handleRolesPanelMessage(message: Message<true>): Promise<v
   if (!isOwner) return void (await reply("❌ هذا الأمر لمالك البوت فقط."));
   if (!message.guild.members.me?.permissions.has("ManageRoles")) return void (await reply("❌ البوت يحتاج صلاحية «إدارة الرتب»."));
 
-  const embed = new EmbedBuilder()
-    .setColor(COLOR)
-    .setTitle("اختر جنسك")
-    .setDescription(
-      [
-        "✥ افتح القائمة تحت واختر رتبتك، وتتغير متى شئت.",
-        "",
-        `💙 ذكر ← <@&${GENDER_ROLES.he}>`,
-        `💗 أنثى ← <@&${GENDER_ROLES.she}>`,
-      ].join("\n"),
-    )
-    .setFooter({ text: "SunRise" });
+  const embed = new EmbedBuilder().setColor(COLOR).setTitle("اختر هويتك");
 
+  // الصورة: مرفق أو رابط مع الأمر. نعيد رفعها مع اللوحة عشان ما ينتهي رابطها.
+  const rest = (message.content.trim().replace(/^!\s*لوحة\s+(?:ال)?رتب/, "")).trim();
+  const att = message.attachments.find((a) => a.contentType?.startsWith("image/"));
+  const url = att?.url ?? /https?:\/\/\S+/.exec(rest)?.[0];
   const files: AttachmentBuilder[] = [];
-  const png = await renderGenderBanner();
-  if (png) {
-    files.push(new AttachmentBuilder(png, { name: "gender.png" }));
-    embed.setImage("attachment://gender.png");
+  if (url) {
+    const res = await fetch(url).catch(() => null);
+    const buf = res && res.ok ? Buffer.from(await res.arrayBuffer()) : null;
+    if (buf && buf.length <= 8 * 1024 * 1024) {
+      files.push(new AttachmentBuilder(buf, { name: "roles.png" }));
+      embed.setImage("attachment://roles.png");
+    } else {
+      return void (await reply("❌ ما قدرت أقرأ الصورة (الحد 8 ميغا)."));
+    }
   }
 
   const menu = new StringSelectMenuBuilder()
     .setCustomId(MENU_ID)
-    .setPlaceholder("اضغط هنا واختر جنسك")
+    .setPlaceholder("اختر هويتك")
     .setMinValues(1)
     .setMaxValues(1)
     .addOptions(
-      { label: "ذكر", description: "He / Him", value: "he", emoji: "💙" },
-      { label: "أنثى", description: "She / Her", value: "she", emoji: "💗" },
-      { label: "إزالة الرتبة", description: "شيل رتبة الجنس عنك", value: "none", emoji: "✖️" },
+      { label: "ذكر", value: "he", emoji: "💙" },
+      { label: "أنثى", value: "she", emoji: "💗" },
+      { label: "إزالة", value: "none", emoji: "✖️" },
     );
 
   await message.channel
