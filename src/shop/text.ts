@@ -1,3 +1,4 @@
+import { createCanvas, loadImage } from "@napi-rs/canvas";
 import {
   ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, StringSelectMenuBuilder,
   type BaseMessageOptions, type ButtonInteraction, type Guild, type Message, type StringSelectMenuInteraction,
@@ -7,8 +8,8 @@ import { Marriage } from "../database/models/Marriage";
 import { UserProfile } from "../database/models/UserProfile";
 import { jenny } from "../constants";
 import { logTransaction } from "../services/transactions";
-import { INV_PER_PAGE, renderCars, renderEstate, renderFlowerShop, renderInventory, renderJewelryShop, renderMarriageCard, renderShops } from "./card";
-import { CAR_IDS, ESTATE_IDS, ITEMS, lovePercent } from "./data";
+import { INV_COLS, INV_PER_PAGE, renderCars, renderEstate, renderFlowerShop, renderInventory, renderJewelryShop, renderMarriageCard, renderShops } from "./card";
+import { CAR_IDS, ESTATE_IDS, ITEMS, lovePercent, type ItemId } from "./data";
 
 export const SHOPS_TRIGGER = /^!\s*محلات$/;
 export const ESTATE_TRIGGER = /^!\s*(?:العقار|العقارات|عقار)$/;
@@ -94,21 +95,112 @@ async function spouseIds(userId: string, guildId: string): Promise<string[]> {
   return ms.map((m) => (m.husbandId === userId ? m.wifeId : m.husbandId));
 }
 
-async function inventoryView(guild: Guild, owner: string, page = 0): Promise<BaseMessageOptions> {
-  const inv = await Inventory.findOne({ userId: owner, guildId: guild.id }, { items: 1 });
-  const member = await guild.members.fetch(owner).catch(() => null);
+interface InvItem {
+  key: ItemId;
+  name: string;
+  count: number;
+}
+
+async function loadInv(userId: string, guildId: string): Promise<InvItem[]> {
+  const inv = await Inventory.findOne({ userId, guildId }, { items: 1 });
   const have = (inv?.items ?? {}) as Record<string, number>;
-  const all: { name: string; count: number; icon: string }[] = [];
-  for (const [key, def] of Object.entries(ITEMS)) {
+  const out: InvItem[] = [];
+  for (const key of Object.keys(ITEMS) as ItemId[]) {
     const n = Number(have[key] ?? 0);
-    if (n > 0) all.push({ name: def.name, count: n, icon: key });
+    if (n > 0) out.push({ key, name: ITEMS[key].name, count: n });
   }
+  return out;
+}
+
+/** سعر البيع = نصف سعر الشراء */
+const sellPrice = (key: ItemId): number => Math.floor(ITEMS[key].price / 2);
+
+/** يرسم إطار أبيض حول الخانة المحددة (نفس أبعاد renderInventory) */
+async function highlightCell(png: Buffer | null, index: number): Promise<Buffer | null> {
+  if (!png) return null;
+  try {
+    const img = await loadImage(png);
+    const canvas = createCanvas(img.width, img.height);
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0);
+    const CW = 920, S = 136, GAP = 34, y0 = 140;
+    const x0 = (CW - (INV_COLS * S + (INV_COLS - 1) * GAP)) / 2;
+    const col = index % INV_COLS;
+    const r = Math.floor(index / INV_COLS);
+    const x = x0 + (INV_COLS - 1 - col) * (S + GAP); // الترتيب من اليمين لليسار
+    const y = y0 + r * (S + GAP);
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 4;
+    ctx.strokeRect(x - 5, y - 5, S + 10, S + 10);
+    return await canvas.encode("png");
+  } catch {
+    return png;
+  }
+}
+
+/** يحرك التحديد داخل الصفحة (الشبكة 5 أعمدة، العمود 0 أقصى اليمين) */
+function moveSel(op: string, sel: number, len: number): number {
+  if (len <= 0) return 0;
+  const col = sel % INV_COLS;
+  const rowI = Math.floor(sel / INV_COLS);
+  const lastRow = Math.floor((len - 1) / INV_COLS);
+  const toRow = (r: number) => Math.min(len - 1, r * INV_COLS + col);
+  switch (op) {
+    case "up": return toRow(Math.max(0, rowI - 1));
+    case "down": return toRow(Math.min(lastRow, rowI + 1));
+    case "top": return toRow(0);
+    case "bottom": return toRow(lastRow);
+    case "left": return col < INV_COLS - 1 && sel + 1 < len ? sel + 1 : sel; // يسار الشاشة = عمود أكبر
+    case "right": return col > 0 ? sel - 1 : sel;
+    case "fl": return Math.min(rowI * INV_COLS + INV_COLS - 1, len - 1); // أقصى اليسار في الصف
+    case "fr": return rowI * INV_COLS; // أقصى اليمين في الصف
+    default: return sel;
+  }
+}
+
+function navRows(owner: string, page: number, sel: number, pages: number): ActionRowBuilder<ButtonBuilder>[] {
+  const nav = (op: string, emoji: string, style = ButtonStyle.Secondary, disabled = false) =>
+    new ButtonBuilder().setCustomId(id(owner, "inv", `${page},${sel},${op}`)).setEmoji(emoji).setStyle(style).setDisabled(disabled);
+  return [
+    row(nav("fl", "⏪"), nav("up", "⬆️", ButtonStyle.Primary), nav("fr", "⏩")),
+    row(nav("left", "⬅️", ButtonStyle.Primary), nav("pick", "💠", ButtonStyle.Success), nav("right", "➡️", ButtonStyle.Primary)),
+    row(nav("top", "⏫"), nav("down", "⬇️", ButtonStyle.Primary), nav("bottom", "⏬")),
+    row(nav("prev", "◀️", ButtonStyle.Secondary, page <= 0), nav("refresh", "🔄", ButtonStyle.Primary), nav("next", "▶️", ButtonStyle.Secondary, page >= pages - 1)),
+  ];
+}
+
+async function inventoryView(guild: Guild, owner: string, page = 0, sel = 0, picked = false, note?: string): Promise<BaseMessageOptions> {
+  const all = await loadInv(owner, guild.id);
+  const member = await guild.members.fetch(owner).catch(() => null);
   const pages = Math.max(1, Math.ceil(all.length / INV_PER_PAGE));
   const pg = Math.min(Math.max(0, page), pages - 1);
-  const rows = all.slice(pg * INV_PER_PAGE, (pg + 1) * INV_PER_PAGE);
-  const png = await renderInventory(`مقتنيات ${member?.displayName ?? ""}`.trim(), rows, pg, pages);
-  const components = pages > 1 ? [row(btn(id(owner, "ipg", String(pg - 1)), "السابق").setDisabled(pg <= 0), btn(id(owner, "ipg", String(pg + 1)), "التالي").setDisabled(pg >= pages - 1))] : [];
-  return view(png, "inv.png", components, all.length ? all.map((r) => `${r.name} × ${r.count}`).join("\n") : "ما عندك مقتنيات.");
+  const onPage = all.slice(pg * INV_PER_PAGE, (pg + 1) * INV_PER_PAGE);
+  const s = Math.min(Math.max(0, sel), Math.max(0, onPage.length - 1));
+
+  const basePng = await renderInventory(
+    `مقتنيات ${member?.displayName ?? ""}`.trim(),
+    onPage.map((it) => ({ name: it.name, count: it.count, icon: it.key })),
+    pg,
+    pages,
+  );
+  const png = onPage.length > 0 ? await highlightCell(basePng, s) : basePng;
+
+  const components: ActionRowBuilder<ButtonBuilder>[] = onPage.length > 0 ? navRows(owner, pg, s, pages) : [];
+  let content = note ?? "";
+  const cur = onPage[s];
+  if (picked && cur) {
+    const price = sellPrice(cur.key);
+    content = `المحدد: **${cur.name}** × ${cur.count}\nسعر البيع: **${price.toLocaleString("en-US")}** Jenny (نصف سعر الشراء)`;
+    components.push(
+      row(
+        new ButtonBuilder().setCustomId(id(owner, "inv", `${pg},${s},sell`)).setLabel(`بيع بـ ${price.toLocaleString("en-US")}`).setEmoji("💰").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(id(owner, "inv", `${pg},${s},cancel`)).setLabel("إلغاء").setStyle(ButtonStyle.Secondary),
+      ),
+    );
+  }
+
+  const v = view(png, "inv.png", components, all.length ? all.map((r) => `${r.name} × ${r.count}`).join("\n") : "ما عندك مقتنيات.");
+  return { ...v, content };
 }
 
 /** يهدي وردة: ينقص من مقتنيات المهدي ويزيد عداد الورد في الزواج */
@@ -227,6 +319,53 @@ export async function handleShopComponent(i: ButtonInteraction | StringSelectMen
     return await edit(await carsView(owner, guild.id, `✅ اشتريت ${ITEMS[key].name} بـ ${cost.toLocaleString("en-US")}. شوفها في !مقتنياتي`)), true;
   }
   if (act === "ipg") return await edit(await inventoryView(guild, owner, Number(arg) || 0)), true;
+
+  // أزرار تحريك الشبكة في مقتنياتي + اختيار وبيع بنصف السعر
+  if (act === "inv") {
+    const [pgS, selS, op] = (arg ?? "").split(",");
+    let page = Number(pgS) || 0;
+    let sel = Number(selS) || 0;
+    let picked = false;
+    let note: string | undefined;
+
+    const all = await loadInv(owner, guild.id);
+    const pages = Math.max(1, Math.ceil(all.length / INV_PER_PAGE));
+    page = Math.min(Math.max(0, page), pages - 1);
+    const onPage = all.slice(page * INV_PER_PAGE, (page + 1) * INV_PER_PAGE);
+
+    if (op === "prev") {
+      page = Math.max(0, page - 1);
+      sel = 0;
+    } else if (op === "next") {
+      page = Math.min(pages - 1, page + 1);
+      sel = 0;
+    } else if (op === "pick") {
+      picked = true;
+    } else if (op === "sell") {
+      const it = onPage[Math.min(sel, Math.max(0, onPage.length - 1))];
+      if (!it) {
+        note = "❌ ما لقيت هذا المقتنى.";
+      } else {
+        const price = sellPrice(it.key);
+        // خصم ذرّي: لو ما عنده المقتنى ما يتم البيع (يمنع تكرار البيع بضغطتين)
+        const took = await Inventory.findOneAndUpdate(
+          { userId: owner, guildId: guild.id, [`items.${it.key}`]: { $gte: 1 } },
+          { $inc: { [`items.${it.key}`]: -1 } },
+        );
+        if (!took) {
+          note = `❌ ما عندك ${it.name}.`;
+        } else {
+          await UserProfile.updateOne({ userId: owner, guildId: guild.id }, { $inc: { coins: price } });
+          await logTransaction(guild.id, owner, "pay_received", price);
+          note = `✅ بعت ${it.name} بـ ${price.toLocaleString("en-US")} ${jenny(price) ? "Jenny" : "Jenny"}`;
+        }
+      }
+    } else if (op !== "refresh" && op !== "cancel") {
+      sel = moveSel(op, sel, onPage.length);
+    }
+
+    return await edit(await inventoryView(guild, owner, page, sel, picked, note)), true;
+  }
 
   if (act === "mgift") return await sendGift(i, guild, owner, arg, async () => {
     const v = await marriageView(guild, owner, arg);
