@@ -53,8 +53,8 @@ export async function handleRolesPanelMessage(message: Message<true>): Promise<v
     .setMinValues(1)
     .setMaxValues(1)
     .addOptions(
-      { label: "ذكر", value: "he", emoji: "💙" },
-      { label: "أنثى", value: "she", emoji: "💗" },
+      { label: "ذكر", value: "he", emoji: "♂️" },
+      { label: "أنثى", value: "she", emoji: "♀️" },
       { label: "إزالة", value: "none", emoji: "✖️" },
     );
 
