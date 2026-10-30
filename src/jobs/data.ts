@@ -48,6 +48,13 @@ export interface JobDef {
 export const JOBS: JobDef[] = [];
 
 JOBS.push({
+  id: "police", name: "شرطي", icon: "👮", kind: "fullday",
+  desc: "تحذّر الحرامية والنهّابين (زر تحت السرقة خلال نص ساعة)، والتحذير الثالث = سجن. راتب 600 كل يوم، وعمولة على كل تحذير. سجلاتك في `!مركز شرطة`.",
+  req: {},
+  ranks: [{ title: "شرطي", pay: 600, shiftsNeeded: 0 }],
+});
+
+JOBS.push({
   id: "thief", name: "حرامي", icon: "🦹", kind: "thief",
   desc: "اكتب `!سرقة` واختر: سرقة عضو أو شركة (تختارها بنفسك)، أو محل صغير، أو سرقة كبيرة (سطو البنك).",
   req: {},
