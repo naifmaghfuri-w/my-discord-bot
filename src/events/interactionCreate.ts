@@ -18,6 +18,7 @@ import { handleCompanyAdminInteraction } from "../companies/admin";
 import { handleTalkInteraction } from "../talk";
 import { handleJobButton, handleJobSelect } from "../jobs/interactions";
 import { handleHeistComponent } from "../jobs/heist";
+import { handlePoliceComponent } from "../police/text";
 import { handleGamesInteraction } from "../games";
 import { handleWhisperInteraction } from "../whisper/interactions";
 import { handleBotProfileInteraction } from "../botprofile/interactions";
@@ -35,6 +36,12 @@ const event: BotEvent = {
     // --- سطو البنك (السرقة الكبيرة): أزرار وقوائم hst| ---
     if (interaction.isMessageComponent() && interaction.customId.startsWith("hst|")) {
       await handleHeistComponent(interaction).catch((err) => logger.error("خطأ في سطو البنك", err));
+      return;
+    }
+
+    // --- مركز الشرطة وزر التحذير: pol| ---
+    if (interaction.isMessageComponent() && interaction.customId.startsWith("pol|")) {
+      await handlePoliceComponent(interaction).catch((err) => logger.error("خطأ في الشرطة", err));
       return;
     }
 
