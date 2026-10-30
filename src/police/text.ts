@@ -20,7 +20,7 @@ const id = (act: string, arg: string): string => `pol|${act}|${arg}`;
 
 /** صف زر التحذير اللي يتحط تحت رسالة السرقة/النهب */
 export function policeWarnRow(crimeId: string): ActionRowBuilder<ButtonBuilder> {
-  return new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(id("warn", crimeId)).setLabel("🚔 تحذير (للشرطة)").setStyle(ButtonStyle.Secondary));
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(id("warn", crimeId)).setEmoji("🚔").setStyle(ButtonStyle.Secondary));
 }
 
 async function stationView(owner: string, guildId: string, note?: string): Promise<BaseMessageOptions> {
