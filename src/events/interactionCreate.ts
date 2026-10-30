@@ -17,6 +17,7 @@ import { handleCompanyInteraction } from "../companies";
 import { handleCompanyAdminInteraction } from "../companies/admin";
 import { handleTalkInteraction } from "../talk";
 import { handleJobButton, handleJobSelect } from "../jobs/interactions";
+import { handleHeistComponent } from "../jobs/heist";
 import { handleGamesInteraction } from "../games";
 import { handleWhisperInteraction } from "../whisper/interactions";
 import { handleBotProfileInteraction } from "../botprofile/interactions";
@@ -31,6 +32,12 @@ const cooldowns = new Collection<string, number>();
 const event: BotEvent = {
   name: Events.InteractionCreate,
   async execute(client: BotClient, interaction: Interaction) {
+    // --- سطو البنك (السرقة الكبيرة): أزرار وقوائم hst| ---
+    if (interaction.isMessageComponent() && interaction.customId.startsWith("hst|")) {
+      await handleHeistComponent(interaction).catch((err) => logger.error("خطأ في سطو البنك", err));
+      return;
+    }
+
     if (await handleAdminSettingsInteraction(interaction)) return;
     if (await handleCompanyInteraction(interaction)) return;
     if (await handleCompanyAdminInteraction(interaction)) return;
