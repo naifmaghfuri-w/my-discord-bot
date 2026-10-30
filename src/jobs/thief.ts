@@ -10,6 +10,8 @@ import { logTransaction } from "../services/transactions";
 import { getJob } from "./service";
 import { fmtMs } from "./views";
 import { HEIST, heistCooldownLeft } from "./heist";
+import { POLICE, payBail, policeJail, recordCrime } from "../police/service";
+import { policeWarnRow } from "../police/text";
 
 const MIN = 60_000;
 
@@ -49,6 +51,8 @@ async function cooldowns(userId: string, guildId: string): Promise<Record<"membe
 export interface ThiefResult {
   /** success/caught = صورة، info = نص قصير */
   kind: "success" | "caught" | "info";
+  /** id الجريمة (يطلع زر تحذير للشرطة تحتها) */
+  crimeId?: string;
   place?: string;
   amount?: number;
   text?: string;
@@ -59,15 +63,19 @@ export async function buildThiefMenu(userId: string, guildId: string, result?: T
   const cd = await cooldowns(userId, guildId);
   const jail = await jailLeft(userId, guildId);
   const bigCd = await heistCooldownLeft(userId, guildId);
+  const pj = jail > 0 && (await policeJail(userId, guildId));
+  const bailCost = pj ? POLICE.bail : THIEF.jail.bail;
   const btn = (a: "member" | "company" | "shop", label: string) =>
     new ButtonBuilder().setCustomId(`co|thf|${userId}|${a}`).setLabel(label).setStyle(ButtonStyle.Danger).setDisabled(cd[a] > 0 || jail > 0);
   const components = [new ActionRowBuilder<ButtonBuilder>().addComponents(btn("member", "سرقة عضو"), btn("company", "سرقة شركة"), btn("shop", "محل صغير"), new ButtonBuilder().setCustomId(`hst|${userId}|open`).setLabel("سرقة كبيرة").setStyle(ButtonStyle.Danger).setDisabled(bigCd > 0 || jail > 0))];
-  if (jail > 0) components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`co|thf|${userId}|bail`).setLabel(`ادفع ${THIEF.jail.bail} واطلع`).setStyle(ButtonStyle.Success)));
+  if (jail > 0) components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`co|thf|${userId}|bail`).setLabel(`ادفع ${bailCost} واطلع`).setStyle(ButtonStyle.Success)));
+
+  if (result?.kind === "success" && result.crimeId) components.push(policeWarnRow(result.crimeId));
 
   let png: Buffer | null = null;
   let name = "thief.png";
   if (jail > 0 && result?.kind !== "info") {
-    png = await renderThiefJail(fmtMs(Math.max(MIN, jail)), THIEF.jail.bail);
+    png = await renderThiefJail(pj ? "حتى تدفع الكفالة" : fmtMs(Math.max(MIN, jail)), bailCost);
     name = "thief-jail.png";
   } else if (result && result.kind !== "info") {
     png = await renderThiefResult(result.kind, result.place ?? "", result.amount ?? 0);
@@ -118,14 +126,16 @@ export async function runThief(userId: string, guildId: string, action: ThiefAct
   if (action === "bail") {
     const left = await jailLeft(userId, guildId);
     if (left <= 0) return info("ما أنت مسجون.");
-    const paid = await UserProfile.findOneAndUpdate({ userId, guildId, coins: { $gte: THIEF.jail.bail } }, { $inc: { coins: -THIEF.jail.bail } });
-    if (!paid) return info(`❌ ما تكفي محفظتك للكفالة (${jenny(THIEF.jail.bail)}).`);
-    await ThiefState.updateOne({ userId, guildId }, { $set: { jailUntil: null, caught: 0 } });
-    return info(`دفعت كفالة ${jenny(THIEF.jail.bail)} وطلعت من السجن.`);
+    const r = await payBail(userId, guildId, THIEF.jail.bail);
+    if (!r.ok) return info(`❌ ما تكفي محفظتك للكفالة (${jenny(r.cost)}).`);
+    return info(`دفعت كفالة ${jenny(r.cost)} وطلعت من السجن.`);
   }
   if (!ACTIONS.includes(action)) return info("❌ سرقة غير معروفة.");
   const jailed = await jailLeft(userId, guildId);
-  if (jailed > 0) return info(`أنت مسجون! باقي ${fmtMs(Math.max(MIN, jailed))}، أو ادفع كفالة ${jenny(THIEF.jail.bail)}.`);
+  if (jailed > 0) {
+    if (await policeJail(userId, guildId)) return info(`🚨 أنت مسجون بقرار الشرطة! ادفع الكفالة ${jenny(POLICE.bail)} من الزر أو من \`!مركز شرطة\`.`);
+    return info(`أنت مسجون! باقي ${fmtMs(Math.max(MIN, jailed))}، أو ادفع كفالة ${jenny(THIEF.jail.bail)}.`);
+  }
 
   // نضمن وجود سجل المهل ثم نحجز المهلة ذريًا
   await ThiefState.updateOne({ userId, guildId }, { $setOnInsert: { member: null, company: null, shop: null } }, { upsert: true }).catch(() => undefined);
@@ -160,7 +170,7 @@ export async function runThief(userId: string, guildId: string, action: ThiefAct
       return info(`**${gm.displayName}** ما معه فلوس في محفظته. اختر غيره (ما انحسبت عليك مهلة).`);
     }
     await payThief(userId, guildId, take);
-    return { kind: "success", place: gm.displayName, amount: take };
+    return { kind: "success", place: gm.displayName, amount: take, crimeId: await recordCrime(guildId, userId, "theft", `عضو: ${gm.displayName}`, take) };
   }
 
   /* ----- شركة تختارها ----- */
@@ -198,11 +208,11 @@ export async function runThief(userId: string, guildId: string, action: ThiefAct
     }
     await payThief(userId, guildId, take);
     await CompanyLog.create({ guildId, companyId: cid, text: `حرامي سرق ${jenny(take)} من ميزانية الشركة (ما فيها حارس بوابة).` }).catch(() => undefined);
-    return { kind: "success", place: c.name, amount: take };
+    return { kind: "success", place: c.name, amount: take, crimeId: await recordCrime(guildId, userId, "theft", `شركة: ${c.name}`, take) };
   }
 
   /* ----- محل صغير ----- */
   const gain = THIEF.shop.min + Math.floor(Math.random() * (THIEF.shop.max - THIEF.shop.min + 1));
   await payThief(userId, guildId, gain);
-  return { kind: "success", place: "محل صغير", amount: gain };
+  return { kind: "success", place: "محل صغير", amount: gain, crimeId: await recordCrime(guildId, userId, "theft", "محل صغير", gain) };
 }
