@@ -92,8 +92,10 @@ export async function handlePoliceComponent(i: MessageComponentInteraction): Pro
         return true;
       }
       // نشيل زر التحذير من الرسالة
-      const rows = i.message.components.filter((row) => !row.components.some((c) => "customId" in c && String(c.customId).startsWith("pol|")));
-      await i.update({ components: rows.map((row) => row.toJSON()) } as never).catch(() => undefined);
+      const rows = i.message.components
+        .map((row) => row.toJSON() as unknown as { components?: { custom_id?: string }[] })
+        .filter((row) => !(row.components ?? []).some((c) => String(c.custom_id ?? "").startsWith("pol|")));
+      await i.update({ components: rows } as never).catch(() => undefined);
       const text = r.jailed
         ? `🚔 الشرطي <@${i.user.id}> أعطى <@${r.offenderId}> التحذير **${r.warnNo}/${POLICE.maxWarns}** على ${KIND_LABEL[r.kind]}${r.place ? ` (${r.place})` : ""}.\n🚨 **انسجن!** كفالته ${jenny(POLICE.bail)} (يدفعها من \`!مركز شرطة\`).`
         : `🚔 الشرطي <@${i.user.id}> أعطى <@${r.offenderId}> تحذير **${r.warnNo}/${POLICE.maxWarns}** على ${KIND_LABEL[r.kind]}${r.place ? ` (${r.place})` : ""}.`;
