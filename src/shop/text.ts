@@ -8,8 +8,8 @@ import { Marriage } from "../database/models/Marriage";
 import { UserProfile } from "../database/models/UserProfile";
 import { jenny } from "../constants";
 import { logTransaction } from "../services/transactions";
-import { INV_COLS, INV_PER_PAGE, renderCars, renderEstate, renderFlowerShop, renderInventory, renderJewelryShop, renderMarriageCard, renderShops } from "./card";
-import { CAR_IDS, ESTATE_IDS, ITEMS, lovePercent, type ItemId } from "./data";
+import { INV_COLS, INV_PER_PAGE, renderCars, renderEstate, renderFlowerShop, renderInventory, renderJewelryShop, renderMarriageCard, renderPhones, renderShops } from "./card";
+import { CAR_IDS, ESTATE_IDS, PHONE_IDS, ITEMS, lovePercent, type ItemId } from "./data";
 
 export const SHOPS_TRIGGER = /^!\s*محلات$/;
 export const ESTATE_TRIGGER = /^!\s*(?:العقار|العقارات|عقار)$/;
@@ -44,8 +44,9 @@ async function shopsView(owner: string): Promise<BaseMessageOptions> {
     { name: "محل ورد", sub: `الوردة بـ ${ITEMS.flower.price} Jenny`, icon: "flower" },
     { name: "محل مجوهرات", sub: `${ITEMS.ring.name} بـ ${ITEMS.ring.price} Jenny`, icon: "ring" },
     { name: "معرض سيارات", sub: `من ${ITEMS.cherry_arrizo.price.toLocaleString("en-US")} Jenny`, icon: "land_cruiser" },
+    { name: "محل هواتف", sub: `من ${ITEMS.huawei.price.toLocaleString("en-US")} Jenny`, icon: "iphone_18" },
   ]);
-  return view(png, "shops.png", [row(btn(id(owner, "flower"), "محل ورد", ButtonStyle.Primary), btn(id(owner, "jewelry"), "محل مجوهرات", ButtonStyle.Primary), btn(id(owner, "cars"), "معرض سيارات", ButtonStyle.Primary))], "المحلات: محل ورد، محل مجوهرات، معرض سيارات");
+  return view(png, "shops.png", [row(btn(id(owner, "flower"), "محل ورد", ButtonStyle.Primary), btn(id(owner, "jewelry"), "محل مجوهرات", ButtonStyle.Primary), btn(id(owner, "cars"), "معرض سيارات", ButtonStyle.Primary), btn(id(owner, "phones"), "محل هواتف", ButtonStyle.Primary))], "المحلات: محل ورد، محل مجوهرات، معرض سيارات، محل هواتف");
 }
 
 async function flowerView(owner: string, guildId: string, note?: string): Promise<BaseMessageOptions> {
@@ -86,6 +87,18 @@ async function carsView(owner: string, guildId: string, note?: string): Promise<
     .setPlaceholder("اختر سيارة للشراء")
     .addOptions(rows.map((r) => ({ label: r.name, value: r.id, description: `${r.price.toLocaleString("en-US")} Jenny` })));
   return view(png, "cars.png", [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)], rows.map((r) => `${r.name}: ${r.price}`).join("\n"), note);
+}
+
+async function phonesView(owner: string, guildId: string, note?: string): Promise<BaseMessageOptions> {
+  const inv = await Inventory.findOne({ userId: owner, guildId }, { items: 1 });
+  const have = (inv?.items ?? {}) as Record<string, number>;
+  const rows = PHONE_IDS.map((k) => ({ id: k, name: ITEMS[k].name, price: ITEMS[k].price, count: Number(have[k] ?? 0) }));
+  const png = await renderPhones(rows);
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId(id(owner, "pbuy"))
+    .setPlaceholder("اختر هاتف للشراء")
+    .addOptions(rows.map((r) => ({ label: r.name, value: r.id, description: `${r.price.toLocaleString("en-US")} Jenny` })));
+  return view(png, "phones.png", [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)], rows.map((r) => `${r.name}: ${r.price}`).join("\n"), note);
 }
 
 /* ───────── مقتنياتي ───────── */
@@ -281,6 +294,7 @@ export async function handleShopComponent(i: ButtonInteraction | StringSelectMen
   if (act === "flower") return await edit(await flowerView(owner, guild.id)), true;
   if (act === "jewelry") return await edit(await jewelryView(owner, guild.id)), true;
   if (act === "cars") return await edit(await carsView(owner, guild.id)), true;
+  if (act === "phones") return await edit(await phonesView(owner, guild.id)), true;
 
   if (act === "buy") {
     const item = arg === "ring" ? "ring" : "flower";
@@ -317,6 +331,21 @@ export async function handleShopComponent(i: ButtonInteraction | StringSelectMen
     }
     await logTransaction(guild.id, owner, "shop_purchase", cost);
     return await edit(await carsView(owner, guild.id, `✅ اشتريت ${ITEMS[key].name} بـ ${cost.toLocaleString("en-US")}. شوفها في !مقتنياتي`)), true;
+  }
+  if (act === "pbuy" && i.isStringSelectMenu()) {
+    const key = i.values[0] as (typeof PHONE_IDS)[number];
+    if (!PHONE_IDS.includes(key)) return await edit(await phonesView(owner, guild.id)), true;
+    const cost = ITEMS[key].price;
+    // نحجز الهاتف أول (مرة وحدة لكل موديل)، وبعدها ندفع
+    const reserved = await Inventory.findOneAndUpdate({ userId: owner, guildId: guild.id, [`items.${key}`]: { $not: { $gte: 1 } } }, { $inc: { [`items.${key}`]: 1 } }, { upsert: true }).then(() => true, () => false);
+    if (!reserved) return await edit(await phonesView(owner, guild.id, `❌ عندك ${ITEMS[key].name} من قبل.`)), true;
+    const paid = await UserProfile.findOneAndUpdate({ userId: owner, guildId: guild.id, coins: { $gte: cost } }, { $inc: { coins: -cost } });
+    if (!paid) {
+      await Inventory.updateOne({ userId: owner, guildId: guild.id }, { $inc: { [`items.${key}`]: -1 } });
+      return await edit(await phonesView(owner, guild.id, `❌ ما تكفي محفظتك (${cost.toLocaleString("en-US")}).`)), true;
+    }
+    await logTransaction(guild.id, owner, "shop_purchase", cost);
+    return await edit(await phonesView(owner, guild.id, `✅ اشتريت ${ITEMS[key].name} بـ ${cost.toLocaleString("en-US")}. شوفه في !مقتنياتي`)), true;
   }
   if (act === "ipg") return await edit(await inventoryView(guild, owner, Number(arg) || 0)), true;
 
