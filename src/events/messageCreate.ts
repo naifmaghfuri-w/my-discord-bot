@@ -41,6 +41,7 @@ import { recordMessage } from "../services/stats";
 import { PROFILE_TRIGGER, handleProfileMessage } from "../profile/text";
 import { CARS_TRIGGER, ESTATE_TRIGGER, INVENTORY_TRIGGER, MYMARRIAGE_TRIGGER, SHOPS_TRIGGER, handleShopMessage } from "../shop/text";
 import { TOP_TRIGGER, handleTopMessage } from "../top/text";
+import { POLICE_TRIGGER, handlePoliceMessage } from "../police/text";
 import { CHATPANEL_TRIGGER, handleChatPanelMessage } from "../chat/text";
 import { VIP_TRIGGER, handleVipMessage } from "../vip/text";
 import { ROLES_TRIGGER, handleRolesPanelMessage } from "../roles/text";
@@ -130,6 +131,10 @@ const event: BotEvent = {
     // --- الوظائف: "وظائف" / "دوام" / "استقالة" ---
     if (SHOPS_TRIGGER.test(rawContent.trim()) || ESTATE_TRIGGER.test(rawContent.trim()) || CARS_TRIGGER.test(rawContent.trim()) || INVENTORY_TRIGGER.test(rawContent.trim()) || MYMARRIAGE_TRIGGER.test(rawContent.trim())) {
       await handleShopMessage(message);
+      return;
+    }
+    if (POLICE_TRIGGER.test(rawContent.trim())) {
+      await handlePoliceMessage(message);
       return;
     }
     if (PROFILE_TRIGGER.test(rawContent.trim())) {
