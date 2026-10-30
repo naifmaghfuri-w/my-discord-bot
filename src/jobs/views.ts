@@ -37,7 +37,7 @@ export function buildJobsList(owner: string, jp: IJobProfile, _ctx: JobContext, 
   if (current) {
     lines.push(`عندك وظيفة حاليًا: **${current.name}**. اكتب \`!استقاله\` إذا تبي تغيّرها.`, "");
   } else {
-    lines.push(`رسوم التقديم: ${jenny(JOB_RULES.applyFee)}`);
+    lines.push(JOB_RULES.applyFee > 0 ? `رسوم التقديم: ${jenny(JOB_RULES.applyFee)}` : "التقديم مجاني ✅");
     const blocked = jp.blockedUntil ? new Date(jp.blockedUntil).getTime() - Date.now() : 0;
     if (blocked > 0) lines.push(`⏳ تقدر تقدّم على وظيفة جديدة بعد ${fmtMs(blocked)}.`);
     lines.push("");
