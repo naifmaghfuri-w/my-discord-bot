@@ -8,6 +8,8 @@ import {
   type Message,
 } from "discord.js";
 import { jenny } from "../constants";
+import { policeJail, recordCrime } from "../police/service";
+import { policeWarnRow } from "../police/text";
 import { logger } from "../utils/logger";
 import { TRAP_FEE, resolveRob, startRob, type Outcome } from "./service";
 
@@ -83,6 +85,11 @@ export async function handleRobMessage(message: Message<true>, query: string): P
     return;
   }
 
+  if (await policeJail(robberId, guildId)) {
+    await reply("🚨 أنت مسجون بقرار الشرطة! ادفع الكفالة من `!مركز شرطة`.");
+    return;
+  }
+
   const start = await startRob(robberId, victimId, guildId).catch((err) => {
     logger.error("فشل بدء النهب", err);
     return null;
@@ -149,6 +156,7 @@ export async function handleRobMessage(message: Message<true>, query: string): P
       const result = await resolveRob(robberId, victimId, guildId, outcome);
 
       const embed = new EmbedBuilder().setAuthor(author).setTitle("نهب").setThumbnail(victim.displayAvatarURL());
+      let crimeId: string | undefined;
       if (result.outcome === "loot") {
         embed
           .setColor(0x22c55e)
@@ -165,7 +173,8 @@ export async function handleRobMessage(message: Message<true>, query: string): P
         embed.setColor(0x64748b).setDescription("🕳️ المكان كان فارغ! فشلت عملية النهب.");
       }
 
-      await i.editReply({ embeds: [embed], components: buttons(id, layout, index), allowedMentions: NO_PINGS });
+      if (result.outcome === "loot") crimeId = await recordCrime(guildId, robberId, "rob", `نهب من ${victim.globalName ?? victim.username}`, result.amount);
+      await i.editReply({ embeds: [embed], components: [...buttons(id, layout, index), ...(crimeId ? [policeWarnRow(crimeId)] : [])], allowedMentions: NO_PINGS });
     } catch (err) {
       logger.error("فشل حل لعبة النهب", err);
     }
