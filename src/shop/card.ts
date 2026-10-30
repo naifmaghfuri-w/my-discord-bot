@@ -276,6 +276,87 @@ function drawCar(ctx: SKRSContext2D, kind: string, cx: number, cy: number, k = 1
   ctx.restore();
 }
 
+/** يرسم هاتف (آيفون 18 / جلكسي نوت 19 / هواوي) */
+function drawPhone(ctx: SKRSContext2D, kind: string, cx: number, cy: number, k = 1): void {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(k, k);
+  const rbox = (x: number, y: number, w: number, h: number, r: number, c: string | CanvasGradient) => {
+    ctx.fillStyle = c;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
+    ctx.fill();
+  };
+  const W2 = 84, H2 = 160, X = -W2 / 2, Y = -H2 / 2;
+  ctx.fillStyle = "rgba(0,0,0,0.3)";
+  ctx.beginPath();
+  ctx.ellipse(0, H2 / 2 + 6, 50, 7, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  const wall = (a: string, b: string, pad: number) => {
+    const g = ctx.createLinearGradient(X, Y, X + W2, Y + H2);
+    g.addColorStop(0, a);
+    g.addColorStop(1, b);
+    return { g, pad };
+  };
+
+  if (kind === "iphone_18") {
+    rbox(X, Y, W2, H2, 20, "#9ca3af");
+    rbox(X + 2, Y + 2, W2 - 4, H2 - 4, 18, "#1f2937");
+    const w = wall("#6366f1", "#ec4899", 6);
+    rbox(X + 6, Y + 6, W2 - 12, H2 - 12, 14, w.g);
+    rbox(-14, Y + 11, 28, 8, 4, "#000");
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.beginPath();
+    ctx.arc(0, -8, 14, 0, Math.PI * 2);
+    ctx.fill();
+    rbox(-22, 18, 44, 5, 2.5, "rgba(255,255,255,0.6)");
+    rbox(-14, 28, 28, 4, 2, "rgba(255,255,255,0.4)");
+    rbox(-14, H2 / 2 - 14, 28, 3, 1.5, "rgba(255,255,255,0.7)");
+    rbox(X + W2, -16, 3, 22, 1.5, "#9ca3af");
+  } else if (kind === "galaxy_note_19") {
+    rbox(X, Y, W2, H2, 8, "#0f172a");
+    rbox(X + 1.5, Y + 1.5, W2 - 3, H2 - 3, 7, "#1e293b");
+    const w = wall("#10b981", "#0ea5e9", 4);
+    rbox(X + 4, Y + 4, W2 - 8, H2 - 8, 5, w.g);
+    ctx.fillStyle = "#000";
+    ctx.beginPath();
+    ctx.arc(0, Y + 12, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.8)";
+    ctx.beginPath();
+    ctx.moveTo(-18, 22);
+    ctx.lineTo(0, -22);
+    ctx.lineTo(18, 22);
+    ctx.closePath();
+    ctx.fill();
+    rbox(-22, 32, 44, 5, 2.5, "rgba(255,255,255,0.55)");
+    // قلم S-Pen
+    rbox(X + W2 - 20, H2 / 2 - 7, 18, 4, 2, "#f59e0b");
+    rbox(X + W2 - 4, H2 / 2 - 7, 3, 4, 1, "#fff");
+  } else {
+    rbox(X, Y, W2, H2, 14, "#e5e7eb");
+    rbox(X + 2, Y + 2, W2 - 4, H2 - 4, 12, "#111827");
+    const w = wall("#f97316", "#dc2626", 5);
+    rbox(X + 5, Y + 5, W2 - 10, H2 - 10, 9, w.g);
+    rbox(-12, Y + 5, 24, 6, 3, "#000");
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.beginPath();
+    ctx.arc(0, -4, 20, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#dc2626";
+    for (const a of [-0.6, 0, 0.6]) {
+      ctx.beginPath();
+      ctx.ellipse(Math.sin(a) * 9, -4 - Math.cos(a) * 3, 3, 9, a, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    rbox(-22, 30, 44, 5, 2.5, "rgba(255,255,255,0.55)");
+  }
+  ctx.restore();
+}
+
+const PHONE_KEYS = ["iphone_18", "galaxy_note_19", "huawei"];
+
 const CAR_KEYS = ["cherry_arrizo", "land_cruiser", "rolls_royce"];
 
 /** يرسم أيقونة غرض مقتنيات/محل */
@@ -283,6 +364,7 @@ function drawIcon(ctx: SKRSContext2D, icon: string, cx: number, cy: number, k: n
   if (icon === "ring") drawRing(ctx, cx, cy + 22 * k, k);
   else if (icon === "flower") drawRose(ctx, cx, cy - 30 * k, k);
   else if (CAR_KEYS.includes(icon)) drawCar(ctx, icon, cx, cy, k);
+  else if (PHONE_KEYS.includes(icon)) drawPhone(ctx, icon, cx, cy, k * 0.8);
   else drawProperty(ctx, icon, cx, cy, k);
 }
 
@@ -490,6 +572,56 @@ export async function renderCars(rows: { id: string; name: string; price: number
       rr(ctx, PAD, y, W - PAD * 2, 84, 18);
       ctx.fill();
       drawCar(ctx, r.id, W - PAD - 82, y + 40, 0.38);
+      ctx.textAlign = "right";
+      ctx.fillStyle = "#f8fafc";
+      fit(ctx, r.name, family, 30, 330);
+      ctx.fillText(r.name, W - PAD - 150, y + 42);
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#fbbf24";
+      ctx.font = `700 30px "${family}"`;
+      ctx.fillText(`${fmt(r.price)} Jenny`, 420, y + 42);
+      ctx.fillStyle = r.count > 0 ? "#4ade80" : "#64748b";
+      ctx.font = `700 30px "${family}"`;
+      ctx.fillText(`× ${fmt(r.count)}`, 150, y + 42);
+    });
+    return await canvas.encode("png");
+  } catch {
+    return null;
+  }
+}
+
+/** محل الهواتف */
+export async function renderPhones(rows: { id: string; name: string; price: number; count: number }[]): Promise<Buffer | null> {
+  try {
+    const family = ensureFontsRegistered() ? FONT_BOLD : "sans-serif";
+    const H = 214 + rows.length * 96 + 20;
+    const canvas = createCanvas(W, H);
+    const ctx = canvas.getContext("2d");
+    ctx.textBaseline = "middle";
+    bg(ctx, H, "rgba(168,85,247,0.12)");
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#f8fafc";
+    ctx.font = `700 46px "${family}"`;
+    ctx.fillText("محل الهواتف", W - PAD, 62);
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = `700 21px "${family}"`;
+    ctx.fillText("اختر هاتف من القائمة اللي تحت للشراء", W - PAD, 108);
+    ctx.fillStyle = "rgba(255,255,255,0.08)";
+    rr(ctx, PAD, 146, W - PAD * 2, 52, 16);
+    ctx.fill();
+    ctx.fillStyle = "#cbd5e1";
+    ctx.font = `700 21px "${family}"`;
+    ctx.textAlign = "right";
+    ctx.fillText("الهاتف", W - PAD - 150, 172);
+    ctx.textAlign = "center";
+    ctx.fillText("السعر", 420, 172);
+    ctx.fillText("عندك", 150, 172);
+    rows.forEach((r, i) => {
+      const y = 214 + i * 96;
+      ctx.fillStyle = i % 2 === 0 ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.02)";
+      rr(ctx, PAD, y, W - PAD * 2, 84, 18);
+      ctx.fill();
+      drawPhone(ctx, r.id, W - PAD - 82, y + 42, 0.46);
       ctx.textAlign = "right";
       ctx.fillStyle = "#f8fafc";
       fit(ctx, r.name, family, 30, 330);
