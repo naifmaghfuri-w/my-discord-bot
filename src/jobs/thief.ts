@@ -9,6 +9,7 @@ import { UserProfile } from "../database/models/UserProfile";
 import { logTransaction } from "../services/transactions";
 import { getJob } from "./service";
 import { fmtMs } from "./views";
+import { HEIST, heistCooldownLeft } from "./heist";
 
 const MIN = 60_000;
 
@@ -57,9 +58,10 @@ export interface ThiefResult {
 export async function buildThiefMenu(userId: string, guildId: string, result?: ThiefResult): Promise<BaseMessageOptions> {
   const cd = await cooldowns(userId, guildId);
   const jail = await jailLeft(userId, guildId);
+  const bigCd = await heistCooldownLeft(userId, guildId);
   const btn = (a: "member" | "company" | "shop", label: string) =>
     new ButtonBuilder().setCustomId(`co|thf|${userId}|${a}`).setLabel(label).setStyle(ButtonStyle.Danger).setDisabled(cd[a] > 0 || jail > 0);
-  const components = [new ActionRowBuilder<ButtonBuilder>().addComponents(btn("member", "سرقة عضو"), btn("company", "سرقة شركة"), btn("shop", "محل صغير"))];
+  const components = [new ActionRowBuilder<ButtonBuilder>().addComponents(btn("member", "سرقة عضو"), btn("company", "سرقة شركة"), btn("shop", "محل صغير"), new ButtonBuilder().setCustomId(`hst|${userId}|open`).setLabel("سرقة كبيرة").setStyle(ButtonStyle.Danger).setDisabled(bigCd > 0 || jail > 0))];
   if (jail > 0) components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`co|thf|${userId}|bail`).setLabel(`ادفع ${THIEF.jail.bail} واطلع`).setStyle(ButtonStyle.Success)));
 
   let png: Buffer | null = null;
@@ -76,6 +78,7 @@ export async function buildThiefMenu(userId: string, guildId: string, result?: T
       { place: "عضو", max: THIEF.member.max, wait: cd.member > 0 ? fmtMs(Math.max(MIN, cd.member)) : null },
       { place: "شركة", max: THIEF.company.steal, wait: cd.company > 0 ? fmtMs(Math.max(MIN, cd.company)) : null },
       { place: "محل صغير", max: THIEF.shop.max, wait: cd.shop > 0 ? fmtMs(Math.max(MIN, cd.shop)) : null },
+      { place: "سطو البنك (سرقة كبيرة)", max: HEIST.boxes * HEIST.box.max, wait: bigCd > 0 ? fmtMs(Math.max(MIN, bigCd)) : null },
     ];
     png = await renderThiefMenu(rows);
     name = "thief.png";
