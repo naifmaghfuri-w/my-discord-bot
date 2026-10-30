@@ -130,8 +130,12 @@ export async function applyForJob(userId: string, guildId: string, jobId: string
   const missing = missingReqs(job.req, ctx);
   if (missing.length) return { ok: false, reason: "reqs", missing };
 
-  const paid = await UserProfile.findOneAndUpdate({ userId, guildId, coins: { $gte: JOB_RULES.applyFee } }, { $inc: { coins: -JOB_RULES.applyFee } });
-  if (!paid) return { ok: false, reason: "coins" };
+  // رسوم التقديم (لو 0 ما نخصم شيء ولا نطلب وجود محفظة)
+  const fee = JOB_RULES.applyFee as number;
+  if (fee > 0) {
+    const paid = await UserProfile.findOneAndUpdate({ userId, guildId, coins: { $gte: fee } }, { $inc: { coins: -fee } });
+    if (!paid) return { ok: false, reason: "coins" };
+  }
 
   const hired = await JobProfile.findOneAndUpdate(
     { userId, guildId, jobId: "" },
@@ -139,10 +143,10 @@ export async function applyForJob(userId: string, guildId: string, jobId: string
     { new: true },
   );
   if (!hired) {
-    await UserProfile.updateOne({ userId, guildId }, { $inc: { coins: JOB_RULES.applyFee } });
+    if (fee > 0) await UserProfile.updateOne({ userId, guildId }, { $inc: { coins: fee } });
     return { ok: false, reason: "race" };
   }
-  await logTransaction(guildId, userId, "job_fee", JOB_RULES.applyFee);
+  if (fee > 0) await logTransaction(guildId, userId, "job_fee", fee);
   return { ok: true, job };
 }
 
