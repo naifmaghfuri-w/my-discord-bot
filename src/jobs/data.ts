@@ -1,6 +1,6 @@
 export const JOB_RULES = {
-  /** رسوم التقديم على وظيفة */
-  applyFee: 200,
+  /** رسوم التقديم على وظيفة (0 = مجاني) */
+  applyFee: 0,
   /** الوقت بين دوامين في الوظائف المهنية */
   shiftCooldownMs: 3 * 60 * 60 * 1000,
   /** مدة الدوام الكامل */
@@ -44,47 +44,12 @@ export interface JobDef {
   accident?: { chance: number; lossPct: number };
 }
 
-export const JOBS: JobDef[] = [
-  {
-    id: "courier", name: "موصل طلبات", icon: "🛵", kind: "career", desc: "توصيل بسيط. ترقياته بطيئة.",
-    req: {},
-    ranks: [
-      { title: "موصل", pay: 60, shiftsNeeded: 0 },
-      { title: "موصل خبير", pay: 90, shiftsNeeded: 25 },
-      { title: "مشرف توصيل", pay: 140, shiftsNeeded: 60 },
-      { title: "مدير فرع", pay: 220, shiftsNeeded: 120 },
-    ],
-  },
-  {
-    id: "bank_clerk", name: "موظف بنك", icon: "🏦", kind: "career", desc: "رواتب جيدة وترقيات بطيئة.",
-    req: {},
-    ranks: [
-      { title: "موظف", pay: 100, shiftsNeeded: 0 },
-      { title: "محاسب", pay: 160, shiftsNeeded: 35 },
-      { title: "مدير فرع", pay: 250, shiftsNeeded: 90 },
-    ],
-  },
-  {
-    id: "truck_driver", name: "سائق شاحنة", icon: "🚛", kind: "fullday", desc: "رحلة يوم كامل. راتب ثابت بدون ترقيات.",
-    req: {},
-    ranks: [{ title: "سائق", pay: 700, shiftsNeeded: 0 }],
-  },
-  {
-    id: "fisherman", name: "صياد سمك", icon: "🎣", kind: "fullday", desc: "يوم كامل في البحر. راتب أعلى بدون ترقيات.",
-    req: {},
-    ranks: [{ title: "صياد", pay: 900, shiftsNeeded: 0 }],
-  },
-  {
-    id: "miner", name: "عامل منجم", icon: "⛏️", kind: "fullday", desc: "أعلى راتب لكن فيه خطر إصابة (10%) تخسّرك 30% من الراتب.",
-    req: {},
-    ranks: [{ title: "عامل منجم", pay: 1200, shiftsNeeded: 0 }],
-    accident: { chance: 0.1, lossPct: 0.3 },
-  },
-];
+/** حُذفت: موصل طلبات، موظف بنك، سائق شاحنة، صياد سمك، عامل منجم (اللاعب اللي عنده وحدة منها ينفصل تلقائيًا بدون مهلة) */
+export const JOBS: JobDef[] = [];
 
 JOBS.push({
   id: "thief", name: "حرامي", icon: "🦹", kind: "thief",
-  desc: "اكتب `!سرقة` واختر: سرقة عضو أو شركة (تختارها بنفسك)، أو محل صغير.",
+  desc: "اكتب `!سرقة` واختر: سرقة عضو أو شركة (تختارها بنفسك)، أو محل صغير، أو سرقة كبيرة (سطو البنك).",
   req: {},
   ranks: [{ title: "حرامي", pay: 0, shiftsNeeded: 0 }],
 });
