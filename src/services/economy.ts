@@ -20,9 +20,16 @@ export async function reward(userId: string, guildId: string, coins: number, win
   );
 }
 
-/** الـ XP المطلوب للانتقال من مستوى إلى الذي بعده */
+/** أعلى مستوى */
+export const MAX_LEVEL = 100;
+
+/**
+ * الـ XP المطلوب للانتقال من مستوى إلى الذي بعده:
+ * من 1 إلى 29: 5L² + 50L + 100  (155، 220، ... 5,755)
+ * من 30 فما فوق: 10L² + 100L + 1000  (13,000 عند 30 ... 108,910 عند 99)
+ */
 export function xpNeeded(level: number): number {
-  return 5 * level ** 2 + 50 * level + 100;
+  return level < 30 ? 5 * level ** 2 + 50 * level + 100 : 10 * level ** 2 + 100 * level + 1000;
 }
 
 export interface GrantResult {
@@ -31,7 +38,7 @@ export interface GrantResult {
   leveledUp: boolean;
 }
 
-/** يعطي Jenny + XP ويرفع المستوى تلقائياً */
+/** يعطي Jenny + XP ويرفع المستوى تلقائياً (حتى المستوى 100) */
 export async function grantReward(
   userId: string,
   guildId: string,
@@ -49,12 +56,20 @@ export async function grantReward(
   let xp = doc.xp ?? 0;
   let leveledUp = false;
 
-  while (xp >= xpNeeded(level)) {
+  while (level < MAX_LEVEL && xp >= xpNeeded(level)) {
     xp -= xpNeeded(level);
     level++;
     leveledUp = true;
   }
-  if (leveledUp) await UserProfile.updateOne({ userId, guildId }, { $set: { level, xp } });
+  // المستوى الأقصى: ما يتراكم XP بعده
+  if (level >= MAX_LEVEL) {
+    level = Math.max(level, MAX_LEVEL);
+    if (xp !== 0) {
+      xp = 0;
+      leveledUp = leveledUp || false;
+    }
+  }
+  if (leveledUp || (level >= MAX_LEVEL && (doc.xp ?? 0) !== 0)) await UserProfile.updateOne({ userId, guildId }, { $set: { level, xp } });
 
   return { level, xp, leveledUp };
 }
