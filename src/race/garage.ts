@@ -11,7 +11,7 @@ import {
   type Message,
   type StringSelectMenuInteraction,
 } from "discord.js";
-import { jenny } from "../constants";
+import { CURRENCY, jenny } from "../constants";
 import { renderPartsShop, renderTune, type PartRow } from "./card";
 import { CATS, CAT_IDS, carName, effectiveStats, fxText, isCar, isCat, partId, partInfo, type CarId, type CatId, type Tier } from "./data";
 import { buyPart, getGarage, installPart, ownedCars } from "./service";
@@ -138,7 +138,7 @@ async function shopCat(owner: string, guildId: string, car: CarId, cat: CatId, n
     rowsC.push(
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
         new StringSelectMenuBuilder().setCustomId(pid(owner, "buy", car, cat)).setPlaceholder("اشترِ قطعة").addOptions(
-          buyable.map((t) => { const p = partInfo(car, cat, t); return { label: p.name, value: String(t), description: `${p.price.toLocaleString("en-US")} Jenny — ${fxText(p.fx)}`.slice(0, 100) }; }),
+          buyable.map((t) => { const p = partInfo(car, cat, t); return { label: p.name, value: String(t), description: `${p.price.toLocaleString("en-US")} ${CURRENCY.name} — ${fxText(p.fx)}`.slice(0, 100) }; }),
         ),
       ),
     );
