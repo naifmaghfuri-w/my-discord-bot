@@ -196,7 +196,7 @@ function drawProperty(ctx: SKRSContext2D, kind: string, cx: number, cy: number, 
 
 
 /** يرسم سيارة جانبية (شيري / لاندكروزر / رولز رويس) */
-function drawCar(ctx: SKRSContext2D, kind: string, cx: number, cy: number, k = 1): void {
+export function drawCar(ctx: SKRSContext2D, kind: string, cx: number, cy: number, k = 1): void {
   ctx.save();
   ctx.translate(cx, cy);
   ctx.scale(k, k);
@@ -355,6 +355,30 @@ function drawPhone(ctx: SKRSContext2D, kind: string, cx: number, cy: number, k =
   ctx.restore();
 }
 
+/** ترس (محل سبير بارتس) */
+function drawGear(ctx: SKRSContext2D, cx: number, cy: number, k = 1): void {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(k, k);
+  ctx.fillStyle = "#94a3b8";
+  for (let a = 0; a < 8; a++) {
+    ctx.save();
+    ctx.rotate((a * Math.PI) / 4);
+    ctx.beginPath();
+    ctx.roundRect(-9, -52, 18, 22, 4);
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.beginPath();
+  ctx.arc(0, 0, 38, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#1e293b";
+  ctx.beginPath();
+  ctx.arc(0, 0, 16, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 const PHONE_KEYS = ["iphone_18", "galaxy_note_19", "huawei"];
 
 const CAR_KEYS = ["cherry_arrizo", "land_cruiser", "rolls_royce"];
@@ -365,6 +389,7 @@ function drawIcon(ctx: SKRSContext2D, icon: string, cx: number, cy: number, k: n
   else if (icon === "flower") drawRose(ctx, cx, cy - 30 * k, k);
   else if (CAR_KEYS.includes(icon)) drawCar(ctx, icon, cx, cy, k);
   else if (PHONE_KEYS.includes(icon)) drawPhone(ctx, icon, cx, cy, k * 0.8);
+  else if (icon === "parts") drawGear(ctx, cx, cy, k);
   else drawProperty(ctx, icon, cx, cy, k);
 }
 
