@@ -8,7 +8,7 @@ export interface AchievementDef {
 
 export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "miser", name: "البخيل", desc: "حوّل 1 لشخص" },
-  { id: "generous", name: "كريم", desc: "حوّل 1000 لشخص" },
+  { id: "generous", name: "كريم", desc: "حوّل 500 أو أكثر لخمسة أشخاص مختلفين" },
   { id: "city_guardian", name: "حامي المدينة", desc: "اسجن 10 أشخاص" },
   { id: "professor", name: "البروفيسور", desc: "نفّذ سطو البنك بدون خطأ واحد" },
   { id: "too_fast", name: "تو فاست", desc: "فُز بالمركز الأول في السباقات 10 مرات على التوالي" },
@@ -16,7 +16,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
 ];
 const BY_ID = new Map(ACHIEVEMENTS.map((a) => [a.id, a]));
 
-export const NEED = { jails: 10, streak: 10, generous: 1000 } as const;
+export const NEED = { jails: 10, streak: 10, generousAmount: 500, generousPeople: 5 } as const;
 
 /** يفتح الإنجاز مرة وحدة بس. يرجّع true لو انفتح الحين */
 async function unlock(guildId: string, userId: string, id: string): Promise<boolean> {
@@ -38,10 +38,14 @@ async function unlockMany(guildId: string, userId: string, ids: string[]): Promi
 }
 
 /** تحويل فلوس من شخص لشخص */
-export async function trackTransfer(guildId: string, userId: string, amount: number): Promise<AchievementDef[]> {
+export async function trackTransfer(guildId: string, userId: string, amount: number, targetId?: string): Promise<AchievementDef[]> {
   const ids: string[] = [];
   if (amount === 1) ids.push("miser");
-  if (amount >= NEED.generous) ids.push("generous");
+  // كريم: تحويل 500+ لخمسة أشخاص مختلفين
+  if (amount >= NEED.generousAmount && targetId && targetId !== userId) {
+    const doc = await Achievement.findOneAndUpdate({ guildId, userId }, { $addToSet: { generousTo: targetId } }, { upsert: true, new: true });
+    if ((doc?.generousTo?.length ?? 0) >= NEED.generousPeople) ids.push("generous");
+  }
   return ids.length ? unlockMany(guildId, userId, ids) : [];
 }
 
@@ -75,5 +79,5 @@ export async function trackRace(guildId: string, userId: string, position: numbe
 export async function getAchievements(guildId: string, userId: string) {
   const doc = await Achievement.findOne({ guildId, userId });
   const unlocked = new Map<string, Date>((doc?.unlocked ?? []).map((u: { id?: string | null; at?: Date | null }) => [String(u.id), u.at ? new Date(u.at) : new Date()]));
-  return { unlocked, jails: doc?.jails ?? 0, firstStreak: doc?.firstStreak ?? 0, lastStreak: doc?.lastStreak ?? 0 };
+  return { unlocked, generous: doc?.generousTo?.length ?? 0, jails: doc?.jails ?? 0, firstStreak: doc?.firstStreak ?? 0, lastStreak: doc?.lastStreak ?? 0 };
 }
