@@ -8,6 +8,8 @@ const schema = new Schema({
   jails: { type: Number, default: 0 },
   firstStreak: { type: Number, default: 0 },
   lastStreak: { type: Number, default: 0 },
+  /** أشخاص حوّل لهم 500+ (لإنجاز كريم) */
+  generousTo: { type: [String], default: [] },
 });
 schema.index({ guildId: 1, userId: 1 }, { unique: true });
 
