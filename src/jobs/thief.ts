@@ -20,7 +20,7 @@ export const THIEF = {
   /** عضو تختاره: ياخذ اللي في محفظته (الحد الأعلى 100) */
   member: { max: 100, cooldownMs: 4 * 60 * MIN },
   /** شركة تختارها: بدون حارس يسرق من ميزانيتها، وبحارس يُمسك ويدفع تعويض */
-  company: { steal: 150, fine: 50, cooldownMs: 8 * 60 * MIN },
+  company: { steal: 150, fine: 50, cooldownMs: 4 * 60 * MIN },
   /** الحارس يحسب فقط لو داوم خلال هذي المدة */
   guardActiveMs: 5 * 60 * MIN,
   /** محل صغير */
