@@ -1,4 +1,5 @@
 import { createCanvas, loadImage, type Image, type SKRSContext2D } from "@napi-rs/canvas";
+import { CURRENCY } from "../constants";
 import { ensureFontsRegistered, FONT_BOLD } from "../quests/render/fonts";
 
 const W = 1000;
@@ -466,7 +467,7 @@ export async function renderFlowerShop(price: number, owned: number): Promise<Bu
     ctx.textAlign = "left";
     ctx.fillStyle = "#fbbf24";
     ctx.font = `700 34px "${family}"`;
-    ctx.fillText(`${fmt(price)} Jenny`, PAD + 28, 292);
+    ctx.fillText(`${fmt(price)} ${CURRENCY.name}`, PAD + 28, 292);
     ctx.fillStyle = "#f8fafc";
     ctx.fillText(fmt(owned), PAD + 28, 340);
     return await canvas.encode("png");
@@ -506,7 +507,7 @@ export async function renderJewelryShop(price: number, owned: number): Promise<B
     ctx.textAlign = "left";
     ctx.fillStyle = "#fbbf24";
     ctx.font = `700 34px "${family}"`;
-    ctx.fillText(`${fmt(price)} Jenny`, PAD + 28, 292);
+    ctx.fillText(`${fmt(price)} ${CURRENCY.name}`, PAD + 28, 292);
     ctx.fillStyle = "#f8fafc";
     ctx.fillText(fmt(owned), PAD + 28, 340);
     return await canvas.encode("png");
@@ -554,7 +555,7 @@ export async function renderEstate(rows: { id: string; name: string; price: numb
       ctx.textAlign = "center";
       ctx.fillStyle = "#fbbf24";
       ctx.font = `700 30px "${family}"`;
-      ctx.fillText(`${fmt(r.price)} Jenny`, 420, y + 42);
+      ctx.fillText(`${fmt(r.price)} ${CURRENCY.name}`, 420, y + 42);
       ctx.fillStyle = r.count > 0 ? "#4ade80" : "#64748b";
       ctx.font = `700 30px "${family}"`;
       ctx.fillText(`× ${fmt(r.count)}`, 150, y + 42);
@@ -604,7 +605,7 @@ export async function renderCars(rows: { id: string; name: string; price: number
       ctx.textAlign = "center";
       ctx.fillStyle = "#fbbf24";
       ctx.font = `700 30px "${family}"`;
-      ctx.fillText(`${fmt(r.price)} Jenny`, 420, y + 42);
+      ctx.fillText(`${fmt(r.price)} ${CURRENCY.name}`, 420, y + 42);
       ctx.fillStyle = r.count > 0 ? "#4ade80" : "#64748b";
       ctx.font = `700 30px "${family}"`;
       ctx.fillText(`× ${fmt(r.count)}`, 150, y + 42);
@@ -654,7 +655,7 @@ export async function renderPhones(rows: { id: string; name: string; price: numb
       ctx.textAlign = "center";
       ctx.fillStyle = "#fbbf24";
       ctx.font = `700 30px "${family}"`;
-      ctx.fillText(`${fmt(r.price)} Jenny`, 420, y + 42);
+      ctx.fillText(`${fmt(r.price)} ${CURRENCY.name}`, 420, y + 42);
       ctx.fillStyle = r.count > 0 ? "#4ade80" : "#64748b";
       ctx.font = `700 30px "${family}"`;
       ctx.fillText(`× ${fmt(r.count)}`, 150, y + 42);
