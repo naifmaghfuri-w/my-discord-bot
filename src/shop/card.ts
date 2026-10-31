@@ -382,6 +382,153 @@ function drawGear(ctx: SKRSContext2D, cx: number, cy: number, k = 1): void {
 
 const PHONE_KEYS = ["iphone_18", "galaxy_note_19", "huawei"];
 
+const FURN_KEYS = ["bed", "baby_crib", "sofa", "dining_table", "wardrobe", "chair", "carpet", "painting", "mirror", "chandelier", "lamp"];
+
+/** يرسم قطعة أثاث (مركزها cx,cy؛ المساحة تقريباً 170×150 عند k=1) */
+function drawFurniture(ctx: SKRSContext2D, kind: string, cx: number, cy: number, k = 1): void {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(k, k);
+  const box = (x: number, y: number, w: number, h: number, r: number, c: string) => {
+    ctx.fillStyle = c;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
+    ctx.fill();
+  };
+  const circ = (x: number, y: number, r: number, c: string) => {
+    ctx.fillStyle = c;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  };
+  const poly = (pts: number[][], c: string) => {
+    ctx.fillStyle = c;
+    ctx.beginPath();
+    pts.forEach(([x, y], n) => (n ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.closePath();
+    ctx.fill();
+  };
+  if (!["carpet", "painting", "chandelier", "lamp"].includes(kind)) {
+    ctx.fillStyle = "rgba(0,0,0,0.3)";
+    ctx.beginPath();
+    ctx.ellipse(0, 66, 82, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  switch (kind) {
+    case "bed":
+      box(-80, -20, 12, 86, 4, "#78350f");
+      box(-80, 20, 160, 22, 6, "#92400e");
+      box(-72, -2, 144, 30, 8, "#f1f5f9");
+      box(-66, -14, 40, 18, 8, "#bfdbfe");
+      box(-20, 2, 90, 26, 6, "#3b82f6");
+      box(-80, 42, 10, 24, 2, "#78350f");
+      box(70, 42, 10, 24, 2, "#78350f");
+      break;
+    case "baby_crib":
+      box(-62, 4, 124, 6, 3, "#fde68a");
+      box(-62, 50, 124, 6, 3, "#fde68a");
+      for (let x = -56; x <= 56; x += 14) box(x - 2, -34, 5, 92, 2, "#fcd34d");
+      box(-66, -40, 8, 106, 3, "#f59e0b");
+      box(58, -40, 8, 106, 3, "#f59e0b");
+      box(-60, 28, 120, 22, 6, "#fbcfe8");
+      circ(-30, 22, 10, "#fda4af");
+      break;
+    case "sofa":
+      box(-80, -34, 160, 52, 16, "#7c3aed");
+      box(-92, -6, 28, 58, 12, "#6d28d9");
+      box(64, -6, 28, 58, 12, "#6d28d9");
+      box(-66, 4, 132, 38, 10, "#8b5cf6");
+      box(-60, -24, 56, 22, 8, "#a78bfa");
+      box(4, -24, 56, 22, 8, "#a78bfa");
+      box(-78, 52, 8, 14, 2, "#3b0764");
+      box(70, 52, 8, 14, 2, "#3b0764");
+      break;
+    case "dining_table":
+      box(-76, -10, 152, 14, 5, "#b45309");
+      box(-64, 4, 10, 62, 2, "#78350f");
+      box(54, 4, 10, 62, 2, "#78350f");
+      box(-48, 4, 96, 8, 2, "#92400e");
+      circ(-20, -22, 11, "#f8fafc");
+      circ(24, -22, 11, "#f8fafc");
+      circ(-20, -22, 6, "#e2e8f0");
+      circ(24, -22, 6, "#e2e8f0");
+      break;
+    case "wardrobe":
+      box(-52, -64, 104, 128, 6, "#78350f");
+      box(-46, -58, 45, 116, 4, "#a16207");
+      box(1, -58, 45, 116, 4, "#a16207");
+      circ(-10, 0, 4, "#fde68a");
+      circ(10, 0, 4, "#fde68a");
+      box(-46, 64, 10, 8, 2, "#451a03");
+      box(36, 64, 10, 8, 2, "#451a03");
+      break;
+    case "chair":
+      box(-34, -60, 68, 62, 10, "#b45309");
+      box(-26, -52, 52, 46, 6, "#d97706");
+      box(-42, 0, 84, 16, 6, "#92400e");
+      box(-38, 16, 10, 50, 2, "#78350f");
+      box(28, 16, 10, 50, 2, "#78350f");
+      break;
+    case "carpet":
+      ctx.fillStyle = "#be123c";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 84, 38, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#fda4af";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 66, 28, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#be123c";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 38, 15, 0, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    case "painting":
+      box(-66, -56, 132, 112, 6, "#92400e");
+      box(-56, -46, 112, 92, 3, "#bae6fd");
+      circ(30, -22, 12, "#fde047");
+      poly([[-56, 46], [-18, -8], [18, 46]], "#16a34a");
+      poly([[-8, 46], [28, 6], [56, 46]], "#15803d");
+      break;
+    case "mirror":
+      box(-42, -66, 84, 128, 40, "#b45309");
+      box(-33, -57, 66, 110, 32, "#bae6fd");
+      ctx.strokeStyle = "rgba(255,255,255,0.8)";
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(-14, -30);
+      ctx.lineTo(10, -48);
+      ctx.moveTo(-18, -12);
+      ctx.lineTo(-4, -22);
+      ctx.stroke();
+      box(-8, 62, 16, 8, 2, "#78350f");
+      break;
+    case "chandelier":
+      box(-3, -70, 6, 30, 2, "#94a3b8");
+      ctx.fillStyle = "#fbbf24";
+      ctx.beginPath();
+      ctx.moveTo(-60, -10);
+      ctx.quadraticCurveTo(0, -60, 60, -10);
+      ctx.lineTo(48, -4);
+      ctx.quadraticCurveTo(0, -36, -48, -4);
+      ctx.closePath();
+      ctx.fill();
+      box(-6, -40, 12, 36, 4, "#f59e0b");
+      for (const x of [-48, -24, 0, 24, 48]) {
+        box(x - 1.5, -2, 3, 12, 1, "#fbbf24");
+        circ(x, 16, 7, "#fef08a");
+      }
+      break;
+    case "lamp":
+      circ(0, -44, 70, "rgba(253,224,71,0.15)");
+      poly([[-34, -20], [34, -20], [50, -66], [-50, -66]], "#fde68a");
+      box(-4, -20, 8, 64, 2, "#64748b");
+      box(-30, 44, 60, 12, 6, "#475569");
+      break;
+  }
+  ctx.restore();
+}
+
 const CAR_KEYS = ["cherry_arrizo", "land_cruiser", "rolls_royce"];
 
 /** يرسم أيقونة غرض مقتنيات/محل */
@@ -390,6 +537,7 @@ function drawIcon(ctx: SKRSContext2D, icon: string, cx: number, cy: number, k: n
   else if (icon === "flower") drawRose(ctx, cx, cy - 30 * k, k);
   else if (CAR_KEYS.includes(icon)) drawCar(ctx, icon, cx, cy, k);
   else if (PHONE_KEYS.includes(icon)) drawPhone(ctx, icon, cx, cy, k * 0.8);
+  else if (FURN_KEYS.includes(icon) || icon === "furniture") drawFurniture(ctx, icon === "furniture" ? "sofa" : icon, cx, cy, k * 0.7);
   else if (icon === "parts") drawGear(ctx, cx, cy, k);
   else drawProperty(ctx, icon, cx, cy, k);
 }
@@ -598,6 +746,56 @@ export async function renderCars(rows: { id: string; name: string; price: number
       rr(ctx, PAD, y, W - PAD * 2, 84, 18);
       ctx.fill();
       drawCar(ctx, r.id, W - PAD - 82, y + 40, 0.38);
+      ctx.textAlign = "right";
+      ctx.fillStyle = "#f8fafc";
+      fit(ctx, r.name, family, 30, 330);
+      ctx.fillText(r.name, W - PAD - 150, y + 42);
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#fbbf24";
+      ctx.font = `700 30px "${family}"`;
+      ctx.fillText(`${fmt(r.price)} ${CURRENCY.name}`, 420, y + 42);
+      ctx.fillStyle = r.count > 0 ? "#4ade80" : "#64748b";
+      ctx.font = `700 30px "${family}"`;
+      ctx.fillText(`× ${fmt(r.count)}`, 150, y + 42);
+    });
+    return await canvas.encode("png");
+  } catch {
+    return null;
+  }
+}
+
+/** محل الأثاث */
+export async function renderFurniture(rows: { id: string; name: string; price: number; count: number }[]): Promise<Buffer | null> {
+  try {
+    const family = ensureFontsRegistered() ? FONT_BOLD : "sans-serif";
+    const H = 214 + rows.length * 96 + 20;
+    const canvas = createCanvas(W, H);
+    const ctx = canvas.getContext("2d");
+    ctx.textBaseline = "middle";
+    bg(ctx, H, "rgba(234,88,12,0.12)");
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#f8fafc";
+    ctx.font = `700 46px "${family}"`;
+    ctx.fillText("محل الأثاث", W - PAD, 62);
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = `700 21px "${family}"`;
+    ctx.fillText("اختر قطعة من القائمة اللي تحت للشراء (تقدر تشتري أكثر من وحدة)", W - PAD, 108);
+    ctx.fillStyle = "rgba(255,255,255,0.08)";
+    rr(ctx, PAD, 146, W - PAD * 2, 52, 16);
+    ctx.fill();
+    ctx.fillStyle = "#cbd5e1";
+    ctx.font = `700 21px "${family}"`;
+    ctx.textAlign = "right";
+    ctx.fillText("القطعة", W - PAD - 150, 172);
+    ctx.textAlign = "center";
+    ctx.fillText("السعر", 420, 172);
+    ctx.fillText("عندك", 150, 172);
+    rows.forEach((r, i) => {
+      const y = 214 + i * 96;
+      ctx.fillStyle = i % 2 === 0 ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.02)";
+      rr(ctx, PAD, y, W - PAD * 2, 84, 18);
+      ctx.fill();
+      drawFurniture(ctx, r.id, W - PAD - 82, y + 42, 0.42);
       ctx.textAlign = "right";
       ctx.fillStyle = "#f8fafc";
       fit(ctx, r.name, family, 30, 330);
