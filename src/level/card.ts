@@ -1,5 +1,6 @@
 import { createCanvas, loadImage, type Image, type SKRSContext2D } from "@napi-rs/canvas";
 import { ensureFontsRegistered, FONT_BOLD, FONT_REGULAR } from "../quests/render/fonts";
+import { MAX_LEVEL } from "../services/economy";
 
 export interface LevelCardData {
   name: string;
@@ -33,6 +34,7 @@ export async function renderLevelCard(d: LevelCardData): Promise<Buffer | null> 
     const canvas = createCanvas(W, H);
     const ctx = canvas.getContext("2d");
     ctx.textBaseline = "alphabetic";
+    const maxed = d.level >= MAX_LEVEL;
 
     // اللوحة بكامل الصورة (الزوايا شفافة، بدون إطار أسود حولها)
     const bg = ctx.createLinearGradient(0, 0, W, H);
@@ -91,10 +93,10 @@ export async function renderLevelCard(d: LevelCardData): Promise<Buffer | null> 
     ctx.fillStyle = "#2a2a31";
     rr(ctx, bx, by, bw, bh, bh / 2);
     ctx.fill();
-    const pct = Math.max(0, Math.min(1, d.need > 0 ? d.xp / d.need : 0));
+    const pct = maxed ? 1 : Math.max(0, Math.min(1, d.need > 0 ? d.xp / d.need : 0));
     const fw = Math.max(bh, bw * pct);
     const bar = ctx.createLinearGradient(bx + bw - fw, 0, bx + bw, 0);
-    bar.addColorStop(0, "#d9d9e0");
+    bar.addColorStop(0, maxed ? "#fbbf24" : "#d9d9e0");
     bar.addColorStop(1, "#ffffff");
     ctx.fillStyle = bar;
     rr(ctx, bx + bw - fw, by, fw, bh, bh / 2);
@@ -104,9 +106,9 @@ export async function renderLevelCard(d: LevelCardData): Promise<Buffer | null> 
     ctx.fillStyle = "#7c7c87";
     ctx.font = `400 16px "${reg}"`;
     ctx.textAlign = "right";
-    ctx.fillText(`للمستوى ${d.level + 1}  ·  ${Math.round(pct * 100)}%`, right, 211);
+    ctx.fillText(maxed ? "وصلت للمستوى الأقصى" : `للمستوى ${d.level + 1}  ·  ${Math.round(pct * 100)}%`, right, 211);
     ctx.textAlign = "left";
-    ctx.fillText(`${fmt(d.xp)} / ${fmt(d.need)} XP`, bx, 211);
+    ctx.fillText(maxed ? "MAX" : `${fmt(d.xp)} / ${fmt(d.need)} XP`, bx, 211);
 
     return await canvas.encode("png");
   } catch {
