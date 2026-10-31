@@ -42,6 +42,9 @@ import { PROFILE_TRIGGER, handleProfileMessage } from "../profile/text";
 import { CARS_TRIGGER, ESTATE_TRIGGER, INVENTORY_TRIGGER, MYMARRIAGE_TRIGGER, SHOPS_TRIGGER, handleShopMessage } from "../shop/text";
 import { TOP_TRIGGER, handleTopMessage } from "../top/text";
 import { POLICE_TRIGGER, handlePoliceMessage } from "../police/text";
+import { ACHIEVEMENTS_TRIGGER, handleAchievementsMessage } from "../achievements/text";
+import { TUNE_TRIGGER, handleTuneMessage } from "../race/garage";
+import { RACE_TRIGGER, handleRaceMessage } from "../race/text";
 import { CHATPANEL_TRIGGER, handleChatPanelMessage } from "../chat/text";
 import { VIP_TRIGGER, handleVipMessage } from "../vip/text";
 import { ROLES_TRIGGER, handleRolesPanelMessage } from "../roles/text";
@@ -131,6 +134,19 @@ const event: BotEvent = {
     // --- الوظائف: "وظائف" / "دوام" / "استقالة" ---
     if (SHOPS_TRIGGER.test(rawContent.trim()) || ESTATE_TRIGGER.test(rawContent.trim()) || CARS_TRIGGER.test(rawContent.trim()) || INVENTORY_TRIGGER.test(rawContent.trim()) || MYMARRIAGE_TRIGGER.test(rawContent.trim())) {
       await handleShopMessage(message);
+      return;
+    }
+    if (RACE_TRIGGER.test(rawContent.trim())) {
+      await handleRaceMessage(message);
+      return;
+    }
+    if (TUNE_TRIGGER.test(rawContent.trim())) {
+      await handleTuneMessage(message);
+      return;
+    }
+    const achMatch = ACHIEVEMENTS_TRIGGER.exec(rawContent.trim());
+    if (achMatch) {
+      await handleAchievementsMessage(message, achMatch[1]);
       return;
     }
     if (POLICE_TRIGGER.test(rawContent.trim())) {
