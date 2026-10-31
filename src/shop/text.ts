@@ -10,6 +10,7 @@ import { jenny } from "../constants";
 import { logTransaction } from "../services/transactions";
 import { INV_COLS, INV_PER_PAGE, renderCars, renderEstate, renderFlowerShop, renderInventory, renderJewelryShop, renderMarriageCard, renderPhones, renderShops } from "./card";
 import { CAR_IDS, ESTATE_IDS, PHONE_IDS, ITEMS, lovePercent, type ItemId } from "./data";
+import { partsHome } from "../race/garage";
 
 export const SHOPS_TRIGGER = /^!\s*محلات$/;
 export const ESTATE_TRIGGER = /^!\s*(?:العقار|العقارات|عقار)$/;
@@ -45,8 +46,9 @@ async function shopsView(owner: string): Promise<BaseMessageOptions> {
     { name: "محل مجوهرات", sub: `${ITEMS.ring.name} بـ ${ITEMS.ring.price} Jenny`, icon: "ring" },
     { name: "معرض سيارات", sub: `من ${ITEMS.cherry_arrizo.price.toLocaleString("en-US")} Jenny`, icon: "land_cruiser" },
     { name: "محل هواتف", sub: `من ${ITEMS.huawei.price.toLocaleString("en-US")} Jenny`, icon: "iphone_18" },
+    { name: "محل سبير بارتس", sub: "محركات، إطارات، نيترو وأكثر لسياراتك", icon: "parts" },
   ]);
-  return view(png, "shops.png", [row(btn(id(owner, "flower"), "محل ورد", ButtonStyle.Primary), btn(id(owner, "jewelry"), "محل مجوهرات", ButtonStyle.Primary), btn(id(owner, "cars"), "معرض سيارات", ButtonStyle.Primary), btn(id(owner, "phones"), "محل هواتف", ButtonStyle.Primary))], "المحلات: محل ورد، محل مجوهرات، معرض سيارات، محل هواتف");
+  return view(png, "shops.png", [row(btn(id(owner, "flower"), "محل ورد", ButtonStyle.Primary), btn(id(owner, "jewelry"), "محل مجوهرات", ButtonStyle.Primary), btn(id(owner, "cars"), "معرض سيارات", ButtonStyle.Primary), btn(id(owner, "phones"), "محل هواتف", ButtonStyle.Primary), btn(id(owner, "parts"), "سبير بارتس", ButtonStyle.Primary))], "المحلات: محل ورد، محل مجوهرات، معرض سيارات، محل هواتف، محل سبير بارتس");
 }
 
 async function flowerView(owner: string, guildId: string, note?: string): Promise<BaseMessageOptions> {
@@ -295,6 +297,7 @@ export async function handleShopComponent(i: ButtonInteraction | StringSelectMen
   if (act === "jewelry") return await edit(await jewelryView(owner, guild.id)), true;
   if (act === "cars") return await edit(await carsView(owner, guild.id)), true;
   if (act === "phones") return await edit(await phonesView(owner, guild.id)), true;
+  if (act === "parts") return await edit(await partsHome(owner, guild.id)), true;
 
   if (act === "buy") {
     const item = arg === "ring" ? "ring" : "flower";
