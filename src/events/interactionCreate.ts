@@ -19,6 +19,8 @@ import { handleTalkInteraction } from "../talk";
 import { handleJobButton, handleJobSelect } from "../jobs/interactions";
 import { handleHeistComponent } from "../jobs/heist";
 import { handlePoliceComponent } from "../police/text";
+import { handleGarageComponent } from "../race/garage";
+import { handleRaceComponent } from "../race/text";
 import { handleGamesInteraction } from "../games";
 import { handleWhisperInteraction } from "../whisper/interactions";
 import { handleBotProfileInteraction } from "../botprofile/interactions";
@@ -37,6 +39,19 @@ const event: BotEvent = {
     if (interaction.isMessageComponent() && interaction.customId.startsWith("hst|")) {
       await handleHeistComponent(interaction).catch((err) => logger.error("خطأ في سطو البنك", err));
       return;
+    }
+
+    // --- السباقات (rac|) وتعديل السيارات ومحل سبير بارتس (tun| / prt|) ---
+    if (interaction.isButton() || interaction.isStringSelectMenu()) {
+      const cidv = interaction.customId;
+      if (cidv.startsWith("rac|")) {
+        await handleRaceComponent(interaction).catch((err) => logger.error("خطأ في السباق", err));
+        return;
+      }
+      if (cidv.startsWith("tun|") || cidv.startsWith("prt|")) {
+        await handleGarageComponent(interaction).catch((err) => logger.error("خطأ في تعديل السيارات", err));
+        return;
+      }
     }
 
     // --- مركز الشرطة وزر التحذير: pol| ---
