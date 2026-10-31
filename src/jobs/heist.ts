@@ -17,6 +17,7 @@ import { JobProfile } from "../database/models/JobProfile";
 import { ThiefState } from "../database/models/ThiefState";
 import { UserProfile } from "../database/models/UserProfile";
 import { logTransaction } from "../services/transactions";
+import { trackHeistFlawless } from "../achievements/service";
 import { CAR_IDS, ITEMS, PHONE_IDS, type CarId, type PhoneId } from "../shop/data";
 import { renderHeistBoard, renderHeistResult, renderHeistRoster, type RosterRow } from "./heistCard";
 import { getJob } from "./service";
@@ -326,6 +327,7 @@ async function finishSuccess(h: Heist): Promise<void> {
   if (h.phase === "done") return;
   const members = [...h.members];
   const misses = h.thr.misses;
+  const flawless = h.boxes.length > 0 && h.boxes.every((b) => b.state === "open") && misses === 0;
   const missPct = Math.min(100, Math.round(misses * HEIST.threatPenalty * 100));
   const net = Math.floor(h.loot * (1 - missPct / 100));
   cleanup(h);
@@ -338,6 +340,8 @@ async function finishSuccess(h: Heist): Promise<void> {
   }
   await JobProfile.updateOne({ userId: h.leaderId, guildId: h.guildId }, { $set: { lastActiveAt: new Date() }, $inc: { shifts: 1 } }).catch(() => undefined);
   const png = await renderHeistResult("success", { total: net, misses, missPct, reason: "", jail: "", rows });
+  // إنجاز البروفيسور (بدون إعلان)
+  if (flawless) await Promise.all(members.map((m) => trackHeistFlawless(h.guildId, m.userId).catch(() => [])));
   await h.message?.edit(cardView(png, "heist.png", `✅ نجح السطو! الغنيمة ${net}\n${rows.map((r) => `${r.name}: +${r.amount}`).join("\n")}`, [])).catch(() => undefined);
 }
 
