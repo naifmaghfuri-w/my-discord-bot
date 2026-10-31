@@ -3,17 +3,16 @@ import { Achievement } from "../database/models/Achievement";
 export interface AchievementDef {
   id: string;
   name: string;
-  icon: string;
   desc: string;
 }
 
 export const ACHIEVEMENTS: AchievementDef[] = [
-  { id: "miser", name: "البخيل", icon: "🪙", desc: "حوّل 1 لشخص" },
-  { id: "generous", name: "كريم", icon: "💝", desc: "حوّل 1000 لشخص" },
-  { id: "city_guardian", name: "حامي المدينة", icon: "🛡️", desc: "اسجن 10 أشخاص" },
-  { id: "professor", name: "البروفيسور", icon: "🎓", desc: "نفّذ سطو البنك بدون خطأ واحد" },
-  { id: "too_fast", name: "تو فاست", icon: "⚡", desc: "فُز بالمركز الأول في السباقات 10 مرات على التوالي" },
-  { id: "too_slow", name: "تو سلو", icon: "🐢", desc: "خذ المركز الأخير في السباقات 10 مرات على التوالي" },
+  { id: "miser", name: "البخيل", desc: "حوّل 1 لشخص" },
+  { id: "generous", name: "كريم", desc: "حوّل 1000 لشخص" },
+  { id: "city_guardian", name: "حامي المدينة", desc: "اسجن 10 أشخاص" },
+  { id: "professor", name: "البروفيسور", desc: "نفّذ سطو البنك بدون خطأ واحد" },
+  { id: "too_fast", name: "تو فاست", desc: "فُز بالمركز الأول في السباقات 10 مرات على التوالي" },
+  { id: "too_slow", name: "تو سلو", desc: "خذ المركز الأخير في السباقات 10 مرات على التوالي" },
 ];
 const BY_ID = new Map(ACHIEVEMENTS.map((a) => [a.id, a]));
 
