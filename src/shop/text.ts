@@ -6,7 +6,7 @@ import {
 import { Inventory } from "../database/models/Inventory";
 import { Marriage } from "../database/models/Marriage";
 import { UserProfile } from "../database/models/UserProfile";
-import { jenny } from "../constants";
+import { CURRENCY, jenny } from "../constants";
 import { logTransaction } from "../services/transactions";
 import { INV_COLS, INV_PER_PAGE, renderCars, renderEstate, renderFlowerShop, renderInventory, renderJewelryShop, renderMarriageCard, renderPhones, renderShops } from "./card";
 import { CAR_IDS, ESTATE_IDS, PHONE_IDS, ITEMS, lovePercent, type ItemId } from "./data";
@@ -42,10 +42,10 @@ function view(png: Buffer | null, name: string, components: ActionRowBuilder<any
 
 async function shopsView(owner: string): Promise<BaseMessageOptions> {
   const png = await renderShops([
-    { name: "محل ورد", sub: `الوردة بـ ${ITEMS.flower.price} Jenny`, icon: "flower" },
-    { name: "محل مجوهرات", sub: `${ITEMS.ring.name} بـ ${ITEMS.ring.price} Jenny`, icon: "ring" },
-    { name: "معرض سيارات", sub: `من ${ITEMS.cherry_arrizo.price.toLocaleString("en-US")} Jenny`, icon: "land_cruiser" },
-    { name: "محل هواتف", sub: `من ${ITEMS.huawei.price.toLocaleString("en-US")} Jenny`, icon: "iphone_18" },
+    { name: "محل ورد", sub: `الوردة بـ ${ITEMS.flower.price} ${CURRENCY.name}`, icon: "flower" },
+    { name: "محل مجوهرات", sub: `${ITEMS.ring.name} بـ ${ITEMS.ring.price} ${CURRENCY.name}`, icon: "ring" },
+    { name: "معرض سيارات", sub: `من ${ITEMS.cherry_arrizo.price.toLocaleString("en-US")} ${CURRENCY.name}`, icon: "land_cruiser" },
+    { name: "محل هواتف", sub: `من ${ITEMS.huawei.price.toLocaleString("en-US")} ${CURRENCY.name}`, icon: "iphone_18" },
     { name: "محل سبير بارتس", sub: "محركات، إطارات، نيترو وأكثر لسياراتك", icon: "parts" },
   ]);
   return view(png, "shops.png", [row(btn(id(owner, "flower"), "محل ورد", ButtonStyle.Primary), btn(id(owner, "jewelry"), "محل مجوهرات", ButtonStyle.Primary), btn(id(owner, "cars"), "معرض سيارات", ButtonStyle.Primary), btn(id(owner, "phones"), "محل هواتف", ButtonStyle.Primary), btn(id(owner, "parts"), "سبير بارتس", ButtonStyle.Primary))], "المحلات: محل ورد، محل مجوهرات، معرض سيارات، محل هواتف، محل سبير بارتس");
@@ -75,7 +75,7 @@ async function estateView(owner: string, guildId: string, note?: string): Promis
   const menu = new StringSelectMenuBuilder()
     .setCustomId(id(owner, "ebuy"))
     .setPlaceholder("اختر عقار للشراء")
-    .addOptions(rows.map((r) => ({ label: r.name, value: r.id, description: `${r.price.toLocaleString("en-US")} Jenny` })));
+    .addOptions(rows.map((r) => ({ label: r.name, value: r.id, description: `${r.price.toLocaleString("en-US")} ${CURRENCY.name}` })));
   return view(png, "estate.png", [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)], rows.map((r) => `${r.name}: ${r.price}`).join("\n"), note);
 }
 
@@ -87,7 +87,7 @@ async function carsView(owner: string, guildId: string, note?: string): Promise<
   const menu = new StringSelectMenuBuilder()
     .setCustomId(id(owner, "cbuy"))
     .setPlaceholder("اختر سيارة للشراء")
-    .addOptions(rows.map((r) => ({ label: r.name, value: r.id, description: `${r.price.toLocaleString("en-US")} Jenny` })));
+    .addOptions(rows.map((r) => ({ label: r.name, value: r.id, description: `${r.price.toLocaleString("en-US")} ${CURRENCY.name}` })));
   return view(png, "cars.png", [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)], rows.map((r) => `${r.name}: ${r.price}`).join("\n"), note);
 }
 
@@ -99,7 +99,7 @@ async function phonesView(owner: string, guildId: string, note?: string): Promis
   const menu = new StringSelectMenuBuilder()
     .setCustomId(id(owner, "pbuy"))
     .setPlaceholder("اختر هاتف للشراء")
-    .addOptions(rows.map((r) => ({ label: r.name, value: r.id, description: `${r.price.toLocaleString("en-US")} Jenny` })));
+    .addOptions(rows.map((r) => ({ label: r.name, value: r.id, description: `${r.price.toLocaleString("en-US")} ${CURRENCY.name}` })));
   return view(png, "phones.png", [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)], rows.map((r) => `${r.name}: ${r.price}`).join("\n"), note);
 }
 
@@ -205,7 +205,7 @@ async function inventoryView(guild: Guild, owner: string, page = 0, sel = 0, pic
   const cur = onPage[s];
   if (picked && cur) {
     const price = sellPrice(cur.key);
-    content = `المحدد: **${cur.name}** × ${cur.count}\nسعر البيع: **${price.toLocaleString("en-US")}** Jenny (نصف سعر الشراء)`;
+    content = `المحدد: **${cur.name}** × ${cur.count}\nسعر البيع: **${price.toLocaleString("en-US")}** ${CURRENCY.name} (نصف سعر الشراء)`;
     components.push(
       row(
         new ButtonBuilder().setCustomId(id(owner, "inv", `${pg},${s},sell`)).setLabel(`بيع بـ ${price.toLocaleString("en-US")}`).setEmoji("💰").setStyle(ButtonStyle.Success),
@@ -389,7 +389,7 @@ export async function handleShopComponent(i: ButtonInteraction | StringSelectMen
         } else {
           await UserProfile.updateOne({ userId: owner, guildId: guild.id }, { $inc: { coins: price } });
           await logTransaction(guild.id, owner, "pay_received", price);
-          note = `✅ بعت ${it.name} بـ ${price.toLocaleString("en-US")} ${jenny(price) ? "Jenny" : "Jenny"}`;
+          note = `✅ بعت ${it.name} بـ ${price.toLocaleString("en-US")} ${CURRENCY.name}`;
         }
       }
     } else if (op !== "refresh" && op !== "cancel") {
