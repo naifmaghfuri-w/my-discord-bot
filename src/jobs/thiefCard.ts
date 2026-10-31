@@ -1,4 +1,5 @@
 import { createCanvas, type SKRSContext2D } from "@napi-rs/canvas";
+import { CURRENCY } from "../constants";
 import { ensureFontsRegistered, FONT_BOLD } from "../quests/render/fonts";
 
 export interface ThiefMenuRow {
@@ -202,7 +203,7 @@ export async function renderThiefJail(timeLeft: string, bail: number): Promise<B
     ctx.fillText("أو اطلع بكفالة", PAD + 32, 252);
     ctx.fillStyle = "#fbbf24";
     ctx.font = `700 40px "${family}"`;
-    ctx.fillText(`${fmt(bail)} Jenny`, PAD + 32, 292);
+    ctx.fillText(`${fmt(bail)} ${CURRENCY.name}`, PAD + 32, 292);
     return await canvas.encode("png");
   } catch {
     return null;
