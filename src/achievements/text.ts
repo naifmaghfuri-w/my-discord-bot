@@ -25,6 +25,7 @@ async function buildView(guild: Guild, owner: string, target: string, selected?:
   const member = await guild.members.fetch(target).catch(() => null);
   const name = member?.displayName ?? "لاعب";
   const progress: Record<string, { cur: number; need: number }> = {
+    generous: { cur: Math.min(data.generous, NEED.generousPeople), need: NEED.generousPeople },
     city_guardian: { cur: Math.min(data.jails, NEED.jails), need: NEED.jails },
     too_fast: { cur: Math.min(data.firstStreak, NEED.streak), need: NEED.streak },
     too_slow: { cur: Math.min(data.lastStreak, NEED.streak), need: NEED.streak },
