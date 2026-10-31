@@ -4,6 +4,7 @@ import { ThiefState } from "../database/models/ThiefState";
 import { UserProfile } from "../database/models/UserProfile";
 import { getJob } from "../jobs/service";
 import { logTransaction } from "../services/transactions";
+import { trackJail, type AchievementDef } from "../achievements/service";
 
 const MIN = 60_000;
 
@@ -44,7 +45,7 @@ export async function recordCrime(guildId: string, offenderId: string, kind: Cri
 }
 
 export type WarnResult =
-  | { ok: true; offenderId: string; kind: CrimeKind; place: string; warnNo: number; jailed: boolean; reward: number }
+  | { ok: true; offenderId: string; kind: CrimeKind; place: string; warnNo: number; jailed: boolean; reward: number; ach: AchievementDef[] }
   | { ok: false; reason: "not_police" | "unknown" | "self" | "expired" | "done" | "already_jailed" };
 
 export async function giveWarning(guildId: string, policeId: string, crimeId: string): Promise<WarnResult> {
@@ -76,7 +77,8 @@ export async function giveWarning(guildId: string, policeId: string, crimeId: st
   await logTransaction(guildId, policeId, "salary", reward).catch(() => undefined);
   await JobProfile.updateOne({ userId: policeId, guildId }, { $set: { lastActiveAt: new Date() } }).catch(() => undefined);
   await PoliceRecord.create({ guildId, policeId, offenderId: crime.offenderId, kind, place: crime.place ?? "", amount: crime.amount ?? 0, warnNo, jailed });
-  return { ok: true, offenderId: crime.offenderId, kind, place: crime.place ?? "", warnNo, jailed, reward };
+  const ach = jailed ? await trackJail(guildId, policeId).catch(() => []) : [];
+  return { ok: true, offenderId: crime.offenderId, kind, place: crime.place ?? "", warnNo, jailed, reward, ach };
 }
 
 /** يدفع الكفالة ويطلّع من السجن. normalCost = كفالة السجن العادي (لو مو سجن شرطة) */
