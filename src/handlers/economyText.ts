@@ -60,8 +60,8 @@ export async function handleEconomyTextCommand(message: Message<true>): Promise<
       return true;
     }
 
-    // إنجازات البخيل (تحويل 1) وكريم (تحويل 1000+) — بدون إعلان
-    void trackTransfer(guildId, authorId, amount).catch((err) => logger.error("فشل تتبع إنجاز التحويل", err));
+    // إنجازات البخيل (تحويل 1) وكريم (500+ لخمسة أشخاص مختلفين) — بدون إعلان
+    void trackTransfer(guildId, authorId, amount, targetId).catch((err) => logger.error("فشل تتبع إنجاز التحويل", err));
 
     await say(`✅ حوّلت ${jenny(amount)} إلى <@${targetId}>.`);
     return true;
