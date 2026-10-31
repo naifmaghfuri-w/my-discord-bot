@@ -18,13 +18,13 @@ const MIN = 60_000;
 export const THIEF = {
   jobId: "thief",
   /** عضو تختاره: ياخذ اللي في محفظته (الحد الأعلى 100) */
-  member: { max: 100, cooldownMs: 90 * MIN },
+  member: { max: 100, cooldownMs: 4 * 60 * MIN },
   /** شركة تختارها: بدون حارس يسرق من ميزانيتها، وبحارس يُمسك ويدفع تعويض */
-  company: { steal: 150, fine: 50, cooldownMs: 150 * MIN },
+  company: { steal: 150, fine: 50, cooldownMs: 8 * 60 * MIN },
   /** الحارس يحسب فقط لو داوم خلال هذي المدة */
   guardActiveMs: 5 * 60 * MIN,
   /** محل صغير */
-  shop: { min: 20, max: 30, cooldownMs: 30 * MIN },
+  shop: { min: 20, max: 30, cooldownMs: 96 * MIN },
   /** السجن بعد الإمساك مرتين ورا بعض: ساعة ونص أو كفالة */
   jail: { catches: 2, ms: 90 * MIN, bail: 100 },
 } as const;
