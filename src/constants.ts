@@ -1,7 +1,6 @@
-/** العملات والمقاييس الموحدة في البوت والسيرفر */
 export const CURRENCY = {
-  name: "Jenny",
-  emoji: "<:J_:1548935096768274532>",
+  name: "STK",
+  emoji: "<:__:1559724414809939969>",
 } as const;
 
 export const XP = {
@@ -11,7 +10,7 @@ export const XP = {
 
 export const BIRTHDAY_EMOJI = "<:emoji_48:1553179328840474695>";
 
-/** يعرض مبلغاً بالشكل: **150** <:J_:...> */
+/** يعرض مبلغاً بالشكل: **150** <:__:...> (اسم الدالة بقي jenny عشان ما تنكسر الاستيرادات) */
 export function jenny(amount: number): string {
   return `**${amount.toLocaleString("en-US")}** ${CURRENCY.emoji}`;
 }
