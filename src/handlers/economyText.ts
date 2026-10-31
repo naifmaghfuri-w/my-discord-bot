@@ -1,4 +1,5 @@
 import type { Message } from "discord.js";
+import { trackTransfer } from "../achievements/service";
 import { transferWallet } from "../bank/service";
 import { jenny } from "../constants";
 import { UserProfile } from "../database/models/UserProfile";
@@ -58,6 +59,9 @@ export async function handleEconomyTextCommand(message: Message<true>): Promise<
       await say(result.reason === "self" ? "😅 ما تقدر تحوّل لنفسك." : "❌ رصيد محفظتك ما يكفي لهذا المبلغ.");
       return true;
     }
+
+    // إنجازات البخيل (تحويل 1) وكريم (تحويل 1000+) — بدون إعلان
+    void trackTransfer(guildId, authorId, amount).catch((err) => logger.error("فشل تتبع إنجاز التحويل", err));
 
     await say(`✅ حوّلت ${jenny(amount)} إلى <@${targetId}>.`);
     return true;
