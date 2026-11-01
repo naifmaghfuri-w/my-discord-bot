@@ -15,7 +15,6 @@ import { handleFamilyButton } from "../family/interactions";
 import { handleLabButton, handleLabSelect } from "../lab/interactions";
 import { handleCompanyInteraction } from "../companies";
 import { handleCompanyAdminInteraction } from "../companies/admin";
-import { handleTalkInteraction } from "../talk";
 import { handleJobButton, handleJobSelect } from "../jobs/interactions";
 import { handleHeistComponent } from "../jobs/heist";
 import { handlePoliceComponent } from "../police/text";
@@ -68,7 +67,6 @@ const event: BotEvent = {
     if (await handleAdminSettingsInteraction(interaction)) return;
     if (await handleCompanyInteraction(interaction)) return;
     if (await handleCompanyAdminInteraction(interaction)) return;
-    if (await handleTalkInteraction(interaction)) return;
     if (await handleBotProfileInteraction(interaction)) return;
     if (await handleWhisperInteraction(interaction)) return;
     if (await handleGamesInteraction(interaction).catch((err) => (logger.error("خطأ في الألعاب", err), false))) return;
