@@ -7,7 +7,7 @@ import { Company, CompanyApplication, CompanyBot, CompanyComplaint, CompanyLog, 
 import { UserProfile } from "../database/models/UserProfile";
 import { JOBS } from "../jobs/data";
 import { fmtMs } from "../jobs/views";
-import { applyForJob, getJob } from "../jobs/service";
+import { applyForJob, getJob, quitJob } from "../jobs/service";
 import { logTransaction } from "../services/transactions";
 import { renderHub, type HubCorpRow, type HubRegRow } from "./hub";
 import { VEND, VEND_DEFAULTS, renderVending, type VendItem } from "./vending";
@@ -535,6 +535,7 @@ async function route(i: AnyI): Promise<void> {
     else if (r.reason === "coins") note = "❌ رسوم التقديم ما تكفي في محفظتك.";
     else if (r.reason === "blocked") note = `⏳ تقدر تقدّم بعد ${fmtMs(r.msLeft ?? 0)}.`;
     else if (r.reason === "has_job") note = "❌ عندك وظيفة بالفعل. استقل أولًا.";
+    else if (r.reason === "in_company") note = "❌ أنت في شركة، ما تقدر تتوظف في وظيفة عادية. اخرج من الشركة أولًا.";
     else note = "❌ تعذّر التقديم.";
     return void (await i.editReply({ content: note }));
   }
@@ -557,12 +558,26 @@ async function route(i: AnyI): Promise<void> {
     return void (await i.editReply({ ...view, attachments: [] }));
   }
   if (act === "open" && i.isButton()) {
+    if (await hasRegularJob(guildId, uid)) {
+      return void (await i.reply({
+        content: "⚠️ عندك وظيفة حالياً. هل تريد الخروج من وظيفتك وفتح شركة؟",
+        components: [row(btn("co|openq", "نعم، اخرج وافتح شركة", ButtonStyle.Danger), btn("co|cancel", "إلغاء"))],
+        ...eph,
+      }));
+    }
+    await i.showModal(modal("co|openm", "فتح شركة", input("name", `اسم الشركة (الكلفة ${COMPANY_RULES.openCost})`, "مثال: شركة النجوم", TextInputStyle.Short, true, 40)));
+    return;
+  }
+  if (act === "openq" && i.isButton()) {
+    if (await myMembership(guildId, uid)) return void (await i.update({ content: "❌ أنت عضو في شركة بالفعل.", components: [] }));
+    await quitJob(uid, guildId);
     await i.showModal(modal("co|openm", "فتح شركة", input("name", `اسم الشركة (الكلفة ${COMPANY_RULES.openCost})`, "مثال: شركة النجوم", TextInputStyle.Short, true, 40)));
     return;
   }
   if (act === "openm" && i.isModalSubmit()) {
     const name = i.fields.getTextInputValue("name").trim();
     if (!name) return void (await say("❌ اكتب اسم الشركة."));
+    if (await hasRegularJob(guildId, uid)) return void (await say("❌ عندك وظيفة عادية. اضغط «فتح شركة» مرة ثانية وأكّد الخروج منها."));
     const r = await openCompany(guildId, uid, name);
     if (r.ok === false) return void (await say(r.msg));
     await i.deferReply(eph);
@@ -612,6 +627,9 @@ async function route(i: AnyI): Promise<void> {
     if (!boss || !isBoss(boss) || (appPosting && titleLevel(appPosting.title) <= levelOf(boss))) return void (await say("❌ ما عندك صلاحية تقرر في هذي الوظيفة."));
     const claimed = await CompanyApplication.findOneAndDelete({ _id: app._id });
     if (!claimed) return void (await i.update({ content: "تمت معالجة هذا الطلب.", embeds: [], components: [] }));
+    if (act === "acc" && (await hasRegularJob(guildId, app.userId))) {
+      return void (await i.update({ content: `⚠️ ${mention(app.userId)} صار عنده وظيفة عادية، ما يقدر ينضم للشركة قبل ما يتركها.`, embeds: [], components: [], allowedMentions: { users: [] } }));
+    }
     if (act === "rej") {
       await i.update({ content: `❌ ${mention(uid)} رفض طلب ${mention(app.userId)}.`, embeds: [], components: [], allowedMentions: { users: [] } });
       return;
