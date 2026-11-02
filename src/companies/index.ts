@@ -1219,6 +1219,12 @@ async function route(i: AnyI): Promise<void> {
     if (act === "fire" && i.isButton()) {
       await CompanyMember.deleteOne({ _id: t._id });
       await addLog(guildId, cid, `🥾 ${mention(uid)} فصل ${mention(t.userId)} (${t.title})`);
+      // إشعار للموظف المفصول: خاص، وإذا الخاص مقفل نمنشنه في الروم
+      const dmText = `🥾 تم فصلك من وظيفة **${t.title}** في شركة **${company.name}**.`;
+      const dmOk = await i.client.users.send(t.userId, dmText).then(() => true, () => false);
+      if (!dmOk && i.channel && "send" in i.channel) {
+        await i.channel.send({ content: `🥾 ${mention(t.userId)} ${dmText}`, allowedMentions: { users: [t.userId] } }).catch(() => undefined);
+      }
       return void (await i.update({ content: `🥾 تم فصل ${mention(t.userId)}.`, embeds: [], components: [], allowedMentions: { users: [] } }));
     }
     if (act === "offc" && i.isButton()) {
