@@ -1247,7 +1247,7 @@ async function route(i: AnyI): Promise<void> {
       .setTitle(`🤝 بيع ${company.name}`)
       .setDescription(
         [
-          `**١) بيع للنظام:** تستلم ${jenny(COMPANY_RULES.systemSellPrice)} فورًا، وتُغلق الشركة ويُفصل الجميع وتوزّع الميزانية المتبقية بالتساوي على الموظفين.`,
+          `**١) بيع للنظام:** تستلم ${jenny(COMPANY_RULES.systemSellPrice)} فورًا فقط، وتُغلق الشركة ويُفصل الجميع وتختفي ميزانيتها (${jenny(company.budget)}).`,
           "**٢) بيع لعضو:** تحدد المشتري والسعر، والشركة وميزانيتها تنتقل له إذا وافق.",
         ].join("\n\n"),
       );
@@ -1269,7 +1269,7 @@ async function route(i: AnyI): Promise<void> {
     const { company, me } = await ctxOf(i, a);
     if (!company || me?.role !== "owner") return void (await i.update({ content: "❌ فقط المالك.", embeds: [], components: [] }));
     return void (await i.update({
-      content: `⚠️ تأكيد بيع **${company.name}** للنظام بـ ${jenny(COMPANY_RULES.systemSellPrice)}؟ هذا نهائي: تُغلق الشركة ويُفصل الجميع.`,
+      content: `⚠️ تأكيد بيع **${company.name}** للنظام؟ تستلم ${jenny(COMPANY_RULES.systemSellPrice)} فقط، والميزانية (${jenny(company.budget)}) تختفي. هذا نهائي: تُغلق الشركة ويُفصل الجميع.`,
       embeds: [],
       components: [row(btn(`co|sellsysy|${a}`, "نعم، بع للنظام", ButtonStyle.Danger), btn("co|cancel", "إلغاء"))],
     }));
@@ -1278,8 +1278,9 @@ async function route(i: AnyI): Promise<void> {
     // نحذف الشركة أول بشكل ذري (يمنع الضغط المزدوج من الدفع مرتين)
     const gone = await Company.findOneAndDelete({ _id: a, guildId, ownerId: uid });
     if (!gone) return void (await i.update({ content: "⚠️ ما عاد تقدر تبيع (الشركة مو لك أو انباعت).", embeds: [], components: [] }));
+    // المالك يستلم السعر الثابت فقط، والميزانية تختفي (ما تتوزع على أحد)
     await UserProfile.updateOne({ userId: uid, guildId }, { $inc: { coins: COMPANY_RULES.systemSellPrice } }, { upsert: true });
-    await dissolveCompany(gone as ICompany & { _id: unknown }, true, gone);
+    await dissolveCompany(gone as ICompany & { _id: unknown }, false, gone);
     return void (await i.update({ content: `🤝 بعت **${gone.name}** للنظام واستلمت ${jenny(COMPANY_RULES.systemSellPrice)}.`, embeds: [], components: [] }));
   }
   if (act === "sellm" && i.isModalSubmit()) {
