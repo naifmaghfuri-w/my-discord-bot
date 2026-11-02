@@ -29,6 +29,8 @@ export const COMPANY_RULES = {
   maxSalary: 10_000,
   /** تكلفة تغيير الاسم أو الصورة (تُخصم من ميزانية الشركة) */
   changeCost: 200,
+  /** سعر بيع الشركة للنظام (بدون مشتري) */
+  systemSellPrice: 9_900,
 } as const;
 
 /** !وظائف / !الوظائف */
@@ -84,9 +86,9 @@ async function openCompany(guildId: string, userId: string, name: string): Promi
   }
 }
 
-async function dissolveCompany(company: ICompany & { _id: unknown }, splitBudget: boolean): Promise<void> {
+async function dissolveCompany(company: ICompany & { _id: unknown }, splitBudget: boolean, alreadyDeleted?: ICompany | null): Promise<void> {
   const cid = idOf(company);
-  const fresh = await Company.findOneAndDelete({ _id: company._id });
+  const fresh = alreadyDeleted ?? (await Company.findOneAndDelete({ _id: company._id }));
   const members = await CompanyMember.find({ companyId: cid });
   const staff = members.filter((m) => m.role !== "owner");
   const pot = fresh?.budget ?? 0;
@@ -1238,12 +1240,47 @@ async function route(i: AnyI): Promise<void> {
 
   /* --- بيع الشركة --- */
   if (act === "sell" && i.isButton()) {
+    const { company, me } = await ctxOf(i, a);
+    if (!company || me?.role !== "owner") return void (await say("❌ فقط المالك."));
+    const embed = new EmbedBuilder()
+      .setColor(0xf1c40f)
+      .setTitle(`🤝 بيع ${company.name}`)
+      .setDescription(
+        [
+          `**١) بيع للنظام:** تستلم ${jenny(COMPANY_RULES.systemSellPrice)} فورًا، وتُغلق الشركة ويُفصل الجميع وتوزّع الميزانية المتبقية بالتساوي على الموظفين.`,
+          "**٢) بيع لعضو:** تحدد المشتري والسعر، والشركة وميزانيتها تنتقل له إذا وافق.",
+        ].join("\n\n"),
+      );
+    return void (await i.reply({
+      embeds: [embed],
+      components: [row(btn(`co|sellsys|${a}`, `بيع للنظام (${COMPANY_RULES.systemSellPrice.toLocaleString("en-US")})`, ButtonStyle.Danger), btn(`co|sellmem|${a}`, "بيع لعضو", ButtonStyle.Primary))],
+      ...eph,
+    }));
+  }
+  if (act === "sellmem" && i.isButton()) {
     const { me } = await ctxOf(i, a);
-    if (me?.role !== "owner") return void (await say("❌ فقط المالك."));
+    if (me?.role !== "owner") return void (await i.update({ content: "❌ فقط المالك.", embeds: [], components: [] }));
     await i.showModal(
-      modal(`co|sellm|${a}`, "بيع الشركة", input("buyer", "المشتري (منشن أو ID)", "@user أو 1234567890", TextInputStyle.Short, true, 40), input("price", "السعر", "20000", TextInputStyle.Short, true, 10)),
+      modal(`co|sellm|${a}`, "بيع الشركة لعضو", input("buyer", "المشتري (منشن أو ID)", "@user أو 1234567890", TextInputStyle.Short, true, 40), input("price", "السعر", "20000", TextInputStyle.Short, true, 10)),
     );
     return;
+  }
+  if (act === "sellsys" && i.isButton()) {
+    const { company, me } = await ctxOf(i, a);
+    if (!company || me?.role !== "owner") return void (await i.update({ content: "❌ فقط المالك.", embeds: [], components: [] }));
+    return void (await i.update({
+      content: `⚠️ تأكيد بيع **${company.name}** للنظام بـ ${jenny(COMPANY_RULES.systemSellPrice)}؟ هذا نهائي: تُغلق الشركة ويُفصل الجميع.`,
+      embeds: [],
+      components: [row(btn(`co|sellsysy|${a}`, "نعم، بع للنظام", ButtonStyle.Danger), btn("co|cancel", "إلغاء"))],
+    }));
+  }
+  if (act === "sellsysy" && i.isButton()) {
+    // نحذف الشركة أول بشكل ذري (يمنع الضغط المزدوج من الدفع مرتين)
+    const gone = await Company.findOneAndDelete({ _id: a, guildId, ownerId: uid });
+    if (!gone) return void (await i.update({ content: "⚠️ ما عاد تقدر تبيع (الشركة مو لك أو انباعت).", embeds: [], components: [] }));
+    await UserProfile.updateOne({ userId: uid, guildId }, { $inc: { coins: COMPANY_RULES.systemSellPrice } }, { upsert: true });
+    await dissolveCompany(gone as ICompany & { _id: unknown }, true, gone);
+    return void (await i.update({ content: `🤝 بعت **${gone.name}** للنظام واستلمت ${jenny(COMPANY_RULES.systemSellPrice)}.`, embeds: [], components: [] }));
   }
   if (act === "sellm" && i.isModalSubmit()) {
     const { company, me } = await ctxOf(i, a);
