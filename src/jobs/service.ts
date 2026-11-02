@@ -1,3 +1,4 @@
+import { CompanyMember } from "../database/models/Company";
 import { JobProfile, type IJobProfile } from "../database/models/JobProfile";
 import { LabProfile } from "../database/models/LabProfile";
 import { UserProfile } from "../database/models/UserProfile";
@@ -53,6 +54,16 @@ const RESET_STREAK = { streakDays: 0, lastShiftDay: "" } as const;
 export async function getJob(userId: string, guildId: string): Promise<IJobProfile> {
   let doc = await JobProfile.findOneAndUpdate({ userId, guildId }, { $setOnInsert: { userId, guildId } }, { upsert: true, new: true });
   if (!doc) throw new Error("Failed to load job profile");
+
+  // من هو في شركة (مالك أو موظف) ما يكون عنده وظيفة عادية: نخرجه منها (يصلّح الحالات القديمة)
+  if (doc.jobId && (await CompanyMember.exists({ guildId, userId }))) {
+    const cleared = await JobProfile.findOneAndUpdate(
+      { userId, guildId, jobId: doc.jobId },
+      { $set: { jobId: "", rank: 0, shifts: 0, lastShiftAt: null, shiftStartedAt: null, ...RESET_STREAK, notice: "ℹ️ خرجت من وظيفتك العادية لأنك صرت في شركة." } },
+      { new: true },
+    );
+    if (cleared) doc = cleared;
+  }
 
   // وظيفة محذوفة (مثل مساعد مختبر): نفصله منها بدون مهلة
   if (doc.jobId && !JOB_MAP[doc.jobId]) {
@@ -117,11 +128,13 @@ export function missingReqs(_req: JobReq, _ctx: JobContext): string[] {
 
 export type ApplyResult =
   | { ok: true; job: JobDef }
-  | { ok: false; reason: "has_job" | "blocked" | "unknown" | "reqs" | "coins" | "race"; msLeft?: number; missing?: string[] };
+  | { ok: false; reason: "has_job" | "in_company" | "blocked" | "unknown" | "reqs" | "coins" | "race"; msLeft?: number; missing?: string[] };
 
 export async function applyForJob(userId: string, guildId: string, jobId: string): Promise<ApplyResult> {
   const job = JOB_MAP[jobId];
   if (!job) return { ok: false, reason: "unknown" };
+  // اللي في شركة ما يتوظف في أي وظيفة
+  if (await CompanyMember.exists({ guildId, userId })) return { ok: false, reason: "in_company" };
   const jp = await getJob(userId, guildId);
   if (jp.jobId) return { ok: false, reason: "has_job" };
   const blocked = jp.blockedUntil ? new Date(jp.blockedUntil).getTime() - Date.now() : 0;
@@ -148,6 +161,15 @@ export async function applyForJob(userId: string, guildId: string, jobId: string
   }
   if (fee > 0) await logTransaction(guildId, userId, "job_fee", fee);
   return { ok: true, job };
+}
+
+/** خروج من الوظيفة بدون مهلة (يُستعمل عند فتح شركة) */
+export async function quitJob(userId: string, guildId: string): Promise<boolean> {
+  const r = await JobProfile.updateOne(
+    { userId, guildId, jobId: { $ne: "" } },
+    { $set: { jobId: "", rank: 0, shifts: 0, lastShiftAt: null, shiftStartedAt: null, ...RESET_STREAK } },
+  );
+  return r.modifiedCount > 0;
 }
 
 export async function resign(userId: string, guildId: string): Promise<boolean> {
