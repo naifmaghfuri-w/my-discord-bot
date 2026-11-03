@@ -45,6 +45,7 @@ import { ACHIEVEMENTS_TRIGGER, handleAchievementsMessage } from "../achievements
 import { TUNE_TRIGGER, handleTuneMessage } from "../race/garage";
 import { RACE_TRIGGER, handleRaceMessage } from "../race/text";
 import { handleFireMessage } from "../jobs/fire";
+import { CASINO_TRIGGER, handleCasinoMessage } from "../casino/text";
 import { CHATPANEL_TRIGGER, handleChatPanelMessage } from "../chat/text";
 import { VIP_TRIGGER, handleVipMessage } from "../vip/text";
 import { ROLES_TRIGGER, handleRolesPanelMessage } from "../roles/text";
@@ -135,6 +136,10 @@ const event: BotEvent = {
     }
     if (RACE_TRIGGER.test(rawContent.trim())) {
       await handleRaceMessage(message);
+      return;
+    }
+    if (CASINO_TRIGGER.test(rawContent.trim())) {
+      await handleCasinoMessage(message);
       return;
     }
     if (TUNE_TRIGGER.test(rawContent.trim())) {
