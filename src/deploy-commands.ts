@@ -1,8 +1,10 @@
-import { REST, Routes } from "discord.js";
+import { REST, Routes, SlashCommandBuilder } from "discord.js";
 import { config } from "./config";
 import { logger } from "./utils/logger";
 
-/** كل الأوامر كتابية (بدون سلاش)، فننشر قائمة فاضية لتنظيف أي سلاش قديم */
+/** أوامر السلاش الوحيدة: /mail (باقي الأوامر كتابية). أي سلاش قديم غيره يُمسح */
+const COMMANDS = [new SlashCommandBuilder().setName("mail").setDescription("صندوق البريد: رسائل التحديثات والجوائز").setDMPermission(false).toJSON()];
+
 export async function deployCommands(): Promise<void> {
   const rest = new REST().setToken(config.token);
 
@@ -10,8 +12,8 @@ export async function deployCommands(): Promise<void> {
     ? Routes.applicationGuildCommands(config.clientId, config.guildId)
     : Routes.applicationCommands(config.clientId);
 
-  await rest.put(route, { body: [] });
-  logger.info(`تم تنظيف أوامر السلاش ${config.guildId ? "في سيرفر الاختبار" : "بشكل عام"}`);
+  await rest.put(route, { body: COMMANDS });
+  logger.info(`تم تسجيل أوامر السلاش (${COMMANDS.map((c) => `/${c.name}`).join("، ")}) ${config.guildId ? "في سيرفر الاختبار" : "بشكل عام"}`);
 }
 
 // التشغيل اليدوي: npm run deploy
