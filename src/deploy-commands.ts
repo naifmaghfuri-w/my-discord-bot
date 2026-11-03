@@ -3,7 +3,7 @@ import { config } from "./config";
 import { logger } from "./utils/logger";
 
 /** أوامر السلاش الوحيدة: /mail (باقي الأوامر كتابية). أي سلاش قديم غيره يُمسح */
-const COMMANDS = [new SlashCommandBuilder().setName("mail").setDescription("صندوق البريد: رسائل التحديثات والجوائز").setDMPermission(false).toJSON()];
+const COMMANDS = [new SlashCommandBuilder().setName("mail").setDescription("📫 View your mailbox.").setDMPermission(false).toJSON()];
 
 export async function deployCommands(): Promise<void> {
   const rest = new REST().setToken(config.token);
