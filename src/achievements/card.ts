@@ -140,6 +140,21 @@ function icon(ctx: SKRSContext2D, id: string, cx: number, cy: number, k: number,
     ctx.moveTo(-4, -16);
     ctx.lineTo(-4, 14);
     ctx.stroke();
+  } else if (id === "bankrupt") {
+    // سهم هابط فوق عملة فاضية
+    ctx.beginPath();
+    ctx.arc(0, 8, 30, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-8, -42);
+    ctx.lineTo(8, -42);
+    ctx.lineTo(8, -22);
+    ctx.lineTo(18, -22);
+    ctx.lineTo(0, -8);
+    ctx.lineTo(-18, -22);
+    ctx.lineTo(-8, -22);
+    ctx.closePath();
+    ctx.fill();
   }
   ctx.restore();
 }
