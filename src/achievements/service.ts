@@ -13,10 +13,11 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "professor", name: "البروفيسور", desc: "نفّذ سطو البنك بدون خطأ واحد" },
   { id: "too_fast", name: "تو فاست", desc: "فُز بالمركز الأول في السباقات 10 مرات على التوالي" },
   { id: "too_slow", name: "تو سلو", desc: "خذ المركز الأخير في السباقات 10 مرات على التوالي" },
+  { id: "bankrupt", name: "المفلس", desc: "اخسر أكثر من 50,000 في الكازينو" },
 ];
 const BY_ID = new Map(ACHIEVEMENTS.map((a) => [a.id, a]));
 
-export const NEED = { jails: 10, streak: 10, generousAmount: 500, generousPeople: 5 } as const;
+export const NEED = { jails: 10, streak: 10, generousAmount: 500, generousPeople: 5, bankrupt: 50_000 } as const;
 
 /** يفتح الإنجاز مرة وحدة بس. يرجّع true لو انفتح الحين */
 async function unlock(guildId: string, userId: string, id: string): Promise<boolean> {
@@ -49,6 +50,13 @@ export async function trackTransfer(guildId: string, userId: string, amount: num
   return ids.length ? unlockMany(guildId, userId, ids) : [];
 }
 
+/** خسارة في الكازينو (المبلغ الصافي اللي خسره في اللعبة) */
+export async function trackCasinoLoss(guildId: string, userId: string, lost: number): Promise<AchievementDef[]> {
+  if (!(lost > 0)) return [];
+  const doc = await Achievement.findOneAndUpdate({ guildId, userId }, { $inc: { casinoLost: Math.floor(lost) } }, { upsert: true, new: true });
+  return (doc?.casinoLost ?? 0) > NEED.bankrupt ? unlockMany(guildId, userId, ["bankrupt"]) : [];
+}
+
 /** الشرطي سجن شخص */
 export async function trackJail(guildId: string, userId: string): Promise<AchievementDef[]> {
   const doc = await Achievement.findOneAndUpdate({ guildId, userId }, { $inc: { jails: 1 } }, { upsert: true, new: true });
@@ -79,5 +87,5 @@ export async function trackRace(guildId: string, userId: string, position: numbe
 export async function getAchievements(guildId: string, userId: string) {
   const doc = await Achievement.findOne({ guildId, userId });
   const unlocked = new Map<string, Date>((doc?.unlocked ?? []).map((u: { id?: string | null; at?: Date | null }) => [String(u.id), u.at ? new Date(u.at) : new Date()]));
-  return { unlocked, generous: doc?.generousTo?.length ?? 0, jails: doc?.jails ?? 0, firstStreak: doc?.firstStreak ?? 0, lastStreak: doc?.lastStreak ?? 0 };
+  return { unlocked, generous: doc?.generousTo?.length ?? 0, jails: doc?.jails ?? 0, firstStreak: doc?.firstStreak ?? 0, lastStreak: doc?.lastStreak ?? 0, casinoLost: doc?.casinoLost ?? 0 };
 }
