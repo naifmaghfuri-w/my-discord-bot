@@ -23,6 +23,7 @@ import { handleRaceComponent } from "../race/text";
 import { handleAchievementsComponent } from "../achievements/text";
 import { handleCasinoComponent } from "../casino/text";
 import { handleMailComponent, handleMailSlash } from "../mail/text";
+import { handleInviteComponent } from "../invites/text";
 import { handleGamesInteraction } from "../games";
 import { handleWhisperInteraction } from "../whisper/interactions";
 import { handleBotProfileInteraction } from "../botprofile/interactions";
@@ -40,6 +41,12 @@ const event: BotEvent = {
     // --- سطو البنك (السرقة الكبيرة): أزرار وقوائم hst| ---
     if (interaction.isMessageComponent() && interaction.customId.startsWith("hst|")) {
       await handleHeistComponent(interaction).catch((err) => logger.error("خطأ في سطو البنك", err));
+      return;
+    }
+
+    // --- لوحة الدخول وتتبع الدعوات: inv| ---
+    if ((interaction.isButton() || interaction.isChannelSelectMenu()) && interaction.customId.startsWith("inv|")) {
+      await handleInviteComponent(interaction).catch((err) => logger.error("خطأ في لوحة الدخول", err));
       return;
     }
 
