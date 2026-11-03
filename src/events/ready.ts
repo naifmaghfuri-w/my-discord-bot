@@ -8,17 +8,16 @@ import { loadTicketCache } from "../tickets/service";
 import { applyBotStatus } from "../botprofile/interactions";
 import { startVipChecker } from "../vip/text";
 import { logger } from "../utils/logger";
-
 import { startCompanyPayroll } from "../companies";
-// داخل execute بعد تسجيل الدخول:
-startCompanyPayroll();
-
+import { seedInvites } from "../invites/text";
 
 const event: BotEvent = {
   name: Events.ClientReady,
   once: true,
   execute(client: BotClient) {
     logger.info(`✅ البوت شغال باسم ${client.user?.tag}`);
+    startCompanyPayroll();
+    seedInvites(client).catch((err) => logger.error("فشل تحميل الدعوات", err));
     startBirthdayRoleChecker(client);
     startChatCleaner(client);
     startVipChecker(client);
