@@ -21,6 +21,7 @@ import { handlePoliceComponent } from "../police/text";
 import { handleGarageComponent } from "../race/garage";
 import { handleRaceComponent } from "../race/text";
 import { handleAchievementsComponent } from "../achievements/text";
+import { handleCasinoComponent } from "../casino/text";
 import { handleGamesInteraction } from "../games";
 import { handleWhisperInteraction } from "../whisper/interactions";
 import { handleBotProfileInteraction } from "../botprofile/interactions";
@@ -38,6 +39,12 @@ const event: BotEvent = {
     // --- سطو البنك (السرقة الكبيرة): أزرار وقوائم hst| ---
     if (interaction.isMessageComponent() && interaction.customId.startsWith("hst|")) {
       await handleHeistComponent(interaction).catch((err) => logger.error("خطأ في سطو البنك", err));
+      return;
+    }
+
+    // --- الكازينو: أزرار ونماذج cas| ---
+    if ((interaction.isButton() || interaction.isModalSubmit()) && interaction.customId.startsWith("cas|")) {
+      await handleCasinoComponent(interaction).catch((err) => logger.error("خطأ في الكازينو", err));
       return;
     }
 
