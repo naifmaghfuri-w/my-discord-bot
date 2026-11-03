@@ -29,6 +29,7 @@ async function buildView(guild: Guild, owner: string, target: string, selected?:
     city_guardian: { cur: Math.min(data.jails, NEED.jails), need: NEED.jails },
     too_fast: { cur: Math.min(data.firstStreak, NEED.streak), need: NEED.streak },
     too_slow: { cur: Math.min(data.lastStreak, NEED.streak), need: NEED.streak },
+    bankrupt: { cur: Math.min(data.casinoLost, NEED.bankrupt), need: NEED.bankrupt },
   };
   const tiles: AchTile[] = ACHIEVEMENTS.map((a) => {
     const at = data.unlocked.get(a.id);
