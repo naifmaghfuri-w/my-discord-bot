@@ -10,6 +10,8 @@ const schema = new Schema({
   lastStreak: { type: Number, default: 0 },
   /** أشخاص حوّل لهم 500+ (لإنجاز كريم) */
   generousTo: { type: [String], default: [] },
+  /** مجموع خسائر الكازينو (لإنجاز المفلس) */
+  casinoLost: { type: Number, default: 0 },
 });
 schema.index({ guildId: 1, userId: 1 }, { unique: true });
 
