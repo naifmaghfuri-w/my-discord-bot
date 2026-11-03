@@ -157,6 +157,10 @@ export async function handleCountingMessage(message: Message<true>): Promise<Cou
     );
 
     if (!updated) {
+      // لو الرسالة هذي بالذات انحسبت قبل (نسخة ثانية من البوت أو معالجة مكررة سبقتنا)
+      // لا نمسحها: الحالة تقول إن هذا الرقم من هذا الشخص هو آخر رقم صحيح.
+      const st = await CountingState.findOne({ channelId: message.channelId }, { current: 1, lastUserId: 1 });
+      if (st && st.current === n && st.lastUserId === message.author.id) return "ignored";
       await message.delete().catch(() => undefined);
       return "wrong";
     }
