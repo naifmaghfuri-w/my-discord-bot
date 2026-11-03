@@ -46,6 +46,7 @@ import { TUNE_TRIGGER, handleTuneMessage } from "../race/garage";
 import { RACE_TRIGGER, handleRaceMessage } from "../race/text";
 import { handleFireMessage } from "../jobs/fire";
 import { CASINO_TRIGGER, handleCasinoMessage } from "../casino/text";
+import { handleMailSendMessage } from "../mail/text";
 import { CHATPANEL_TRIGGER, handleChatPanelMessage } from "../chat/text";
 import { VIP_TRIGGER, handleVipMessage } from "../vip/text";
 import { ROLES_TRIGGER, handleRolesPanelMessage } from "../roles/text";
@@ -125,6 +126,7 @@ const event: BotEvent = {
     // --- لوحة تشغيل/إيقاف الأوامر الإدارية: "!إعدادات المسؤول" ---
     if (await handleAdminSettingsMessage(message)) return;
     if (await handleFireMessage(message)) return;
+    if (await handleMailSendMessage(message)) return;
 
     // --- إدارة: !تحذير !تحذيرات !ميوت !نو ميوت !بان !نو بان ---
     if (await handleModerationText(message)) return;
