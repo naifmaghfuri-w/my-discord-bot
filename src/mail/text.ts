@@ -19,7 +19,25 @@ const eph = { flags: MessageFlags.Ephemeral } as const;
 const btn = (id: string, label: string, style = ButtonStyle.Secondary) => new ButtonBuilder().setCustomId(id).setLabel(label).setStyle(style);
 const row = (...b: ButtonBuilder[]) => new ActionRowBuilder<ButtonBuilder>().addComponents(...b);
 const cid = (owner: string, act: string, a = "", b = "", c = "", d = "") => `mail|${owner}|${act}|${a}|${b}|${c}|${d}`;
-const ts = (d: Date | string): number => Math.floor(new Date(d).getTime() / 1000);
+/** تاريخ ووقت بالعربي (مثل: 30 أكتوبر 2026 في 3:00 ص) بتوقيت TIMEZONE */
+function makeFmt(tz: string): Intl.DateTimeFormat {
+  return new Intl.DateTimeFormat("ar-u-nu-latn", { dateStyle: "long", timeStyle: "short", timeZone: tz });
+}
+const dateFmt = ((): Intl.DateTimeFormat => {
+  try {
+    return makeFmt(process.env.TIMEZONE || "Asia/Riyadh");
+  } catch {
+    return makeFmt("UTC");
+  }
+})();
+/** داخل علامات ` ` عشان يظهر مظلل مثل الصورة */
+const dateText = (d: Date | string): string => `\`${dateFmt.format(new Date(d))}\``;
+
+/** رسالة بمكوّنات V2 (حاوية + قسم بزر على الجنب). الأعلام: V2 = 32768 */
+const V2 = 32768;
+const EPH_V2 = 64 | V2;
+const text = (content: string) => ({ type: 10, content });
+const divider = () => ({ type: 14, divider: true, spacing: 1 });
 const isOwner = (id: string): boolean => Boolean(config.ownerId) && id === config.ownerId;
 
 type Filter = "all" | "unread" | "deleted";
@@ -88,21 +106,30 @@ async function load(userId: string, filter: Filter, sort: Sort) {
 
 const FILTER_NAME: Record<Filter, string> = { all: "كل الرسائل", unread: "غير المقروءة", deleted: "المحذوفة" };
 
-async function listView(owner: string, filter: Filter, sort: Sort, pageArg: number, note?: string): Promise<BaseMessageOptions> {
+async function listView(owner: string, filter: Filter, sort: Sort, pageArg: number, note?: string): Promise<any> {
   const { rows, unread } = await load(owner, filter, sort);
   const pages = Math.max(1, Math.ceil(rows.length / PER_PAGE));
   const page = Math.min(Math.max(0, pageArg), pages - 1);
   const shown = rows.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
-  const lines = shown.map((r, k) => `**${k + 1}.** ${r.s?.read ? "" : "● "}${r.m.title}\n↳ <t:${ts(r.m.createdAt)}:f>${hasRewards(r.m) ? (r.s?.claimed ? " • جوائز: مستلمة" : " • جوائز: بانتظارك") : ""}`);
-  const embed = new EmbedBuilder()
-    .setColor(COLOR)
-    .setTitle("صندوق البريد")
-    .setDescription([note ?? "", lines.join("\n\n") || "ما فيه رسائل هنا."].filter(Boolean).join("\n\n"))
-    .setFooter({ text: `${FILTER_NAME[filter]} • ${sort === "new" ? "الأحدث أولًا" : "الأقدم أولًا"} • غير مقروء: ${unread} • صفحة ${page + 1}/${pages}` });
+
+  const inner: unknown[] = [text("## صندوق البريد")];
+  if (note) inner.push(text(note));
+  inner.push(divider());
+  if (!shown.length) inner.push(text("ما فيه رسائل هنا."));
+  shown.forEach((r) => {
+    const info = hasRewards(r.m) ? (r.s?.claimed ? " • جوائز: مستلمة" : " • جوائز: بانتظارك") : "";
+    inner.push({
+      type: 9,
+      components: [text(`**${r.s?.read ? "" : "● "}${r.m.title}**\n${dateText(r.m.createdAt)}${info}`)],
+      accessory: { type: 2, style: 2, custom_id: cid(owner, "op", String(r.m._id), filter, sort, String(page)), label: "Open", emoji: { name: "✉️" } },
+    });
+    inner.push(divider());
+  });
+  inner.push(text(`-# ${FILTER_NAME[filter]} • ${sort === "new" ? "الأحدث أولًا" : "الأقدم أولًا"} • غير مقروء: ${unread} • صفحة ${page + 1}/${pages}`));
 
   const menu = new StringSelectMenuBuilder()
     .setCustomId(cid(owner, "sel", filter, sort))
-    .setPlaceholder(`الفلتر: ${FILTER_NAME[filter]}`)
+    .setPlaceholder(FILTER_NAME[filter])
     .addOptions(
       { label: "كل الرسائل", value: "all", default: filter === "all" },
       { label: "غير المقروءة", value: "unread", default: filter === "unread" },
@@ -110,27 +137,33 @@ async function listView(owner: string, filter: Filter, sort: Sort, pageArg: numb
       { label: "الأحدث أولًا", value: "new", default: false },
       { label: "الأقدم أولًا", value: "old", default: false },
     );
-  const components: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [];
-  if (shown.length) components.push(row(...shown.map((r, k) => btn(cid(owner, "op", String(r.m._id), filter, sort, String(page)), `فتح ${k + 1}`, ButtonStyle.Primary))));
-  components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu));
-  components.push(row(btn(cid(owner, "ls", filter, sort, String(page - 1)), "السابق").setDisabled(page <= 0), btn(cid(owner, "ls", filter, sort, String(page + 1)), "التالي").setDisabled(page >= pages - 1)));
-  return { embeds: [embed], components: components as ActionRowBuilder<any>[], content: "" };
+  return {
+    flags: V2,
+    components: [
+      { type: 17, accent_color: COLOR, components: inner },
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu),
+      row(btn(cid(owner, "ls", filter, sort, String(page - 1)), "‹").setDisabled(page <= 0), btn(cid(owner, "ls", filter, sort, String(page + 1)), "›").setDisabled(page >= pages - 1)),
+    ],
+  };
 }
 
-async function openView(owner: string, mailId: string, filter: Filter, sort: Sort, page: number, note?: string): Promise<BaseMessageOptions | null> {
+async function openView(owner: string, mailId: string, filter: Filter, sort: Sort, page: number, note?: string): Promise<any | null> {
   const mail = await Mail.findById(mailId);
   if (!mail) return null;
   await MailState.updateOne({ userId: owner, mailId }, { $set: { read: true } }, { upsert: true });
   const s = await MailState.findOne({ userId: owner, mailId });
   const rw = hasRewards(mail);
-  const desc = [note ?? "", mail.body, rw ? `\n**الجوائز:** ${rewardsText(mail)}${s?.claimed ? " (تم الاستلام)" : ""}` : "", `\n<t:${ts(mail.createdAt)}:f>`].filter(Boolean).join("\n");
-  const embed = new EmbedBuilder().setColor(COLOR).setTitle(mail.title.slice(0, 250)).setDescription(desc.slice(0, 4000));
-  const back = btn(cid(owner, "ls", filter, sort, String(page)), "رجوع");
-  const bs: ButtonBuilder[] = [back];
+
+  const inner: unknown[] = [text(`## ${mail.title.slice(0, 200)}`), text(`-# ${dateText(mail.createdAt)}`), divider()];
+  if (note) inner.push(text(note));
+  inner.push(text(mail.body.slice(0, 3000)));
+  if (rw) inner.push(text(`**الجوائز:** ${rewardsText(mail)}${s?.claimed ? " (تم الاستلام)" : ""}`));
+
+  const bs: ButtonBuilder[] = [btn(cid(owner, "ls", filter, sort, String(page)), "رجوع")];
   if (rw) bs.push(s?.claimed ? btn("mail|noop", "تم استلام الجوائز").setDisabled(true) : btn(cid(owner, "cl", mailId, filter, sort, String(page)), "استلام الجوائز", ButtonStyle.Success));
   if (s?.deleted) bs.push(btn(cid(owner, "rs", mailId, filter, sort, String(page)), "استرجاع", ButtonStyle.Primary));
   else bs.push(btn(cid(owner, "dl", mailId, filter, sort, String(page)), "حذف", ButtonStyle.Danger).setDisabled(rw && !s?.claimed));
-  return { embeds: [embed], components: [row(...bs)], content: "" };
+  return { flags: V2, components: [{ type: 17, accent_color: COLOR, components: inner }, row(...bs)] };
 }
 
 /* ───────── استلام الجوائز ───────── */
@@ -173,7 +206,7 @@ async function claim(userId: string, guildId: string, mailId: string): Promise<s
 
 export async function handleMailSlash(i: ChatInputCommandInteraction): Promise<void> {
   if (!i.inGuild()) return void (await i.reply({ content: "هذا الأمر داخل السيرفر فقط.", ...eph }));
-  await i.reply({ ...(await listView(i.user.id, "all", "new", 0)), ...eph });
+  await i.reply({ ...(await listView(i.user.id, "all", "new", 0)), flags: EPH_V2 });
 }
 
 /* ───────── !ارسل ايميل (المالك) ───────── */
