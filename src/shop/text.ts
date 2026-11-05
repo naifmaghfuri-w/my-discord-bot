@@ -8,8 +8,8 @@ import { Marriage } from "../database/models/Marriage";
 import { UserProfile } from "../database/models/UserProfile";
 import { CURRENCY, jenny } from "../constants";
 import { logTransaction } from "../services/transactions";
-import { INV_COLS, INV_PER_PAGE, renderCars, renderEstate, renderFlowerShop, renderFurniture, renderInventory, renderJewelryShop, renderMarriageCard, renderPhones, renderShops } from "./card";
-import { CAR_IDS, ESTATE_IDS, FURNITURE_IDS, PHONE_IDS, ITEMS, lovePercent, type ItemId } from "./data";
+import { INV_COLS, INV_PER_PAGE, renderCars, renderClothes, renderEstate, renderFlowerShop, renderFurniture, renderInventory, renderJewelryShop, renderMarriageCard, renderPhones, renderShops } from "./card";
+import { CLOTHES_IDS, ESTATE_IDS, FURNITURE_IDS, PHONE_IDS, SHOWROOM_IDS, ITEMS, lovePercent, type ItemId } from "./data";
 import { partsHome } from "../race/garage";
 
 export const SHOPS_TRIGGER = /^!\s*محلات$/;
@@ -48,8 +48,9 @@ async function shopsView(owner: string): Promise<BaseMessageOptions> {
     { name: "محل هواتف", sub: `من ${ITEMS.huawei.price.toLocaleString("en-US")} ${CURRENCY.name}`, icon: "iphone_18" },
     { name: "محل سبير بارتس", sub: "محركات، إطارات، نيترو وأكثر لسياراتك", icon: "parts" },
     { name: "محل الأثاث", sub: "سرير، كنبة، لوحة، لمبة وأكثر", icon: "furniture" },
+    { name: "محل الملابس", sub: "ثوب، بدلة، هودي، حذاء وأكثر", icon: "clothes" },
   ]);
-  return view(png, "shops.png", [row(btn(id(owner, "flower"), "محل ورد", ButtonStyle.Primary), btn(id(owner, "jewelry"), "محل مجوهرات", ButtonStyle.Primary), btn(id(owner, "cars"), "معرض سيارات", ButtonStyle.Primary), btn(id(owner, "phones"), "محل هواتف", ButtonStyle.Primary), btn(id(owner, "parts"), "سبير بارتس", ButtonStyle.Primary)), row(btn(id(owner, "furn"), "محل الأثاث", ButtonStyle.Primary))], "المحلات: محل ورد، محل مجوهرات، معرض سيارات، محل هواتف، محل سبير بارتس، محل الأثاث");
+  return view(png, "shops.png", [row(btn(id(owner, "flower"), "محل ورد", ButtonStyle.Primary), btn(id(owner, "jewelry"), "محل مجوهرات", ButtonStyle.Primary), btn(id(owner, "cars"), "معرض سيارات", ButtonStyle.Primary), btn(id(owner, "phones"), "محل هواتف", ButtonStyle.Primary), btn(id(owner, "parts"), "سبير بارتس", ButtonStyle.Primary)), row(btn(id(owner, "furn"), "محل الأثاث", ButtonStyle.Primary), btn(id(owner, "cloth"), "محل الملابس", ButtonStyle.Primary))], "المحلات: محل ورد، محل مجوهرات، معرض سيارات، محل هواتف، محل سبير بارتس، محل الأثاث، محل الملابس");
 }
 
 async function flowerView(owner: string, guildId: string, note?: string): Promise<BaseMessageOptions> {
@@ -83,7 +84,7 @@ async function estateView(owner: string, guildId: string, note?: string): Promis
 async function carsView(owner: string, guildId: string, note?: string): Promise<BaseMessageOptions> {
   const inv = await Inventory.findOne({ userId: owner, guildId }, { items: 1 });
   const have = (inv?.items ?? {}) as Record<string, number>;
-  const rows = CAR_IDS.map((k) => ({ id: k, name: ITEMS[k].name, price: ITEMS[k].price, count: Number(have[k] ?? 0) }));
+  const rows = SHOWROOM_IDS.map((k) => ({ id: k, name: ITEMS[k].name, price: ITEMS[k].price, count: Number(have[k] ?? 0) }));
   const png = await renderCars(rows);
   const menu = new StringSelectMenuBuilder()
     .setCustomId(id(owner, "cbuy"))
@@ -102,6 +103,18 @@ async function phonesView(owner: string, guildId: string, note?: string): Promis
     .setPlaceholder("اختر هاتف للشراء")
     .addOptions(rows.map((r) => ({ label: r.name, value: r.id, description: `${r.price.toLocaleString("en-US")} ${CURRENCY.name}` })));
   return view(png, "phones.png", [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)], rows.map((r) => `${r.name}: ${r.price}`).join("\n"), note);
+}
+
+async function clothesView(owner: string, guildId: string, note?: string): Promise<BaseMessageOptions> {
+  const inv = await Inventory.findOne({ userId: owner, guildId }, { items: 1 });
+  const have = (inv?.items ?? {}) as Record<string, number>;
+  const rows = CLOTHES_IDS.map((k) => ({ id: k, name: ITEMS[k].name, price: ITEMS[k].price, count: Number(have[k] ?? 0) }));
+  const png = await renderClothes(rows);
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId(id(owner, "clbuy"))
+    .setPlaceholder("اختر قطعة ملابس للشراء")
+    .addOptions(rows.map((r) => ({ label: r.name, value: r.id, description: `${r.price.toLocaleString("en-US")} ${CURRENCY.name}` })));
+  return view(png, "clothes.png", [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)], rows.map((r) => `${r.name}: ${r.price}`).join("\n"), note);
 }
 
 async function furnitureView(owner: string, guildId: string, note?: string): Promise<BaseMessageOptions> {
@@ -312,6 +325,7 @@ export async function handleShopComponent(i: ButtonInteraction | StringSelectMen
   if (act === "phones") return await edit(await phonesView(owner, guild.id)), true;
   if (act === "parts") return await edit(await partsHome(owner, guild.id)), true;
   if (act === "furn") return await edit(await furnitureView(owner, guild.id)), true;
+  if (act === "cloth") return await edit(await clothesView(owner, guild.id)), true;
 
   if (act === "buy") {
     const item = arg === "ring" ? "ring" : "flower";
@@ -335,8 +349,8 @@ export async function handleShopComponent(i: ButtonInteraction | StringSelectMen
     return await edit(await estateView(owner, guild.id, `✅ اشتريت ${ITEMS[key].name} بـ ${cost.toLocaleString("en-US")}. شوفه في !مقتنياتي`)), true;
   }
   if (act === "cbuy" && i.isStringSelectMenu()) {
-    const key = i.values[0] as (typeof CAR_IDS)[number];
-    if (!CAR_IDS.includes(key)) return await edit(await carsView(owner, guild.id)), true;
+    const key = i.values[0] as (typeof SHOWROOM_IDS)[number];
+    if (!SHOWROOM_IDS.includes(key)) return await edit(await carsView(owner, guild.id)), true;
     const cost = ITEMS[key].price;
     // نحجز السيارة أول (مرة وحدة لكل موديل)، وبعدها ندفع
     const reserved = await Inventory.findOneAndUpdate({ userId: owner, guildId: guild.id, [`items.${key}`]: { $not: { $gte: 1 } } }, { $inc: { [`items.${key}`]: 1 } }, { upsert: true }).then(() => true, () => false);
@@ -373,6 +387,16 @@ export async function handleShopComponent(i: ButtonInteraction | StringSelectMen
     await Inventory.updateOne({ userId: owner, guildId: guild.id }, { $inc: { [`items.${key}`]: 1 } }, { upsert: true });
     await logTransaction(guild.id, owner, "shop_purchase", cost);
     return await edit(await furnitureView(owner, guild.id, `✅ اشتريت ${ITEMS[key].name} بـ ${cost.toLocaleString("en-US")}. شوفها في !مقتنياتي`)), true;
+  }
+  if (act === "clbuy" && i.isStringSelectMenu()) {
+    const key = i.values[0] as (typeof CLOTHES_IDS)[number];
+    if (!CLOTHES_IDS.includes(key)) return await edit(await clothesView(owner, guild.id)), true;
+    const cost = ITEMS[key].price;
+    const paid = await UserProfile.findOneAndUpdate({ userId: owner, guildId: guild.id, coins: { $gte: cost } }, { $inc: { coins: -cost } });
+    if (!paid) return await edit(await clothesView(owner, guild.id, `❌ ما تكفي محفظتك (${cost.toLocaleString("en-US")}).`)), true;
+    await Inventory.updateOne({ userId: owner, guildId: guild.id }, { $inc: { [`items.${key}`]: 1 } }, { upsert: true });
+    await logTransaction(guild.id, owner, "shop_purchase", cost);
+    return await edit(await clothesView(owner, guild.id, `✅ اشتريت ${ITEMS[key].name} بـ ${cost.toLocaleString("en-US")}. شوفها في !مقتنياتي`)), true;
   }
   if (act === "ipg") return await edit(await inventoryView(guild, owner, Number(arg) || 0)), true;
 
