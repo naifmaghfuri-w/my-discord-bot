@@ -605,38 +605,6 @@ function drawClothes(ctx: SKRSContext2D, kind: string, cx: number, cy: number, k
       line([[-26, -38], [-14, -32]], "#fbbf24", 2);
       line([[26, -38], [14, -32]], "#fbbf24", 2);
       break;
-    case "thobe":
-      poly([[-22, -62], [22, -62], [34, -42], [64, 4], [56, 14], [36, -8], [42, 64], [-42, 64], [-36, -8], [-56, 14], [-64, 4], [-34, -42]], "#f8fafc");
-      line([[0, -60], [0, 20]], "#cbd5e1", 3);
-      ctx.fillStyle = "#94a3b8";
-      for (let y = -44; y < 16; y += 14) {
-        ctx.beginPath();
-        ctx.arc(0, y, 2.5, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      break;
-    case "shmagh": {
-      poly([[0, -60], [64, 0], [0, 60], [-64, 0]], "#f8fafc");
-      ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(0, -60);
-      ctx.lineTo(64, 0);
-      ctx.lineTo(0, 60);
-      ctx.lineTo(-64, 0);
-      ctx.closePath();
-      ctx.clip();
-      for (let i = -80; i <= 80; i += 16) {
-        line([[i, -70], [i, 70]], "#dc2626", 4);
-        line([[-80, i], [80, i]], "#dc2626", 4);
-      }
-      ctx.restore();
-      ctx.strokeStyle = "#111827";
-      ctx.lineWidth = 8;
-      ctx.beginPath();
-      ctx.ellipse(0, -14, 26, 10, 0, 0, Math.PI * 2);
-      ctx.stroke();
-      break;
-    }
     case "leather_jacket":
       top("#1f2937", true);
       poly([[-30, -52], [0, -8], [-14, -58]], "#374151");
@@ -656,12 +624,37 @@ function drawClothes(ctx: SKRSContext2D, kind: string, cx: number, cy: number, k
       poly([[-18, -62], [-8, -62], [0, -48], [8, -62], [18, -62], [22, -22], [66, 62], [-66, 62], [-22, -22]], "#ec4899");
       box(-22, -24, 44, 8, 3, "#be185d");
       break;
-    case "abaya":
-      poly([[-22, -62], [22, -62], [34, -42], [64, 4], [56, 14], [36, -8], [46, 64], [-46, 64], [-36, -8], [-56, 14], [-64, 4], [-34, -42]], "#111827");
-      line([[-44, 60], [44, 60]], "#d4af37", 4);
-      line([[0, -60], [0, 56]], "#374151", 2);
-      line([[-60, 6], [-52, 12]], "#d4af37", 3);
-      line([[60, 6], [52, 12]], "#d4af37", 3);
+    case "cap":
+      ctx.fillStyle = "#2563eb";
+      ctx.beginPath();
+      ctx.arc(0, 14, 50, Math.PI, 0);
+      ctx.closePath();
+      ctx.fill();
+      box(10, 8, 62, 12, 6, "#1e3a8a");
+      ctx.fillStyle = "#f8fafc";
+      ctx.beginPath();
+      ctx.arc(0, -36, 6, 0, Math.PI * 2);
+      ctx.fill();
+      line([[0, -34], [0, 14]], "#1e40af", 2);
+      break;
+    case "shorts":
+      poly([[-40, -40], [40, -40], [46, 36], [8, 36], [0, -2], [-8, 36], [-46, 36]], "#f59e0b");
+      box(-40, -44, 80, 14, 3, "#b45309");
+      line([[-18, -30], [-18, -14]], "#fde68a", 3);
+      line([[0, -28], [0, -2]], "#b45309", 2);
+      break;
+    case "coat":
+      poly([[-24, -62], [24, -62], [36, -42], [64, 8], [56, 18], [38, -4], [46, 64], [-46, 64], [-38, -4], [-56, 18], [-64, 8], [-36, -42]], "#78350f");
+      poly([[-24, -62], [0, -30], [-12, -62]], "#92400e");
+      poly([[24, -62], [0, -30], [12, -62]], "#92400e");
+      line([[0, -30], [0, 62]], "#451a03", 3);
+      ctx.fillStyle = "#fde68a";
+      for (let y = -14; y < 50; y += 18) {
+        ctx.beginPath();
+        ctx.arc(-8, y, 3, 0, Math.PI * 2);
+        ctx.arc(8, y, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
       break;
     case "sneakers":
       poly([[-62, 8], [-62, -8], [-20, -30], [-6, -20], [20, -4], [58, 6], [62, 22], [-62, 22]], "#ef4444");
@@ -675,7 +668,7 @@ function drawClothes(ctx: SKRSContext2D, kind: string, cx: number, cy: number, k
 }
 
 const CAR_KEYS = ["cherry_arrizo", "land_cruiser", "rolls_royce", "actros"];
-const CLOTH_KEYS = ["tshirt", "hoodie", "jeans", "thobe", "shmagh", "leather_jacket", "suit", "dress", "abaya", "sneakers"];
+const CLOTH_KEYS = ["tshirt", "cap", "shorts", "jeans", "hoodie", "sneakers", "leather_jacket", "dress", "coat", "suit"];
 
 /** يرسم أيقونة غرض مقتنيات/محل */
 function drawIcon(ctx: SKRSContext2D, icon: string, cx: number, cy: number, k: number): void {
