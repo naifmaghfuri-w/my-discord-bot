@@ -1,13 +1,12 @@
 import type { Message } from "discord.js";
 import { Inventory } from "../database/models/Inventory";
-import { CAR_IDS, ESTATE_IDS, FURNITURE_IDS, ITEMS, PHONE_IDS, type ItemId } from "./data";
+import { CAR_IDS, ESTATE_IDS, ITEMS, PHONE_IDS, TRUCK_IDS, type ItemId } from "./data";
 
 /** !اهداء اسم الغرض @شخص  (أو !اهداء @شخص اسم الغرض) */
 export const GIFT_TRIGGER = /^!\s*(?:اهداء|إهداء)(?:\s+(.+))?$/;
 
 const noPing = (id?: string) => ({ parse: [] as never[], users: id ? [id] : [], repliedUser: false });
-const UNIQUE = new Set<string>([...ESTATE_IDS, ...CAR_IDS, ...PHONE_IDS]);
-void FURNITURE_IDS;
+const UNIQUE = new Set<string>([...ESTATE_IDS, ...CAR_IDS, ...TRUCK_IDS, ...PHONE_IDS]);
 
 const norm = (s: string) => s.replace(/[ًٌٍَُِّْـ]/g, "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/\s+/g, " ").trim().toLowerCase();
 
