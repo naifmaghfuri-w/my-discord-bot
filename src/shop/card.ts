@@ -262,6 +262,23 @@ export function drawCar(ctx: SKRSContext2D, kind: string, cx: number, cy: number
     rbox(96, 8, 6, 8, 2, "#fde68a");
     wheel(-72, 42, 23);
     wheel(72, 42, 23);
+  } else if (kind === "actros") {
+    // شاحنة: حاوية شحن كبيرة (صناديق شركات) + كابينة
+    rbox(-118, -46, 150, 76, 4, "#1d4ed8");
+    ctx.fillStyle = "#1e3a8a";
+    for (let x = -108; x < 30; x += 14) ctx.fillRect(x, -44, 4, 72);
+    ctx.fillStyle = "#fbbf24";
+    ctx.fillRect(-118, 22, 150, 5);
+    rbox(-118, 30, 236, 10, 3, "#334155");
+    poly([[38, -20], [78, -20], [100, 6], [118, 6], [118, 30], [38, 30]], "#f1f5f9");
+    poly([[46, -14], [74, -14], [90, 4], [46, 4]], "#7dd3fc");
+    rbox(108, 12, 10, 8, 2, "#fde68a");
+    ctx.fillStyle = "#475569";
+    ctx.fillRect(100, -38, 5, 20);
+    wheel(-86, 42, 17);
+    wheel(-54, 42, 17);
+    wheel(-22, 42, 17);
+    wheel(84, 42, 18);
   } else {
     rbox(-106, 0, 212, 42, 14, "#dc2626");
     poly([[-62, 0], [-40, -36], [36, -36], [68, 0]], "#dc2626");
@@ -529,7 +546,136 @@ function drawFurniture(ctx: SKRSContext2D, kind: string, cx: number, cy: number,
   ctx.restore();
 }
 
-const CAR_KEYS = ["cherry_arrizo", "land_cruiser", "rolls_royce"];
+
+/** يرسم قطعة ملابس (مركزها cx,cy؛ المساحة تقريباً 140×130 عند k=1) */
+function drawClothes(ctx: SKRSContext2D, kind: string, cx: number, cy: number, k = 1): void {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(k, k);
+  const poly = (pts: [number, number][], c: string) => {
+    ctx.fillStyle = c;
+    ctx.beginPath();
+    pts.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
+    ctx.closePath();
+    ctx.fill();
+  };
+  const line = (pts: [number, number][], c: string, w: number) => {
+    ctx.strokeStyle = c;
+    ctx.lineWidth = w;
+    ctx.beginPath();
+    pts.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
+    ctx.stroke();
+  };
+  const box = (x: number, y: number, w: number, h: number, r: number, c: string) => {
+    ctx.fillStyle = c;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
+    ctx.fill();
+  };
+  const top = (c: string, long: boolean) => {
+    const sy = long ? 56 : -8;
+    poly([[-30, -52], [-12, -58], [12, -58], [30, -52], [62, long ? -20 : -28], [long ? 54 : 48, sy], [30, long ? 34 : -18], [30, 58], [-30, 58], [-30, long ? 34 : -18], [long ? -54 : -48, sy], [-62, long ? -20 : -28]], c);
+  };
+  switch (kind) {
+    case "tshirt":
+      top("#38bdf8", false);
+      ctx.fillStyle = "#0ea5e9";
+      ctx.beginPath();
+      ctx.ellipse(0, -56, 14, 8, 0, 0, Math.PI);
+      ctx.fill();
+      break;
+    case "hoodie":
+      top("#64748b", true);
+      ctx.fillStyle = "#475569";
+      ctx.beginPath();
+      ctx.arc(0, -52, 22, Math.PI, 0);
+      ctx.fill();
+      ctx.fillStyle = "#334155";
+      ctx.beginPath();
+      ctx.ellipse(0, -52, 12, 8, 0, 0, Math.PI);
+      ctx.fill();
+      box(-20, 20, 40, 22, 6, "#475569");
+      line([[-6, -46], [-6, -22]], "#e2e8f0", 3);
+      line([[6, -46], [6, -22]], "#e2e8f0", 3);
+      break;
+    case "jeans":
+      poly([[-34, -58], [34, -58], [42, 62], [8, 62], [0, -8], [-8, 62], [-42, 62]], "#1d4ed8");
+      box(-34, -60, 68, 14, 3, "#1e3a8a");
+      line([[0, -46], [0, -8]], "#1e3a8a", 3);
+      line([[-26, -38], [-14, -32]], "#fbbf24", 2);
+      line([[26, -38], [14, -32]], "#fbbf24", 2);
+      break;
+    case "thobe":
+      poly([[-22, -62], [22, -62], [34, -42], [64, 4], [56, 14], [36, -8], [42, 64], [-42, 64], [-36, -8], [-56, 14], [-64, 4], [-34, -42]], "#f8fafc");
+      line([[0, -60], [0, 20]], "#cbd5e1", 3);
+      ctx.fillStyle = "#94a3b8";
+      for (let y = -44; y < 16; y += 14) {
+        ctx.beginPath();
+        ctx.arc(0, y, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    case "shmagh": {
+      poly([[0, -60], [64, 0], [0, 60], [-64, 0]], "#f8fafc");
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(0, -60);
+      ctx.lineTo(64, 0);
+      ctx.lineTo(0, 60);
+      ctx.lineTo(-64, 0);
+      ctx.closePath();
+      ctx.clip();
+      for (let i = -80; i <= 80; i += 16) {
+        line([[i, -70], [i, 70]], "#dc2626", 4);
+        line([[-80, i], [80, i]], "#dc2626", 4);
+      }
+      ctx.restore();
+      ctx.strokeStyle = "#111827";
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.ellipse(0, -14, 26, 10, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      break;
+    }
+    case "leather_jacket":
+      top("#1f2937", true);
+      poly([[-30, -52], [0, -8], [-14, -58]], "#374151");
+      poly([[30, -52], [0, -8], [14, -58]], "#374151");
+      line([[0, -8], [0, 58]], "#9ca3af", 3);
+      box(-24, 20, 14, 5, 2, "#111827");
+      box(10, 20, 14, 5, 2, "#111827");
+      break;
+    case "suit":
+      top("#111827", true);
+      poly([[-14, -58], [14, -58], [0, 8]], "#f8fafc");
+      poly([[-4, -50], [4, -50], [7, -20], [0, -8], [-7, -20]], "#dc2626");
+      line([[-14, -58], [-2, 26]], "#374151", 3);
+      line([[14, -58], [2, 26]], "#374151", 3);
+      break;
+    case "dress":
+      poly([[-18, -62], [-8, -62], [0, -48], [8, -62], [18, -62], [22, -22], [66, 62], [-66, 62], [-22, -22]], "#ec4899");
+      box(-22, -24, 44, 8, 3, "#be185d");
+      break;
+    case "abaya":
+      poly([[-22, -62], [22, -62], [34, -42], [64, 4], [56, 14], [36, -8], [46, 64], [-46, 64], [-36, -8], [-56, 14], [-64, 4], [-34, -42]], "#111827");
+      line([[-44, 60], [44, 60]], "#d4af37", 4);
+      line([[0, -60], [0, 56]], "#374151", 2);
+      line([[-60, 6], [-52, 12]], "#d4af37", 3);
+      line([[60, 6], [52, 12]], "#d4af37", 3);
+      break;
+    case "sneakers":
+      poly([[-62, 8], [-62, -8], [-20, -30], [-6, -20], [20, -4], [58, 6], [62, 22], [-62, 22]], "#ef4444");
+      box(-66, 20, 132, 16, 8, "#f8fafc");
+      line([[-14, -22], [4, -8]], "#f8fafc", 3);
+      line([[-24, -16], [-6, -2]], "#f8fafc", 3);
+      line([[-34, -10], [-16, 4]], "#f8fafc", 3);
+      break;
+  }
+  ctx.restore();
+}
+
+const CAR_KEYS = ["cherry_arrizo", "land_cruiser", "rolls_royce", "actros"];
+const CLOTH_KEYS = ["tshirt", "hoodie", "jeans", "thobe", "shmagh", "leather_jacket", "suit", "dress", "abaya", "sneakers"];
 
 /** يرسم أيقونة غرض مقتنيات/محل */
 function drawIcon(ctx: SKRSContext2D, icon: string, cx: number, cy: number, k: number): void {
@@ -538,6 +684,7 @@ function drawIcon(ctx: SKRSContext2D, icon: string, cx: number, cy: number, k: n
   else if (CAR_KEYS.includes(icon)) drawCar(ctx, icon, cx, cy, k);
   else if (PHONE_KEYS.includes(icon)) drawPhone(ctx, icon, cx, cy, k * 0.8);
   else if (FURN_KEYS.includes(icon) || icon === "furniture") drawFurniture(ctx, icon === "furniture" ? "sofa" : icon, cx, cy, k * 0.7);
+  else if (CLOTH_KEYS.includes(icon) || icon === "clothes") drawClothes(ctx, icon === "clothes" ? "hoodie" : icon, cx, cy, k * 0.75);
   else if (icon === "parts") drawGear(ctx, cx, cy, k);
   else drawProperty(ctx, icon, cx, cy, k);
 }
@@ -796,6 +943,56 @@ export async function renderFurniture(rows: { id: string; name: string; price: n
       rr(ctx, PAD, y, W - PAD * 2, 84, 18);
       ctx.fill();
       drawFurniture(ctx, r.id, W - PAD - 82, y + 42, 0.42);
+      ctx.textAlign = "right";
+      ctx.fillStyle = "#f8fafc";
+      fit(ctx, r.name, family, 30, 330);
+      ctx.fillText(r.name, W - PAD - 150, y + 42);
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#fbbf24";
+      ctx.font = `700 30px "${family}"`;
+      ctx.fillText(`${fmt(r.price)} ${CURRENCY.name}`, 420, y + 42);
+      ctx.fillStyle = r.count > 0 ? "#4ade80" : "#64748b";
+      ctx.font = `700 30px "${family}"`;
+      ctx.fillText(`× ${fmt(r.count)}`, 150, y + 42);
+    });
+    return await canvas.encode("png");
+  } catch {
+    return null;
+  }
+}
+
+/** محل الملابس */
+export async function renderClothes(rows: { id: string; name: string; price: number; count: number }[]): Promise<Buffer | null> {
+  try {
+    const family = ensureFontsRegistered() ? FONT_BOLD : "sans-serif";
+    const H = 214 + rows.length * 96 + 20;
+    const canvas = createCanvas(W, H);
+    const ctx = canvas.getContext("2d");
+    ctx.textBaseline = "middle";
+    bg(ctx, H, "rgba(168,85,247,0.12)");
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#f8fafc";
+    ctx.font = `700 46px "${family}"`;
+    ctx.fillText("محل الملابس", W - PAD, 62);
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = `700 21px "${family}"`;
+    ctx.fillText("اختر قطعة من القائمة اللي تحت للشراء (تقدر تشتري أكثر من وحدة)", W - PAD, 108);
+    ctx.fillStyle = "rgba(255,255,255,0.08)";
+    rr(ctx, PAD, 146, W - PAD * 2, 52, 16);
+    ctx.fill();
+    ctx.fillStyle = "#cbd5e1";
+    ctx.font = `700 21px "${family}"`;
+    ctx.textAlign = "right";
+    ctx.fillText("القطعة", W - PAD - 150, 172);
+    ctx.textAlign = "center";
+    ctx.fillText("السعر", 420, 172);
+    ctx.fillText("عندك", 150, 172);
+    rows.forEach((r, i) => {
+      const y = 214 + i * 96;
+      ctx.fillStyle = i % 2 === 0 ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.02)";
+      rr(ctx, PAD, y, W - PAD * 2, 84, 18);
+      ctx.fill();
+      drawClothes(ctx, r.id, W - PAD - 82, y + 42, 0.42);
       ctx.textAlign = "right";
       ctx.fillStyle = "#f8fafc";
       fit(ctx, r.name, family, 30, 330);
