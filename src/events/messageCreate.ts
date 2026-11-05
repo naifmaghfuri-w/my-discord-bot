@@ -48,6 +48,7 @@ import { handleFireMessage } from "../jobs/fire";
 import { CASINO_TRIGGER, handleCasinoMessage } from "../casino/text";
 import { handleMailSendMessage } from "../mail/text";
 import { handleInviteMessage } from "../invites/text";
+import { handleGiftMessage } from "../shop/gift";
 import { CHATPANEL_TRIGGER, handleChatPanelMessage } from "../chat/text";
 import { VIP_TRIGGER, handleVipMessage } from "../vip/text";
 import { ROLES_TRIGGER, handleRolesPanelMessage } from "../roles/text";
@@ -129,6 +130,7 @@ const event: BotEvent = {
     if (await handleFireMessage(message)) return;
     if (await handleMailSendMessage(message)) return;
     if (await handleInviteMessage(message)) return;
+    if (await handleGiftMessage(message)) return;
 
     // --- إدارة: !تحذير !تحذيرات !ميوت !نو ميوت !بان !نو بان ---
     if (await handleModerationText(message)) return;
