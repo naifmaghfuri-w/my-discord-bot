@@ -38,6 +38,11 @@ function view(png: Buffer | null, name: string, components: ActionRowBuilder<any
   return { content: note ?? "", embeds: [embed], files: png ? [new AttachmentBuilder(png, { name })] : [], components };
 }
 
+/** /shop: يفتح قائمة المحلات (نفس !محلات) */
+export async function handleShopSlash(i: import("discord.js").ChatInputCommandInteraction): Promise<void> {
+  await i.reply(await shopsView(i.user.id)).catch(() => undefined);
+}
+
 /* ───────── المحلات ───────── */
 
 async function shopsView(owner: string): Promise<BaseMessageOptions> {
