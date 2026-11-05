@@ -28,12 +28,12 @@ export const ITEMS = {
   tshirt: { name: "تيشيرت", price: 150, love: 0 },
   hoodie: { name: "هودي", price: 450, love: 0 },
   jeans: { name: "بنطلون جينز", price: 350, love: 0 },
-  thobe: { name: "ثوب", price: 600, love: 0 },
-  shmagh: { name: "شماغ", price: 300, love: 0 },
+  cap: { name: "كاب", price: 200, love: 0 },
+  shorts: { name: "شورت", price: 250, love: 0 },
+  coat: { name: "معطف شتوي", price: 1800, love: 0 },
   leather_jacket: { name: "جاكيت جلد", price: 1200, love: 0 },
   suit: { name: "بدلة رسمية", price: 2800, love: 0 },
   dress: { name: "فستان", price: 1500, love: 0 },
-  abaya: { name: "عباية", price: 900, love: 0 },
   sneakers: { name: "حذاء رياضي", price: 700, love: 0 },
 } as const;
 export type ItemId = keyof typeof ITEMS;
@@ -67,5 +67,5 @@ export type TruckId = (typeof TRUCK_IDS)[number];
 export const SHOWROOM_IDS = [...CAR_IDS, ...TRUCK_IDS] as const;
 
 /** الملابس بترتيب العرض (يمكن شراء القطعة أكثر من مرة) */
-export const CLOTHES_IDS = ["tshirt", "hoodie", "jeans", "thobe", "shmagh", "leather_jacket", "suit", "dress", "abaya", "sneakers"] as const;
+export const CLOTHES_IDS = ["tshirt", "cap", "shorts", "jeans", "hoodie", "sneakers", "leather_jacket", "dress", "coat", "suit"] as const;
 export type ClothesId = (typeof CLOTHES_IDS)[number];
