@@ -2,8 +2,11 @@ import { REST, Routes, SlashCommandBuilder } from "discord.js";
 import { config } from "./config";
 import { logger } from "./utils/logger";
 
-/** أوامر السلاش الوحيدة: /mail (باقي الأوامر كتابية). أي سلاش قديم غيره يُمسح */
-const COMMANDS = [new SlashCommandBuilder().setName("mail").setDescription("📫 View your mailbox.").setDMPermission(false).toJSON()];
+/** أوامر السلاش: /mail و /shop (باقي الأوامر كتابية). أي سلاش قديم غيره يُمسح */
+const COMMANDS = [
+  new SlashCommandBuilder().setName("mail").setDescription("📫 View your mailbox.").setDMPermission(false).toJSON(),
+  new SlashCommandBuilder().setName("shop").setDescription("🛒 Browse the shops.").setDMPermission(false).toJSON(),
+];
 
 export async function deployCommands(): Promise<void> {
   const rest = new REST().setToken(config.token);
