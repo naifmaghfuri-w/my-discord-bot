@@ -2,9 +2,10 @@ import { REST, Routes, SlashCommandBuilder } from "discord.js";
 import { config } from "./config";
 import { logger } from "./utils/logger";
 
-/** أوامر السلاش: /mail و /shop (باقي الأوامر كتابية). أي سلاش قديم غيره يُمسح */
+/** أوامر السلاش: /mail و /shop و /work (باقي الأوامر كتابية). أي سلاش قديم غيره يُمسح */
 const COMMANDS = [
   new SlashCommandBuilder().setName("mail").setDescription("📫 View your mailbox.").setDMPermission(false).toJSON(),
+  new SlashCommandBuilder().setName("work").setDescription("💼 Work your shift (or steal, if you are a thief).").setDMPermission(false).toJSON(),
   new SlashCommandBuilder().setName("shop").setDescription("🛒 Browse the shops.").setDMPermission(false).toJSON(),
 ];
 
