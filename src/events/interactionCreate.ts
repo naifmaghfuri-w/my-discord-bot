@@ -1,5 +1,6 @@
 import { handleTopButton } from "../top/text";
 import { handleShopComponent, handleShopSlash } from "../shop/text";
+import { handleWorkSlash } from "../jobs/workSlash";
 import { handleVipComponent } from "../vip/text";
 import { handleRolesComponent } from "../roles/text";
 import { handleProfileComponent } from "../profile/text";
@@ -51,6 +52,10 @@ const event: BotEvent = {
     }
 
     // --- البريد: /mail وأزرار وقوائم ونماذج mail| ---
+    if (interaction.isChatInputCommand() && interaction.commandName === "work") {
+      await handleWorkSlash(interaction).catch((err) => logger.error("خطأ في /work", err));
+      return;
+    }
     if (interaction.isChatInputCommand() && interaction.commandName === "shop") {
       await handleShopSlash(interaction).catch((err) => logger.error("خطأ في /shop", err));
       return;
