@@ -130,6 +130,7 @@ export async function handleJobSelect(i: StringSelectMenuInteraction): Promise<b
   else if (r.reason === "coins") note = "❌ رسوم التقديم ما تكفي في محفظتك.";
   else if (r.reason === "blocked") note = `⏳ تقدر تقدّم بعد ${fmtMs(r.msLeft ?? 0)}.`;
   else if (r.reason === "has_job") note = "❌ عندك وظيفة بالفعل. استقل أولًا.";
+  else if (r.reason === "in_company") note = "❌ أنت عضو في شركة، ما تقدر تتوظف وظيفة عادية. اخرج من الشركة أولًا.";
   else note = "❌ تعذّر التقديم.";
   const { jp, ctx } = await loadViewData(i.user.id, i.guildId);
   await i.update(buildJobsPanel(i.user.id, jp, ctx, note));
